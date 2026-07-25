@@ -213,6 +213,8 @@ alias usep10k='PROMPT_ENGINE=p10k exec zsh'
 # Use Python 3 when typing python.
 alias python='python3'
 
+# Use Fastfetch to display system information.
+alias ff='fastfetch'
 
 # ==============================
 # Eza
@@ -435,6 +437,7 @@ fi
 #
 #   fk
 if (( $+commands[thefuck] )); then
+  eval "$(thefuck --alias)"
   eval "$(thefuck --alias fk)"
 fi
 
