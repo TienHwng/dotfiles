@@ -219,17 +219,29 @@ alias python='python3'
 # Use Fastfetch to display system information.
 alias ff='fastfetch'
 
+
 # ==============================
 # Eza
 # ==============================
 
 if (( $+commands[eza] )); then
-  unalias ls ll la lt 2>/dev/null
+  unalias ls ll la lt tree 2>/dev/null
 
   alias ls='eza --icons=auto --group-directories-first'
   alias ll='eza -lah --icons=auto --group-directories-first --git'
   alias la='eza -a --icons=auto --group-directories-first'
   alias lt='eza --tree --icons=auto --group-directories-first'
+  
+  # Use eza to display directory tree with icons and group directories first instead of the default tree command.
+  alias tree='eza --tree --icons=auto --group-directories-first'
+fi
+
+
+# ==============================
+# Tree
+# ==============================
+if (( $+commands[tree] )); then
+  alias btree='command tree'
 fi
 
 
