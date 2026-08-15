@@ -1,0 +1,17 @@
+# One exact WinGet package ID per line
+Git.Git
+Microsoft.PowerShell
+jqlang.jq
+BurntSushi.ripgrep.MSVC
+sharkdp.fd
+sharkdp.bat
+Neovim.Neovim
+junegunn.fzf
+7zip.7zip
+GitHub.cli
+Python.Python.3.13
+koalaman.shellcheck
+mvdan.shfmt
+Microsoft.WindowsTerminal
+wez.wezterm
+Microsoft.PowerToys

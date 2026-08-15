@@ -35,3 +35,7 @@ Desktop.ini
 
 # Logs
 *.log
+
+# Temp folder
+temp/
+misc/

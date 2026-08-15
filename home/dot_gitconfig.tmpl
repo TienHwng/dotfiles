@@ -1,0 +1,39 @@
+[user]
+{{- if .git.name }}
+	name = {{ .git.name }}
+{{- end }}
+{{- if .git.email }}
+	email = {{ .git.email }}
+{{- end }}
+
+[init]
+	defaultBranch = main
+
+[fetch]
+	prune = true
+
+[rerere]
+	enabled = true
+
+[push]
+	autoSetupRemote = true
+
+[core]
+	editor = nvim
+{{- if eq .chezmoi.os "windows" }}
+	autocrlf = false
+{{- else }}
+	autocrlf = input
+{{- end }}
+
+[credential]
+{{- if eq .chezmoi.os "windows" }}
+	helper = manager-core
+{{- else }}
+	helper = cache --timeout=7200
+{{- end }}
+
+{{- if .accounts.github.username }}
+[github]
+	user = {{ .accounts.github.username }}
+{{- end }}

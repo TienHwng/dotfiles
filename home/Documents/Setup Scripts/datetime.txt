@@ -1,0 +1,4 @@
+windows:
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation" /v RealTimeIsUniversal /t REG_DWORD /d 1 /f
+linux:
+sudo timedatectl set-local-rtc 1 --adjust-system-clock

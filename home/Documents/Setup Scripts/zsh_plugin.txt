@@ -1,0 +1,6 @@
+zsh plugin:
+- https://github.com/zsh-users/zsh-syntax-highlighting
+- https://github.com/zsh-users/zsh-autosuggestions
+- https://github.com/zsh-users/zsh-history-substring-search
+- https://github.com/MichaelAquilina/zsh-auto-notify
+- https://github.com/MichaelAquilina/zsh-you-should-use

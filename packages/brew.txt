@@ -1,0 +1,20 @@
+# Homebrew formulae
+git
+curl
+wget
+jq
+rsync
+zsh
+tmux
+fzf
+ripgrep
+fd
+bat
+neovim
+shellcheck
+shfmt
+python
+pipx
+
+# Prefix GUI applications with cask:
+cask:wezterm

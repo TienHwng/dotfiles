@@ -1,0 +1,21 @@
+Host *
+  ServerAliveInterval 60
+  ServerAliveCountMax 3
+  AddKeysToAgent yes
+
+{{- $keyPath := "~/.ssh/id_ed25519" }}
+{{- if eq .chezmoi.os "windows" }}
+{{- if .accounts.ssh.keyPathWindows }}
+{{- $keyPath = .accounts.ssh.keyPathWindows }}
+{{- end }}
+{{- else }}
+{{- if .accounts.ssh.keyPathArch }}
+{{- $keyPath = .accounts.ssh.keyPathArch }}
+{{- end }}
+{{- end }}
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile {{ $keyPath }}
+  IdentitiesOnly yes
+  AddKeysToAgent yes
