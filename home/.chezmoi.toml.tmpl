@@ -2,7 +2,10 @@
 {{- $gitEmail := promptStringOnce . "gitEmail" "Git email" "" -}}
 {{- $githubUsername := promptStringOnce . "githubUsername" "GitHub username (optional)" "" -}}
 {{- $sshEmail := promptStringOnce . "sshEmail" "SSH key email" "" -}}
+{{- /* Symlinks on Windows need Developer Mode or admin rights, so Windows copies files */ -}}
+{{- if ne .chezmoi.os "windows" -}}
 mode = "symlink"
+{{- end }}
 
 [data]
 gitName = {{ $gitName | quote }}

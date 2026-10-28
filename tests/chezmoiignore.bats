@@ -18,6 +18,7 @@ managed_for_os() {
   [ "$status" -eq 0 ]
   [[ "$output" == *'.config/nvim/init.lua'* ]]
   [[ "$output" == *'.gitconfig'* ]]
+  [[ "$output" == *'.config/powershell/profile.ps1'* ]]
 
   local linux_only
   for linux_only in .zshrc .oh-my-zsh .config/kitty .config/hypr .config/kwinrc \
@@ -29,7 +30,7 @@ managed_for_os() {
   done
 }
 
-@test "Linux keeps its shell, desktop, and system instance targets" {
+@test "Linux keeps its shell, desktop, and system instance targets but not Windows ones" {
   command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
 
   run managed_for_os linux
@@ -39,4 +40,5 @@ managed_for_os() {
   [[ "$output" == *'.config/chezmoi-root/chezmoi.toml'* ]]
   [[ "$output" == *'.config/nvim/init.lua'* ]]
   [[ "$output" == *'.local/bin/dots'* ]]
+  [[ "$output" != *'.config/powershell'* ]]
 }

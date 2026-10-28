@@ -27,5 +27,6 @@
 {{- if ne .chezmoi.os "windows" }}
 AppData
 Documents/PowerShell
+.config/powershell
 .wslconfig
 {{- end }}

@@ -220,7 +220,7 @@ Rules:
 |---|---|
 | chezmoi source in `home/` via `.chezmoiroot`, templates for git and SSH | `[Implemented]` |
 | OS-aware `.chezmoiignore` | `[Implemented]` |
-| Windows targets, `XDG_CONFIG_HOME`, PowerShell profile stub | `[Planned: P2]` |
+| Windows targets, `XDG_CONFIG_HOME`, PowerShell profile stub | `[Implemented]` |
 
 - **One config path on both OSes:** on Windows, set the user environment variable
   `XDG_CONFIG_HOME=%USERPROFILE%\.config`. Neovim, oh-my-posh, WezTerm/Alacritty, and git then read
@@ -228,15 +228,19 @@ Rules:
 - **`.chezmoiignore` is OS-aware** `[Implemented]`. Linux-only targets (`.zshrc`, `.oh-my-zsh`,
   kitty, hypr, tmux, fastfetch, KDE `*rc` files, `.local/share/plasma`, the system instance
   config) are ignored on every non-Linux OS; Windows-only targets (`AppData`,
-  `Documents/PowerShell`, `.wslconfig`) are ignored everywhere except Windows.
+  `Documents/PowerShell`, `.wslconfig`, `.config/powershell`) are ignored everywhere except Windows.
   `tests/chezmoiignore.bats` checks the managed set per OS by overriding `.chezmoi.os`
   (`chezmoi --override-data '{"chezmoi":{"os":"windows"}}' managed`). New OS-specific files
   MUST be added to the matching list.
 
+- **Windows copies files.** `home/.chezmoi.toml.tmpl` sets `mode = "symlink"` everywhere
+  except Windows, where symlinks need Developer Mode or admin rights.
 - **PowerShell profile:** OneDrive "Known Folder Move" can relocate `Documents`, so the repo
-  does not hard-code `Documents/PowerShell`. A `run_onchange_` script writes a small stub to
-  the real `$PROFILE.CurrentUserAllHosts` that dot-sources the chezmoi-managed
-  `~/.config/powershell/profile.ps1`. That profile starts oh-my-posh with the same theme
+  does not hard-code `Documents/PowerShell`. The `shell` step (`setup-shell.ps1`) sets
+  `XDG_CONFIG_HOME` and writes a small stub to the real `$PROFILE.CurrentUserAllHosts`
+  (`[Environment]::GetFolderPath('MyDocuments')\PowerShell\profile.ps1`) that dot-sources the
+  chezmoi-managed `~/.config/powershell/profile.ps1`. A different existing file there is moved
+  to `profile.ps1.bak-<timestamp>` first. The shared profile defines the `dots` function. That profile starts oh-my-posh with the same theme
   name as `.zshrc` (`OMP_THEME_NAME`, default `montys`).
 - Windows-only app configs, when one is managed, live under `home/AppData/…`.
 - Apps with their own sync are not configured here. `dots bootstrap` ends by printing

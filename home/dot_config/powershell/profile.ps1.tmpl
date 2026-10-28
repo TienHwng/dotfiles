@@ -1,0 +1,21 @@
+# Shared PowerShell 7 profile, managed by chezmoi (home/dot_config/powershell).
+# The stub that `dots bootstrap` (shell step) writes to $PROFILE.CurrentUserAllHosts
+# dot-sources this file, so OneDrive moving Documents does not matter.
+
+# The dots CLI lives in the repository
+function dots {
+    & '{{ joinPath .chezmoi.workingTree "scripts" "windows" "dots.ps1" | replace "'" "''" }}' @args
+}
+
+# Prompt: same oh-my-posh theme as .zshrc. OMP_THEME (a file) wins over OMP_THEME_NAME.
+if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
+    $ompTheme = if ($env:OMP_THEME) {
+        $env:OMP_THEME
+    } elseif ($env:OMP_THEME_NAME) {
+        $env:OMP_THEME_NAME
+    } else {
+        'montys'
+    }
+    oh-my-posh init pwsh --config $ompTheme | Invoke-Expression
+    Remove-Variable ompTheme
+}
