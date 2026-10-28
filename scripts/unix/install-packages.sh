@@ -5,22 +5,26 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # shellcheck source=scripts/unix/lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
-ROOT_DIR="$(repo_root)"
 DRY_RUN=0
+SHOW_DIFF=0
 AUR_HELPER="${AUR_HELPER:-paru}"
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/unix/install-packages.sh [--dry-run]
+  ./scripts/unix/install-packages.sh [--dry-run | --diff]
 
-Package files:
-  packages/arch.txt
-  packages/apt.txt
-  packages/fedora.txt
-  packages/brew.txt
+Packages come from the manifest home/.chezmoidata/packages.yaml:
+  arch  -> paru (Arch Linux, CachyOS)
+  apt   -> apt-get
+  brew  -> brew install; brewCask -> brew install --cask
 
-Homebrew GUI packages use the prefix: cask:
+Options:
+  --dry-run  print the install commands without running them
+  --diff     list installed packages missing from the manifest, and
+             manifest packages that are not installed (changes nothing)
+
+Set DOTFILES_HEADLESS=1 to skip GUI entries (WSL, servers).
 EOF
 }
 
@@ -28,6 +32,10 @@ while (($#)); do
   case "$1" in
     --dry-run)
       DRY_RUN=1
+      shift
+      ;;
+    --diff)
+      SHOW_DIFF=1
       shift
       ;;
     -h | --help)
@@ -41,26 +49,33 @@ done
 export DRY_RUN
 PLATFORM="$(detect_platform)"
 [[ "$PLATFORM" != 'unknown' ]] || die 'Unsupported Unix package manager.'
-PACKAGE_FILE="$ROOT_DIR/packages/$PLATFORM.txt"
-[[ -f "$PACKAGE_FILE" ]] || die "Package list does not exist: $PACKAGE_FILE"
+
+if ! has chezmoi; then
+  if [[ "$DRY_RUN" == '1' ]]; then
+    log_warn 'chezmoi is unavailable; the package manifest cannot be read in this dry-run.'
+    exit 0
+  fi
+  die 'chezmoi is required to read the package manifest (home/.chezmoidata/packages.yaml).'
+fi
 
 declare -a PACKAGES=()
 declare -a FORMULAE=()
 declare -a CASKS=()
 
+# Fill the array named $1 from the manifest list $2
+load_manifest_list() {
+  local -n target="$1"
+  local output
+
+  output="$(manifest_list "$2")" || die "Could not read the '$2' list from the package manifest."
+  # shellcheck disable=SC2034 # written through the nameref
+  [[ -z "$output" ]] || mapfile -t target <<<"$output"
+}
+
 cleanup_paru_build() {
   if [[ -n "${build_dir:-}" && -d "$build_dir" ]]; then
     rm -rf -- "$build_dir"
   fi
-}
-
-after_contains() {
-  local needle="$1" item
-  shift
-  for item in "$@"; do
-    [[ "$item" == "$needle" ]] && return 0
-  done
-  return 1
 }
 
 install_paru() {
@@ -111,16 +126,57 @@ install_paru() {
   has paru || die 'paru was installed but is not available in PATH.'
 }
 
-while IFS= read -r package; do
-  if [[ "$PLATFORM" == 'brew' && "$package" == cask:* ]]; then
-    package="${package#cask:}"
-    after_contains "$package" "${CASKS[@]:-}" || CASKS+=("$package")
-  elif [[ "$PLATFORM" == 'brew' ]]; then
-    after_contains "$package" "${FORMULAE[@]:-}" || FORMULAE+=("$package")
-  else
-    after_contains "$package" "${PACKAGES[@]:-}" || PACKAGES+=("$package")
-  fi
-done < <(read_list_file "$PACKAGE_FILE")
+# Extra = explicitly installed but not in the manifest; missing = in the manifest
+# but not installed at all (dependencies count as installed).
+show_package_diff() {
+  local explicit all manifest extra missing
+
+  case "$PLATFORM" in
+    arch)
+      require_command pacman 'pacman is required to list installed packages.'
+      explicit="$(pacman -Qqe)"
+      all="$(pacman -Qq)"
+      ;;
+    apt)
+      require_command apt-mark 'apt-mark is required to list installed packages.'
+      explicit="$(apt-mark showmanual)"
+      all="$(dpkg-query -W -f '${Package}\n')"
+      ;;
+    brew)
+      require_command brew 'brew is required to list installed packages.'
+      explicit="$(
+        brew leaves
+        brew list --cask
+      )"
+      all="$(
+        brew list --formula
+        brew list --cask
+      )"
+      ;;
+  esac
+
+  manifest="$(printf '%s\n' "${PACKAGES[@]}" "${FORMULAE[@]}" "${CASKS[@]}" | sed '/^$/d' | sort -u)"
+  extra="$(comm -13 <(printf '%s\n' "$manifest") <(sort -u <<<"$explicit") | sed '/^$/d')"
+  missing="$(comm -23 <(printf '%s\n' "$manifest") <(sort -u <<<"$all") | sed '/^$/d')"
+
+  log_step "Explicitly installed but not in the manifest ($(grep -c . <<<"$extra" || true)):"
+  [[ -z "$extra" ]] || awk '{ print "  " $0 }' <<<"$extra"
+  log_step "In the manifest but not installed ($(grep -c . <<<"$missing" || true)):"
+  [[ -z "$missing" ]] || awk '{ print "  " $0 }' <<<"$missing"
+}
+
+case "$PLATFORM" in
+  arch | apt) load_manifest_list PACKAGES "$PLATFORM" ;;
+  brew)
+    load_manifest_list FORMULAE brew
+    load_manifest_list CASKS brewCask
+    ;;
+esac
+
+if [[ "$SHOW_DIFF" == '1' ]]; then
+  show_package_diff
+  exit 0
+fi
 
 case "$PLATFORM" in
   arch)
@@ -149,14 +205,6 @@ case "$PLATFORM" in
     run_root_or_print apt-get update
     log_step "Installing ${#PACKAGES[@]} package(s) with APT..."
     run_root_or_print apt-get install -y "${PACKAGES[@]}"
-    ;;
-  fedora)
-    ((${#PACKAGES[@]})) || {
-      log_warn 'No Fedora packages configured'
-      exit 0
-    }
-    log_step "Installing ${#PACKAGES[@]} package(s) with DNF..."
-    run_root_or_print dnf install -y "${PACKAGES[@]}"
     ;;
   brew)
     if ! has brew; then

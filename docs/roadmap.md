@@ -12,7 +12,7 @@ Status tags are defined in [README.md](README.md); designs are in [design.md](de
 | Dotfiles | chezmoi source in `home/` (`.chezmoiroot`), templates for `~/.gitconfig` and `~/.ssh/config`, identity prompts in `home/.chezmoi.toml.tmpl` |
 | Bootstrap (CachyOS/Arch) | `scripts/unix/bootstrap.sh` with `--dry-run`, `--non-interactive`, `--skip-*` options; installs prerequisites, chezmoi, packages via paru, fonts, shell; applies chezmoi; runs `chezmoi doctor` |
 | Maintenance | `update.sh`, `backup.sh` (repo tarball + local chezmoi config), `cleanup.sh` (caches) |
-| Package data | `packages/arch.txt`, `apt.txt`, `brew.txt`, `fedora.txt`, `winget.txt`, `fonts.txt` |
+| Package data | Manifest `home/.chezmoidata/packages.yaml` read through `scripts/package-list.tmpl`; `install-packages.sh --diff` report |
 | Windows | `scripts/windows/*.ps1` counterparts; parse-checked in CI only, not runtime-tested |
 | System config | `root/` snapshot (GRUB, pacman.conf, SDDM, Plymouth), applied by hand with `cmr` |
 | Quality | Bats tests, template validation, ShellCheck, shfmt, PowerShell parse check, ownership tests, GitHub Actions |
@@ -33,7 +33,7 @@ Each phase is one pull request and MUST keep `make validate` green. Primary plat
 | Phase | Content | Done when |
 |---|---|---|
 | **P0 Safety** ✅ | OS-aware `.chezmoiignore` (+ `tests/chezmoiignore.bats`); gitleaks pre-commit hook, `make secrets`, CI history scan; system instance config/state in `~/.config/chezmoi-root/`, `cmr` restores source ownership | Done: the managed set for Windows contains no Linux-only file; gitleaks scans pass |
-| **P1 Manifest + `dots` (CachyOS)** | `home/.chezmoidata/packages.yaml`; install scripts read `chezmoi data`; `dots` (Bash, gum) with `bootstrap`, `packages [--diff]`, `doctor`, `update`, `backup`, `cleanup`; remove Fedora backend and `packages/*.txt`; archlinux CI container | A fresh CachyOS VM gets every package from the manifest through `dots bootstrap` |
+| **P1 Manifest + `dots` (CachyOS)** | **(a) done:** manifest `home/.chezmoidata/packages.yaml` replaces `packages/*.txt`; install and font scripts read it through `scripts/package-list.tmpl`; `install-packages.sh --diff`; Fedora backend removed; `tests/manifest.bats`. **(b) next:** `dots` (Bash, gum) with `bootstrap`, `packages [--diff]`, `doctor`, `update`, `backup`, `cleanup`; archlinux CI container | A fresh CachyOS VM gets every package from the manifest through `dots bootstrap` |
 | **P2 Windows parity** | chezmoi on Windows, `XDG_CONFIG_HOME`, PowerShell profile stub, winget + Scoop from the manifest, fonts, `dots.ps1`; Pester, PSScriptAnalyzer, `windows-latest` CI job | A fresh Windows VM/Sandbox completes L2–L3 through `dots.ps1 bootstrap` |
 | **P3 Secrets** | `gh auth login` step, Bitwarden templates, Bitwarden SSH agent, rewrite `setup-accounts` | `ssh -T git@github.com` works with no private key on disk, on both primary OSes |
 | **P4 Assets** | `TienHwng/wallpapers` (private, LFS), chezmoi external, `[filter "lfs"]` in the git template, set wallpaper on both OSes; tidy `home/Pictures`, `home/Documents` | Same wallpaper shows on Windows and CachyOS after bootstrap |

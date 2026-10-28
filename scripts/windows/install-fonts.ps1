@@ -8,13 +8,15 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
 
-$repoRoot = Get-RepoRoot
-$fontList = Join-Path $repoRoot 'packages\fonts.txt'
-if (-not (Test-Path -LiteralPath $fontList)) {
-    Stop-Tool "Font list not found: $fontList"
+if (-not (Test-Command 'chezmoi')) {
+    if ($DryRun) {
+        Write-ToolWarning 'chezmoi is unavailable; the font list cannot be read in this dry-run.'
+        return
+    }
+    Stop-Tool 'chezmoi is required to read the font list (home/.chezmoidata/packages.yaml).'
 }
 
-$fonts = @(Get-ListFile $fontList)
+$fonts = @(Get-ManifestList 'nerdFonts')
 if ($fonts.Count -eq 0) {
     Write-ToolWarning 'No Nerd Fonts are configured.'
     return

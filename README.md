@@ -17,7 +17,7 @@ that previews every change and asks before applying it.
 | Layer | What gets restored | Tooling |
 |---|---|---|
 | Identity & secrets *(planned)* | GitHub login, SSH keys, tokens | `gh`, Bitwarden (vault + SSH agent) |
-| Packages | Apps and CLI tools from one manifest *(manifest planned; per-OS lists today)* | paru (CachyOS), winget + Scoop (Windows) |
+| Packages | Apps and CLI tools from one manifest (`home/.chezmoidata/packages.yaml`) | paru (CachyOS), winget + Scoop *(Scoop planned)* (Windows) |
 | Dotfiles | Shell, git, Neovim, terminal, prompt, SSH config | chezmoi (`home/`) |
 | Desktop settings *(planned)* | KDE Plasma keys, Windows user registry | `kwriteconfig6`, PowerShell |
 | System settings | `/etc`, GRUB, SDDM, Plymouth; Windows machine registry, debloat, drivers *(Windows planned)* | second chezmoi instance (`root/`), PowerShell |
@@ -101,7 +101,6 @@ templates are rendered *(planned)*.
 ├── docs/                 # vision, design, roadmap (start with docs/README.md)
 ├── home/                 # user-level chezmoi source
 ├── root/                 # system-level chezmoi source (second instance, Linux)
-├── packages/             # per-manager package lists (to be replaced by a manifest)
 ├── scripts/unix/         # Bash scripts (+ dots, planned)
 ├── scripts/windows/      # PowerShell 7 scripts (+ dots.ps1, planned)
 ├── tests/                # Bats tests and template validation

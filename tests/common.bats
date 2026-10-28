@@ -3,17 +3,6 @@
 
 load test_helper
 
-@test "package-list parser removes comments, blanks, and surrounding whitespace" {
-  list_file="$BATS_TEST_TMPDIR/packages.txt"
-  printf '%s\n' '  git  ' '' 'curl # downloader' '# comment' 'git' >"$list_file"
-
-  run bash -c 'source "$1"; read_list_file "$2"' _ \
-    "$PROJECT_ROOT/scripts/unix/lib/common.sh" "$list_file"
-
-  [ "$status" -eq 0 ]
-  [ "$output" = $'git\ncurl\ngit' ]
-}
-
 @test "platform detection accepts a controlled Arch override" {
   run env DOTFILES_PLATFORM=arch bash -c 'source "$1"; detect_platform' _ \
     "$PROJECT_ROOT/scripts/unix/lib/common.sh"

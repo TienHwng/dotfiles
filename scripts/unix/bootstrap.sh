@@ -112,7 +112,7 @@ ensure_bootstrap_prerequisites() {
         run_root_or_print pacman -S --needed --noconfirm "${missing[@]}"
       fi
       ;;
-    apt | fedora | brew)
+    apt | brew)
       require_command git 'git is required before bootstrap on this non-primary platform.'
       if ! has curl && ! has wget; then
         die 'curl or wget is required before bootstrap on this non-primary platform.'

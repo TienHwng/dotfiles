@@ -110,7 +110,7 @@ detect_platform() {
 
   if [[ -n "${DOTFILES_PLATFORM:-}" ]]; then
     case "$DOTFILES_PLATFORM" in
-      arch | apt | fedora | brew | unknown)
+      arch | apt | brew | unknown)
         printf '%s\n' "$DOTFILES_PLATFORM"
         return
         ;;
@@ -126,23 +126,21 @@ detect_platform() {
     printf 'arch\n'
   elif has apt-get; then
     printf 'apt\n'
-  elif has dnf; then
-    printf 'fedora\n'
   else
     printf 'unknown\n'
   fi
 }
 
-read_list_file() {
-  local file="$1"
-  [[ -f "$file" ]] || return 0
+# Print one package per line from a manifest list (arch, apt, brew, brewCask,
+# winget, scoop, nerdFonts) in home/.chezmoidata/packages.yaml.
+manifest_list() {
+  local list="$1" root output
 
-  sed \
-    -e 's/[[:space:]]*#.*$//' \
-    -e '/^[[:space:]]*$/d' \
-    -e 's/^[[:space:]]*//' \
-    -e 's/[[:space:]]*$//' \
-    "$file"
+  root="$(repo_root)"
+  output="$(DOTFILES_PACKAGE_LIST="$list" chezmoi --source "$root" execute-template \
+    <"$root/scripts/package-list.tmpl")" || return
+  [[ -n "$output" ]] || return 0
+  awk 'NF && !seen[$0]++' <<<"$output"
 }
 
 chezmoi_value() {

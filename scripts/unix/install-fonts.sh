@@ -5,8 +5,6 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # shellcheck source=scripts/unix/lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
-ROOT_DIR="$(repo_root)"
-FONT_LIST="$ROOT_DIR/packages/fonts.txt"
 FORCE=0
 DRY_RUN=0
 
@@ -15,8 +13,9 @@ usage() {
 Usage:
   ./scripts/unix/install-fonts.sh [--force] [--dry-run]
 
-Each line in packages/fonts.txt is a Nerd Fonts release archive name,
-for example JetBrainsMono or FiraCode.
+Fonts come from the nerdFonts list in home/.chezmoidata/packages.yaml.
+Each entry is a Nerd Fonts release archive name, for example JetBrainsMono
+or FiraCode.
 EOF
 }
 
@@ -39,7 +38,19 @@ while (($#)); do
 done
 
 export DRY_RUN
-[[ -f "$FONT_LIST" ]] || die "Font list not found: $FONT_LIST"
+
+if ! has chezmoi; then
+  if [[ "$DRY_RUN" == '1' ]]; then
+    log_warn 'chezmoi is unavailable; the font list cannot be read in this dry-run.'
+    exit 0
+  fi
+  die 'chezmoi is required to read the font list (home/.chezmoidata/packages.yaml).'
+fi
+FONTS="$(manifest_list nerdFonts)" || die 'Could not read the nerdFonts list from the package manifest.'
+[[ -n "$FONTS" ]] || {
+  log_warn 'No Nerd Fonts are configured.'
+  exit 0
+}
 
 case "$(uname -s)" in
   Darwin) FONT_HOME="$HOME/Library/Fonts/NerdFonts" ;;
@@ -102,7 +113,7 @@ while IFS= read -r font; do
   rm -rf "$tmp_dir"
   trap - EXIT
   log_success "Installed $font"
-done < <(read_list_file "$FONT_LIST")
+done <<<"$FONTS"
 
 if [[ "$DRY_RUN" == '0' ]] && has fc-cache; then
   log_step 'Refreshing font cache...'

@@ -10,7 +10,7 @@ SHFMT ?= shfmt
 GITLEAKS ?= gitleaks
 
 .PHONY: help bootstrap-unix bootstrap-unix-dry packages-unix update-unix \
-	bootstrap-windows packages-windows update-windows preview doctor syntax \
+	packages-unix-diff bootstrap-windows packages-windows update-windows preview doctor syntax \
 	test lint templates secrets hooks validate
 
 help: ## Show available targets
@@ -22,8 +22,11 @@ bootstrap-unix: ## Provision the current Unix user environment
 bootstrap-unix-dry: ## Preview Unix bootstrap without changing the machine
 	./scripts/unix/bootstrap.sh --dry-run
 
-packages-unix: ## Install packages for the detected Unix platform
+packages-unix: ## Install packages for the detected Unix platform from the manifest
 	./scripts/unix/install-packages.sh
+
+packages-unix-diff: ## List packages installed outside the manifest and manifest packages not installed
+	./scripts/unix/install-packages.sh --diff
 
 update-unix: ## Update the Unix dotfiles environment
 	./scripts/unix/update.sh
@@ -31,7 +34,7 @@ update-unix: ## Update the Unix dotfiles environment
 bootstrap-windows: ## Provision the Windows user environment
 	$(PWSH) -NoProfile -File ./scripts/windows/bootstrap.ps1
 
-packages-windows: ## Install packages from packages/winget.txt
+packages-windows: ## Install winget packages from the manifest
 	$(PWSH) -NoProfile -File ./scripts/windows/install-packages.ps1
 
 update-windows: ## Update the Windows dotfiles environment

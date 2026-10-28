@@ -88,7 +88,7 @@ This replaces the earlier service/provider architecture. Do not create
 | `dots sync --check` | Fetch only; report how many commits the machine is behind. Used by the timer. | `[Planned: P7]` |
 | `dots capture` | TUI listing drift (files, KDE keys, registry values, packages outside the manifest); the chosen items are written back to the repository, then commit and push. | `[Planned: P7]` |
 | `dots packages` | Install missing packages from the manifest after showing the list. | `[Planned: P1]` |
-| `dots packages --diff` | List packages installed on the machine but absent from the manifest; offer "add to manifest" or "uninstall". | `[Planned: P1]` |
+| `dots packages --diff` | List packages installed on the machine but absent from the manifest, and manifest packages not installed; later offer "add to manifest" or "uninstall". | `[Planned: P1]` (report available now: `install-packages.sh --diff`) |
 | `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Planned: P5/P6]` |
 | `dots status` | Commits ahead/behind, drift count, whether the sync timer is enabled. | `[Planned: P7]` |
 | `dots doctor` | `chezmoi doctor` plus checks: required tools, Bitwarden agent reachable, Git LFS configured, sync timer enabled. | `[Planned: P1]` (current: `just doctor`) |
@@ -148,50 +148,64 @@ runs `chezmoi init TienHwng/dotfiles` (public, no auth needed), then hands over 
 
 | Item | Status |
 |---|---|
-| `packages/*.txt` per-manager lists, `install-packages.sh/.ps1` | `[Implemented]` (to be replaced in P1) |
-| Manifest `home/.chezmoidata/packages.yaml` | `[Planned: P1]` |
-| Fedora backend and `packages/fedora.txt` | `[Implemented]`, **to be removed in P1** |
+| Manifest `home/.chezmoidata/packages.yaml` (replaced `packages/*.txt`) | `[Implemented]` |
+| `scripts/package-list.tmpl` renderer, `manifest_list` (Bash) / `Get-ManifestList` (PowerShell) | `[Implemented]` |
+| `install-packages.sh` (paru, apt, brew) and `install-packages.ps1` (winget) read the manifest | `[Implemented]` |
+| `install-packages.sh --diff` report (arch, apt, brew) | `[Implemented]` |
+| Fonts (`nerdFonts` list) read from the manifest | `[Implemented]` |
+| Fedora backend | Removed |
+| Scoop installs, Windows `--diff`, interactive "add to manifest / uninstall" | `[Planned: P2]` / `[Planned: P7]` |
 
-Manifest format:
+Manifest format (`home/.chezmoidata/packages.yaml`):
 
 ```yaml
 packages:
-  # Cross-platform apps: one entry, one name per package manager
+  # Apps under several managers: one entry, one key per manager that installs it
   mapped:
     - name: neovim
       arch: neovim
-      scoop: neovim
-    - name: ripgrep
-      arch: ripgrep
-      scoop: ripgrep
-    - name: vscode
-      gui: true                       # skipped on WSL/headless machines
-      arch: visual-studio-code-bin    # AUR, via paru
-      winget: Microsoft.VisualStudioCode
-    - name: bitwarden
-      gui: true
-      arch: bitwarden                 # native build: SSH agent works
-      winget: Bitwarden.Bitwarden
-  # Apps that exist for one manager only
-  arch:   [plasma-meta, kitty]
-  winget: [Valve.Steam, seerge.g-helper]
-  scoop:  []
-  fonts:
-    arch:  [ttf-jetbrains-mono-nerd]
-    scoop: [nerd-fonts/JetBrainsMono-NF]
-  # Planned platforms add keys without changing the structure: apt, flatpak, snap, brew, nix
+      apt: neovim
+      brew: neovim
+      winget: Neovim.Neovim
+    - name: wezterm
+      gui: true                 # skipped when DOTFILES_HEADLESS=1 (WSL, servers)
+      brewCask: wezterm
+      winget: wez.wezterm
+  # Packages for one manager only
+  arch: [paru, kitty, plymouth]
+  apt: [build-essential]
+  brew: []
+  brewCask: []
+  winget: [Microsoft.PowerShell]
+  scoop: []
+  nerdFonts: [JetBrainsMono]    # Nerd Fonts release archives, installed per user
 ```
+
+How a list is read:
+
+- `scripts/package-list.tmpl` prints, for the list named by `DOTFILES_PACKAGE_LIST`, the
+  matching key of every `mapped` entry, then the list of the same name. Run it with
+  `chezmoi --source <repo> execute-template`, so scripts need chezmoi but no YAML/JSON
+  parser, and PowerShell needs no JSON quoting. Bash wraps it in `manifest_list` (dedupes),
+  PowerShell in `Get-ManifestList`.
+- An unknown list name renders nothing; an unset `DOTFILES_PACKAGE_LIST` fails.
+- In a dry run without chezmoi (fresh machine), the install scripts warn and stop instead of failing.
 
 Rules:
 
 - Manager per platform: CachyOS/Arch → `arch` (paru, `--needed`, never as root);
-  Windows → `winget` for GUI/system apps, `scoop` for CLI tools and fonts.
-  Planned: Ubuntu → `apt` (+ `flatpak`/`snap` for GUI); macOS → `brew`; NixOS → `nix`.
-- Entries with `gui: true` are skipped when the machine is headless or WSL.
-- Install scripts read `chezmoi data --format json`, filter for the current platform, show the
-  list, ask, then install. Packages are **not** installed by chezmoi `run_onchange_` scripts,
-  because every step must be confirmed.
-- `--diff` compares the manifest with `pacman -Qqe`, `winget export`, `scoop export`.
+  Windows → `winget` for GUI/system apps, `scoop` for CLI tools and fonts (P2).
+  Planned: Ubuntu → `apt` (+ `flatpak`/`snap` for GUI); macOS → `brew` + `brewCask`;
+  NixOS → `nix`. A new manager is a new key, with no structural change.
+- Put an app in `mapped` as soon as it is installed by two or more managers.
+- Packages are **not** installed by chezmoi `run_onchange_` scripts, because every step
+  must be confirmed.
+- `install-packages.sh --diff` (`make packages-unix-diff`) is read-only. "Explicitly
+  installed but not in the manifest" compares with `pacman -Qqe` / `apt-mark showmanual` /
+  `brew leaves` + casks; "in the manifest but not installed" compares with every installed
+  package (`pacman -Qq`, `dpkg-query`, `brew list`), so dependencies count as installed.
+- `tests/manifest.bats` checks that every mapped entry has a unique name and at least one
+  package, rendering, the headless filter, `--diff`, and the font list.
 
 ### L3 — Dotfiles (user instance, `home/`)
 
@@ -350,7 +364,7 @@ Order inside `dots system` on Windows:
 
 | Item | Status |
 |---|---|
-| Nerd Fonts from release archives via `packages/fonts.txt` | `[Implemented]` (moves to manifest in P1) |
+| Nerd Fonts from release archives via the manifest `nerdFonts` list | `[Implemented]` |
 | Wallpaper repository + chezmoi external + setting the wallpaper | `[Planned: P4]` |
 
 - Private repository `TienHwng/wallpapers`, with `.gitattributes`
@@ -420,7 +434,7 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 ├── home/                           # user chezmoi source        [Implemented]
 │   ├── .chezmoi.toml.tmpl          # identity prompts           [Implemented]
 │   ├── .chezmoidata.yaml           # defaults, features.*       [Implemented]
-│   ├── .chezmoidata/               # packages.yaml, kde.yaml, windows.yaml  [Planned]
+│   ├── .chezmoidata/               # packages.yaml [Implemented]; kde.yaml, windows.yaml [Planned]
 │   ├── .chezmoiexternal.toml.tmpl  # wallpaper repo             [Planned: P4]
 │   ├── .chezmoiignore              # OS-aware                   [Implemented]
 │   ├── .chezmoiscripts/            # run_onchange_ scripts      [Planned]
@@ -431,8 +445,8 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 │   └── dot_wslconfig               # Windows-only               [Planned: platform]
 ├── root/                           # system chezmoi source      [Implemented, manual]
 ├── pkgbuilds/                      # local Arch packages        [Planned: P6]
-├── packages/*.txt                  # replaced by the manifest   [Implemented → removed in P1]
 ├── scripts/
+│   ├── package-list.tmpl           # renders one manifest list [Implemented]
 │   ├── unix/                       # bootstrap.sh, install-*.sh, setup-*.sh, update.sh,
 │   │                               # backup.sh, cleanup.sh, lib/common.sh  [Implemented]
 │   │                               # dots, system.sh, capture.sh           [Planned]
@@ -504,7 +518,7 @@ user timer.
 | PowerShell parse check | `[Implemented]` |
 | Ownership tests (`tests/ownership.bats`) | `[Implemented]` |
 | gitleaks (pre-commit hook, `make secrets`, CI history scan) | `[Implemented]` |
-| Manifest tests: every `mapped` entry has at least one manager; names unique | `[Planned: P1]` |
+| Manifest tests (`tests/manifest.bats`): unique names, at least one package per mapped entry, rendering, headless filter, `--diff` | `[Implemented]` |
 | Pester + PSScriptAnalyzer for `scripts/windows` | `[Planned: P2]` |
 | `windows-latest` job: `chezmoi init --apply --dry-run` with fake prompt values, `dots.ps1 bootstrap -DryRun` | `[Planned: P2]` |
 | `archlinux` container job: template render, `dots bootstrap --dry-run` | `[Planned: P1]` |

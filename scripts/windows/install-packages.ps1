@@ -9,8 +9,6 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
 
-$repoRoot = Get-RepoRoot
-
 if (-not (Test-Command 'winget')) {
     if ($DryRun) {
         Write-ToolWarning 'WinGet is not currently available; printing the planned commands only.'
@@ -19,18 +17,15 @@ if (-not (Test-Command 'winget')) {
     }
 }
 
-$file = Join-Path $repoRoot 'packages\winget.txt'
-if (-not (Test-Path -LiteralPath $file)) {
-    Stop-Tool "Package list does not exist: $file"
+if (-not (Test-Command 'chezmoi')) {
+    if ($DryRun) {
+        Write-ToolWarning 'chezmoi is unavailable; the package manifest cannot be read in this dry-run.'
+        return
+    }
+    Stop-Tool 'chezmoi is required to read the package manifest (home/.chezmoidata/packages.yaml).'
 }
 
-$packages = [System.Collections.Generic.List[string]]::new()
-$seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-foreach ($package in Get-ListFile $file) {
-    if ($seen.Add($package)) {
-        $packages.Add($package)
-    }
-}
+$packages = @(Get-ManifestList 'winget')
 
 if ($packages.Count -eq 0) {
     Write-ToolWarning 'No WinGet packages configured'

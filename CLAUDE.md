@@ -11,7 +11,7 @@ back into the repo. The single user-facing entry point is `dots`, a step-by-step
 (`scripts/unix/dots`, `scripts/windows/dots.ps1`) that previews and confirms every step.
 
 Primary platforms: **Windows 11** and **CachyOS**. Planned: Arch Linux, Ubuntu desktop
-(KDE), Ubuntu WSL, macOS, NixOS. Fedora is not supported (existing Fedora code is being removed).
+(KDE), Ubuntu WSL, macOS, NixOS. Fedora is not supported.
 
 **Read `docs/README.md` first**, then `docs/design.md` before changing behaviour.
 Features are tagged `[Implemented]`, `[Planned: Pn]`, or `[Future]`; `docs/roadmap.md`
@@ -61,7 +61,7 @@ Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFro
 - `home/.chezmoiignore` is OS-aware: Linux-only targets are ignored on non-Linux, Windows-only targets on non-Windows. Add every new OS-specific file to the matching list; `tests/chezmoiignore.bats` checks the managed set per OS.
 - `root/` is the **system chezmoi source state** (target `/`, run with sudo), applied by a second instance whose config and state live in `~/.config/chezmoi-root/`. Target policy: `dots system` applies it as an opt-in, interactive step with a diff. It is never applied by CI, tests, or `NON_INTERACTIVE=1`. Currently `tests/ownership.bats` forbids any script or workflow from referencing `root.toml`/`chezmoi-root`; that changes only in roadmap phase P6. The `chezmoi-root`/`cmr` function in `home/dot_zshrc` is the manual path until then: `cmr` shows status + diff and asks before applying, `cmr edit` edits the repo copy as the user, `cmr capture` pulls files changed in `/` back into the repo, and it chowns `root/` back to the user after every command. Its config is rendered from `home/dot_config/chezmoi-root/chezmoi.toml.tmpl`.
 - Prefer drop-ins under `/etc/*.d/` over owning whole system files; never write into `/usr` outside a package (`pkgbuilds/`).
-- Lists live in data, never in scripts: packages in `home/.chezmoidata/packages.yaml` (replacing `packages/*.txt`), KDE keys in `kde.yaml`, Windows registry values in `windows.yaml`. Arch installs via `paru -S --needed`, never as root. Windows uses winget for GUI/system apps and Scoop for CLI tools and fonts; no Chocolatey.
+- Lists live in data, never in scripts: packages in `home/.chezmoidata/packages.yaml` (read with `manifest_list` / `Get-ManifestList` via `scripts/package-list.tmpl`; never parse the YAML yourself), KDE keys in `kde.yaml`, Windows registry values in `windows.yaml`. Arch installs via `paru -S --needed`, never as root. Windows uses winget for GUI/system apps and Scoop for CLI tools and fonts; no Chocolatey.
 - KDE `*rc` files and the Windows registry are managed **per key**, not as whole files.
 - `temp/` and `misc/` are gitignored scratch areas.
 - `docs/` holds `README.md` (index), `vision.md`, `design.md`, `roadmap.md`.

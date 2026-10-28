@@ -45,7 +45,7 @@ told when the repository changes and can pull those changes after reviewing them
 | Ubuntu on WSL | Planned |
 | macOS | Planned |
 | NixOS | Planned |
-| Fedora | **Not supported.** Existing Fedora code is to be removed. |
+| Fedora | **Not supported.** |
 
 ## Scope
 

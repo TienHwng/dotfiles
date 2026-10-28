@@ -1,0 +1,22 @@
+{{- /*
+  Prints one package per line for the manifest list named by DOTFILES_PACKAGE_LIST
+  (arch, apt, brew, brewCask, winget, scoop, nerdFonts), from
+  home/.chezmoidata/packages.yaml: the matching key of every mapped entry, then the
+  list of the same name. Mapped entries with `gui: true` are skipped when
+  DOTFILES_HEADLESS=1.
+
+  Usage: DOTFILES_PACKAGE_LIST=arch chezmoi --source <repo> execute-template < scripts/package-list.tmpl
+*/ -}}
+{{- $list := env "DOTFILES_PACKAGE_LIST" -}}
+{{- if not $list -}}
+{{-   fail "DOTFILES_PACKAGE_LIST is not set" -}}
+{{- end -}}
+{{- $headless := eq (env "DOTFILES_HEADLESS") "1" -}}
+{{- range .packages.mapped -}}
+{{-   if not (and $headless (get . "gui")) -}}
+{{-     with get . $list }}{{ . }}{{ "\n" }}{{ end -}}
+{{-   end -}}
+{{- end -}}
+{{- with get .packages $list -}}
+{{-   range . }}{{ . }}{{ "\n" }}{{ end -}}
+{{- end -}}

@@ -11,6 +11,9 @@ bootstrap-unix-dry:
 packages-unix:
     ./scripts/unix/install-packages.sh
 
+packages-unix-diff:
+    ./scripts/unix/install-packages.sh --diff
+
 update-unix:
     ./scripts/unix/update.sh
 

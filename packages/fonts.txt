@@ -1,2 +1,0 @@
-# Nerd Fonts release archive names
-JetBrainsMono

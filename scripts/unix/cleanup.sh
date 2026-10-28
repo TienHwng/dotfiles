@@ -55,10 +55,6 @@ case "$(detect_platform)" in
     run_root_or_print apt-get autoremove -y
     run_root_or_print apt-get autoclean
     ;;
-  fedora)
-    run_root_or_print dnf autoremove -y
-    run_root_or_print dnf clean all
-    ;;
   brew)
     has brew && run_or_print brew cleanup
     ;;

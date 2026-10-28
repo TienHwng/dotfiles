@@ -1,0 +1,209 @@
+# Package manifest: the single list of packages for every platform.
+#
+# mapped:  apps that exist under several package managers. One entry per app;
+#          each key names the package for that manager. Omit a key when the app
+#          is not installed there. `gui: true` entries are skipped when
+#          DOTFILES_HEADLESS=1 (WSL, servers).
+# <list>:  packages that exist for one manager only.
+#
+# Lists: arch (paru, CachyOS/Arch), apt, brew, brewCask, winget, scoop, nerdFonts.
+# Scripts read them with scripts/package-list.tmpl; see docs/design.md (L2).
+
+packages:
+  mapped:
+    - name: git
+      arch: git
+      apt: git
+      brew: git
+      winget: Git.Git
+    - name: neovim
+      arch: neovim
+      apt: neovim
+      brew: neovim
+      winget: Neovim.Neovim
+    - name: ripgrep
+      arch: ripgrep
+      apt: ripgrep
+      brew: ripgrep
+      winget: BurntSushi.ripgrep.MSVC
+    - name: fd
+      arch: fd
+      apt: fd-find
+      brew: fd
+      winget: sharkdp.fd
+    - name: bat
+      apt: bat
+      brew: bat
+      winget: sharkdp.bat
+    - name: fzf
+      arch: fzf
+      apt: fzf
+      brew: fzf
+      winget: junegunn.fzf
+    - name: jq
+      arch: jq
+      apt: jq
+      brew: jq
+      winget: jqlang.jq
+    - name: 7zip
+      arch: 7zip
+      winget: 7zip.7zip
+    - name: github-cli
+      arch: github-cli
+      winget: GitHub.cli
+    - name: tmux
+      arch: tmux
+      apt: tmux
+      brew: tmux
+    - name: zsh
+      arch: zsh
+      apt: zsh
+      brew: zsh
+    - name: curl
+      apt: curl
+      brew: curl
+    - name: wget
+      apt: wget
+      brew: wget
+    - name: rsync
+      apt: rsync
+      brew: rsync
+    - name: python
+      apt: python3
+      brew: python
+      winget: Python.Python.3.13
+    - name: pipx
+      apt: pipx
+      brew: pipx
+    - name: wl-clipboard
+      gui: true
+      arch: wl-clipboard
+      apt: wl-clipboard
+    - name: wezterm
+      gui: true
+      brewCask: wezterm
+      winget: wez.wezterm
+    # Repository validation (make validate, pre-commit secret scan)
+    - name: shellcheck
+      arch: shellcheck
+      apt: shellcheck
+      brew: shellcheck
+      winget: koalaman.shellcheck
+    - name: shfmt
+      arch: shfmt
+      apt: shfmt
+      brew: shfmt
+      winget: mvdan.shfmt
+    - name: gitleaks
+      arch: gitleaks
+      winget: Gitleaks.Gitleaks
+
+  arch:
+    # Base system, boot, and package tooling
+    - linux-firmware
+    - efibootmgr
+    - grub
+    - os-prober
+    - update-grub
+    - cachy-update
+    - paru
+    - chezmoi
+    - pipewire-pulse
+    - wireplumber
+    - polkit-kde-agent
+    # Boot splash
+    - plymouth
+    - plymouth-theme-colorful-loop-git
+    - plymouth-theme-connect-git
+    - plymouth-theme-cubes-git
+    - plymouth-theme-cuts-alt-git
+    - plymouth-theme-cuts-git
+    - plymouth-theme-hud-3-git
+    - plymouth-theme-loader-2-git
+    - plymouth-theme-lone-git
+    - plymouth-theme-motion-git
+    - plymouth-theme-owl-git
+    - plymouth-theme-splash-git
+    # Hyprland session
+    - hyprland
+    - hyprpaper
+    - xdg-desktop-portal-hyprland
+    - waybar
+    - wofi
+    - noctalia
+    - grim
+    - slurp
+    # Input method (Vietnamese)
+    - fcitx5
+    - fcitx5-bamboo
+    - fcitx5-configtool
+    - fcitx5-gtk
+    - fcitx5-lotus
+    - fcitx5-qt
+    - fcitx5-unikey
+    # Fonts and cursor
+    - bibata-cursor-theme
+    - cantarell-fonts
+    - noto-fonts
+    - noto-fonts-cjk
+    - ttf-dejavu
+    - ttf-firacode-nerd
+    - ttf-jetbrains-mono-nerd
+    - ttf-liberation
+    - ttf-meslo-nerd
+    - ttf-opensans
+    # Terminal and CLI tools
+    - kitty
+    - btop
+    - git-delta
+    - git-lfs
+    - glow
+    - lazygit
+    - navi
+    - nano
+    - vim
+    - oh-my-posh-bin
+    - thefuck
+    - yazi
+    - zoxide
+    - ffmpeg
+    - imagemagick
+    - poppler
+    - resvg
+    - bats
+    # Fun
+    - cava
+    - cbonsai
+    - cmatrix
+    - lolcat
+    - pipes.sh
+    - tty-clock
+    # Applications
+    - brave-bin
+    - vivaldi
+    - discord
+    - visual-studio-code-bin
+
+  apt:
+    - ca-certificates
+    - unzip
+    - zip
+    - build-essential
+    - python3-pip
+    - fontconfig
+    - xclip
+
+  brew: []
+
+  brewCask: []
+
+  winget:
+    - Microsoft.PowerShell
+    - Microsoft.WindowsTerminal
+    - Microsoft.PowerToys
+
+  scoop: []
+
+  # Nerd Fonts release archive names, installed per user by install-fonts
+  nerdFonts:
+    - JetBrainsMono

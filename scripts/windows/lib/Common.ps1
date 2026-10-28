@@ -25,15 +25,27 @@ function Get-RepoRoot {
     return (Resolve-Path (Join-Path $script:DotfilesCommonRoot '..\..\..')).Path
 }
 
-function Get-ListFile([string]$Path) {
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return @()
+# One package per line from a manifest list (winget, scoop, nerdFonts, ...) in
+# home/.chezmoidata/packages.yaml, rendered by scripts/package-list.tmpl.
+function Get-ManifestList([string]$List) {
+    $repoRoot = Get-RepoRoot
+    $template = Join-Path $repoRoot 'scripts\package-list.tmpl'
+    $previous = $env:DOTFILES_PACKAGE_LIST
+    $env:DOTFILES_PACKAGE_LIST = $List
+    try {
+        $output = Get-Content -LiteralPath $template -Raw | & chezmoi --source $repoRoot execute-template
+        if ($LASTEXITCODE -ne 0) {
+            Stop-Tool "Could not read the '$List' list from the package manifest."
+        }
+    } finally {
+        $env:DOTFILES_PACKAGE_LIST = $previous
     }
 
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     return @(
-        Get-Content -LiteralPath $Path |
-            ForEach-Object { ($_ -replace '\s*#.*$', '').Trim() } |
-            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        $output |
+            ForEach-Object { "$_".Trim() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and $seen.Add($_) }
     )
 }
 
