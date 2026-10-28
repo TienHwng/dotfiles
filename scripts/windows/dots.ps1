@@ -346,4 +346,6 @@ function Invoke-DotsCommand {
 # Dot-sourcing (Pester) loads the functions without running a command
 if ($MyInvocation.InvocationName -ne '.') {
     Invoke-DotsCommand
+    # Probes such as ssh-add -L leave a non-zero $LASTEXITCODE behind; failures throw instead
+    exit 0
 }

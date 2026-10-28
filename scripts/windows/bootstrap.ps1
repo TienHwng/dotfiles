@@ -227,3 +227,5 @@ $dotsArguments = @{
 & (Join-Path $activeScriptRoot 'dots.ps1') @dotsArguments
 
 Write-Success 'Windows bootstrap complete'
+# Probes such as ssh-add -L leave a non-zero $LASTEXITCODE behind; failures throw instead
+exit 0

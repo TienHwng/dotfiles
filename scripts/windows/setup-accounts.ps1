@@ -126,13 +126,20 @@ function Add-GitHubSshKey([string]$PublicKey) {
     }
 }
 
+# The Windows OpenSSH Authentication Agent owns the same pipe as Bitwarden; it must be off
+function Test-WindowsAgentRunning {
+    if (-not (Test-Command 'Get-Service')) {
+        return $false
+    }
+    $service = Get-Service -Name 'ssh-agent' -ErrorAction SilentlyContinue
+    return $null -ne $service -and $service.Status -eq 'Running'
+}
+
 function Invoke-BitwardenSsh {
-    # The Windows OpenSSH Authentication Agent owns the same pipe; it must be off
-    $windowsAgent = Get-Service -Name 'ssh-agent' -ErrorAction SilentlyContinue
     $adminHint = 'In an administrator PowerShell: Stop-Service ssh-agent; Set-Service ssh-agent -StartupType Disabled'
 
     if ($DryRun) {
-        if ($windowsAgent -and $windowsAgent.Status -eq 'Running') {
+        if (Test-WindowsAgentRunning) {
             Write-ToolWarning "The Windows OpenSSH Authentication Agent is running and blocks Bitwarden's agent. $adminHint"
         }
         $keys = Get-AgentKey
@@ -145,11 +152,7 @@ function Invoke-BitwardenSsh {
         return
     }
 
-    while ($true) {
-        $windowsAgent = Get-Service -Name 'ssh-agent' -ErrorAction SilentlyContinue
-        if (-not ($windowsAgent -and $windowsAgent.Status -eq 'Running')) {
-            break
-        }
+    while (Test-WindowsAgentRunning) {
         Write-ToolWarning $adminHint
         Wait-AgentFix "The Windows OpenSSH Authentication Agent is running and blocks Bitwarden's agent."
     }
