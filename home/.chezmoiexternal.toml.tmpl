@@ -1,4 +1,4 @@
-{{- /* Wallpapers (L6): private Git LFS repository, cloned over HTTPS with the gh credential
+{{- /* Wallpapers (L6): private Git repository (plain Git, no LFS), cloned over HTTPS with the gh credential
        helper. The wallpaper step of dots fetches it; the apply step excludes externals. */ -}}
 {{- if .features.wallpapers }}
 [{{ .wallpapers.dir | quote }}]

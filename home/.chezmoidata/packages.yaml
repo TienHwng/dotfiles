@@ -50,11 +50,6 @@ packages:
     - name: 7zip
       arch: 7zip
       scoop: 7zip
-    - name: git-lfs
-      arch: git-lfs
-      apt: git-lfs
-      brew: git-lfs
-      # Windows: bundled with Git for Windows (Git.Git)
     - name: github-cli
       arch: github-cli
       scoop: gh
@@ -180,6 +175,7 @@ packages:
     - kitty
     - btop
     - git-delta
+    - git-lfs
     - glow
     - lazygit
     - navi

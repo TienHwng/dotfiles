@@ -8,7 +8,7 @@ features:
   setupShell: true
   wallpapers: true
 
-# Private Git LFS repository cloned by home/.chezmoiexternal.toml.tmpl (L6)
+# Private Git repository cloned by home/.chezmoiexternal.toml.tmpl (L6)
 wallpapers:
   repo: https://github.com/TienHwng/wallpapers.git
   dir: Pictures/wallpaper

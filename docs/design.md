@@ -29,7 +29,7 @@ These decisions were made with the owner. Do not change them without asking.
 | Repository | One public GitHub repository (`TienHwng/dotfiles`). System-level config lives in the same repository under `root/` with its own chezmoi instance. |
 | System-level apply | A separate `dots` step that always shows a diff and asks. |
 | Secrets | Bitwarden. |
-| Wallpapers | ~1.5 GB: a separate **private** repository with **Git LFS**, pulled by chezmoi. |
+| Wallpapers | ~755 MB: a separate **private** repository, plain Git (no LFS: no file is near the 100 MB limit and the set rarely changes), pulled by chezmoi. |
 | Backup | `dots backup` keeps a tarball of the repository working tree plus the untracked local chezmoi configs. Restoring a machine is `dots bootstrap`. |
 
 ### Reference hardware
@@ -52,7 +52,7 @@ must travel through git or the network, never through the disk.
    ▼           ▼           ▼            ▼            ▼            ▼           ▼
  L1 Identity L2 Packages L3 Dotfiles  L4 Desktop   L5 System    L6 Assets   L7 Sync
  gh +        manifest →  chezmoi      user scope:  chezmoi-root wallpaper   timer +
- Bitwarden   paru/winget (home/)      KDE keys,    (root/),     repo (LFS), capture
+ Bitwarden   paru/winget (home/)      KDE keys,    (root/),     repo,       capture
              /scoop/apt               HKCU         HKLM,        fonts
                                                    debloat
    └───────────┴───────────┴────────────┴────────────┴────────────┴───────────┘
@@ -96,7 +96,7 @@ PowerShell 7; options are PowerShell-style: `-DryRun`, `-NonInteractive`, `-Skip
 | `dots packages --diff` | List packages installed on the machine but absent from the manifest, and manifest packages not installed; later offer "add to manifest" or "uninstall". | `[Implemented]` (Bash, report only); interactive add/uninstall `[Planned: P7]` |
 | `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Planned: P5/P6]` |
 | `dots status` | Commits ahead/behind, drift count, whether the sync timer is enabled. | `[Planned: P7]` |
-| `dots doctor` | `chezmoi doctor` plus checks: required tools, Bitwarden agent reachable, Git LFS configured, sync timer enabled. | `[Implemented]` (Bash): required tools (git, chezmoi), optional tools (gum, gitleaks, fzf), manifest readable, Git hooks, system instance config, `chezmoi doctor` (warnings only). Bitwarden, LFS, and timer checks come with P3/P4/P7 |
+| `dots doctor` | `chezmoi doctor` plus checks: required tools, Bitwarden agent reachable, sync timer enabled. | `[Implemented]` (Bash): required tools (git, chezmoi), optional tools (gum, gitleaks, fzf), manifest readable, Git hooks, system instance config, `chezmoi doctor` (warnings only). Bitwarden, LFS, and timer checks come with P3/P4/P7 |
 | `dots update` | Upgrade installed packages (`paru -Syu`, `winget upgrade --all`, `scoop update *`) and fonts. | `[Implemented]` (Bash, runs `update.sh`) |
 | `dots backup` | Tarball of the repository working tree (including uncommitted work) plus the user and system local chezmoi configs, to a chosen directory. The destination MUST survive the reinstall: an external drive or a cloud folder. Do not rely on the other OS's disk (the Windows disk is BitLocker-encrypted). `dots backup` warns when the destination is on the same disk as the running OS. Run it before wiping a machine. | `[Implemented]` (Bash, runs `backup.sh`; the system config is saved as `chezmoi-system.toml`) |
 | `dots cleanup` | Remove package-manager and chezmoi caches. | `[Implemented]` (Bash, runs `cleanup.sh`) |
@@ -401,12 +401,13 @@ Order inside `dots system` on Windows:
 | Repository `TienHwng/wallpapers` created and filled; local clone migrated | Pending: needs the owner's go-ahead |
 
 - Private repository `TienHwng/wallpapers` (owner's choice over using the public upstream or a
-  public fork), with `.gitattributes` `*.jpg *.jpeg *.png *.webp filter=lfs diff=lfs merge=lfs
-  -text`. The images come from the public `mylinuxforwork/wallpaper` repository (GPL-2.0), so
-  its `LICENSE` and a source note stay in the repository.
-- About 755 MB of images. GitHub Free includes 10 GiB of LFS storage and 10 GiB of bandwidth
-  per month, so a full clone costs under a tenth of the monthly bandwidth. Deleted LFS objects
-  keep counting until the repository is deleted, so avoid churn.
+  public fork). The images come from the public `mylinuxforwork/wallpaper` repository
+  (GPL-2.0), so its `LICENSE` and a source note stay in the repository.
+- Plain Git, **no Git LFS** (owner's decision): 223 images, 754 MB, 3.4 MB on average, the
+  largest 26.6 MB. Nothing is near GitHub's 100 MB file limit, the set rarely changes, and LFS
+  would add a bandwidth quota (10 GiB/month on Free, about 0.75 GB per clone), storage that
+  keeps counting deleted objects, and a `git-lfs` + filter prerequisite on every machine.
+  Revisit only if a file approaches 100 MB or images are replaced often (history growth).
 - Data (`home/.chezmoidata.yaml`): `features.wallpapers`, `wallpapers.repo`, `wallpapers.dir`
   (`Pictures/wallpaper`), `wallpapers.current` (`space2.jpg`).
 - `home/.chezmoiexternal.toml.tmpl` declares a `git-repo` external at `wallpapers.dir`
@@ -417,11 +418,7 @@ Order inside `dots system` on Windows:
 - chezmoi runs `git pull` in whatever repository already sits at that path. The wallpaper step
   therefore stops when the directory is a clone of another repository and asks the owner to
   move it away.
-
-- Prerequisites: `git-lfs` installed (bundled with Git for Windows; package `git-lfs` on
-  Arch). The LFS filter MUST be added to `home/dot_gitconfig.tmpl` (`[filter "lfs"]`), because
-  that template owns `~/.gitconfig`. Never run `git lfs install`, which writes to the file
-  directly. Authentication comes from the `gh` credential helper in the git template (L1).
+- Authentication comes from the `gh` credential helper in the git template (L1).
 - Setting the wallpaper: the file name lives in data (`wallpapers.current`). KDE uses
   `plasma-apply-wallpaperimage`. Windows calls `SystemParametersInfo`
   (`SPI_SETDESKWALLPAPER`, saved to the profile) from PowerShell. Hyprland (hyprpaper) is not
@@ -557,7 +554,7 @@ user timer.
 | Pester (`tests/windows`, `make test-windows`) + PSScriptAnalyzer (`make lint-windows`) for `scripts/windows` | `[Implemented]` |
 | `windows-latest` job: config rendered with fake prompt values, analyzer, Pester, `bootstrap.ps1 -DryRun -NonInteractive` on Windows PowerShell 5.1 and PowerShell 7 | `[Implemented]` |
 | `archlinux` container job, as a regular user: Bats tests, template render, `bootstrap.sh --dry-run --non-interactive` (every step) with fake prompt values, HOME unchanged | `[Implemented]` |
-| Ownership test: no script runs `git lfs install` or `gh auth setup-git`; the git template owns `[filter "lfs"]` (`tests/wallpaper.bats`) | `[Implemented]` |
+| Ownership test: no script runs `git lfs install` or `gh auth setup-git` | `[Implemented]` |
 | Ownership test update for the system step | `[Planned: P6]` |
 
 Tests MUST never provision the real machine.

@@ -61,12 +61,3 @@ setup() {
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
-
-@test "the git template owns the Git LFS filter" {
-  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
-
-  run chezmoi --source "$PROJECT_ROOT/home" execute-template <"$PROJECT_ROOT/home/dot_gitconfig.tmpl"
-  [ "$status" -eq 0 ]
-  [[ "$output" == *'[filter "lfs"]'* ]]
-  [[ "$output" == *'process = git-lfs filter-process'* ]]
-}

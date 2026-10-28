@@ -3,7 +3,7 @@ param(
     [switch]$DryRun
 )
 
-# Fetches the wallpaper repository (chezmoi external, private Git LFS repository from
+# Fetches the wallpaper repository (chezmoi external, private Git repository from
 # .wallpapers.repo) into ~/.wallpapers.dir, then sets .wallpapers.current as the
 # Windows desktop wallpaper.
 
@@ -32,13 +32,6 @@ $image = Join-Path $dir (Get-DataValue '.wallpapers.current')
 
 if ([string]::IsNullOrWhiteSpace($repo)) {
     Stop-Tool 'No wallpaper repository is set (.wallpapers.repo).'
-}
-
-if (-not (Test-Command 'git-lfs')) {
-    if (-not $DryRun) {
-        Stop-Tool 'git-lfs is required to fetch the wallpapers; it comes with Git for Windows (packages step).'
-    }
-    Write-ToolWarning 'git-lfs is unavailable; a real run would stop here.'
 }
 
 # chezmoi pulls whatever repository already sits there, so never adopt a foreign clone

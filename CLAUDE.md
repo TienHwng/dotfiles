@@ -54,7 +54,7 @@ Eight layers, all driven by chezmoi data:
 | L3 Dotfiles | user chezmoi instance, source `home/` |
 | L4 Desktop | KDE keys from `kde.yaml` via `kwriteconfig6`; Windows HKCU from `windows.yaml` |
 | L5 System | system chezmoi instance, source `root/` (Linux); Windows HKLM, debloat, drivers |
-| L6 Assets | private wallpaper repo (Git LFS) via `.chezmoiexternal`, fetched and set by the `wallpaper` step (the `apply` step excludes externals); fonts |
+| L6 Assets | private wallpaper repo (plain Git, no LFS) via `.chezmoiexternal`, fetched and set by the `wallpaper` step (the `apply` step excludes externals); fonts |
 | L7 Sync | systemd user timer / Scheduled Task (notify only), `dots capture` |
 
 Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFrom-Json`

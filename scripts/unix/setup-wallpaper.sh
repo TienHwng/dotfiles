@@ -12,7 +12,7 @@ usage() {
 Usage:
   ./scripts/unix/setup-wallpaper.sh [--dry-run]
 
-Fetches the wallpaper repository (chezmoi external, private Git LFS repository from
+Fetches the wallpaper repository (chezmoi external, private Git repository from
 .wallpapers.repo) into ~/.wallpapers.dir, then sets .wallpapers.current as the KDE
 Plasma desktop wallpaper.
 EOF
@@ -52,11 +52,6 @@ dir="$HOME/$(data_value '.wallpapers.dir')"
 image="$dir/$(data_value '.wallpapers.current')"
 
 [[ -n "$repo" ]] || die 'No wallpaper repository is set (.wallpapers.repo).'
-
-if ! has git-lfs; then
-  [[ "$DRY_RUN" == '1' ]] || die 'git-lfs is required to fetch the wallpapers; run the packages step first.'
-  log_warn 'git-lfs is unavailable; a real run would stop here.'
-fi
 
 # chezmoi pulls whatever repository already sits there, so never adopt a foreign clone
 if [[ -e "$dir" ]]; then
