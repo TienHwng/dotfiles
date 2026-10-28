@@ -8,7 +8,7 @@ setup() {
 }
 
 @test "chezmoi templates are the only Git and SSH configuration writers" {
-  run rg -n 'run_or_print git config|ssh_config=|sshConfigPath|FilePath .git.*ArgumentList.*config' \
+  run grep -nE 'run_or_print git config|ssh_config=|sshConfigPath|FilePath .git.*ArgumentList.*config' \
     "$PROJECT_ROOT/scripts/unix/setup-git.sh" \
     "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" \
     "$PROJECT_ROOT/scripts/windows/setup-git.ps1" \
@@ -20,7 +20,7 @@ setup() {
 }
 
 @test "bootstrap automation does not apply protected root source state" {
-  run rg -n 'root\.toml|sourceDir.*root|chezmoi-root' \
+  run grep -rnE 'root\.toml|sourceDir.*root|chezmoi-root' \
     "$PROJECT_ROOT/scripts" "$PROJECT_ROOT/.github/workflows"
 
   [ "$status" -eq 1 ]

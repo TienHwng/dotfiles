@@ -35,7 +35,7 @@ make preview           # chezmoi apply --dry-run --verbose
 
 Run a single test file or test: `bats tests/common.bats`, or `bats tests/bootstrap.bats -f 'package dry-run'`.
 
-Fix formatting with `shfmt -w -i 2 -ci -bn scripts/unix tests .githooks`. `tests/ownership.bats` requires `rg`; some tests skip when `chezmoi` is absent.
+Fix formatting with `shfmt -w -i 2 -ci -bn scripts/unix tests .githooks`. Some tests skip when `chezmoi` is absent.
 
 ## Architecture (target, see docs/design.md)
 
