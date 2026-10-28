@@ -101,6 +101,8 @@ function Resolve-SourceRepoRoot {
         return $null
     }
 
+    # Windows PowerShell 5.1 turns native stderr into a terminating error under 'Stop'
+    $ErrorActionPreference = 'Continue'
     $sourcePath = (& chezmoi source-path 2>$null | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or
         [string]::IsNullOrWhiteSpace($sourcePath) -or

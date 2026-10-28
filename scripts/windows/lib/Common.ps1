@@ -60,6 +60,8 @@ function Get-ManifestList([string]$List) {
 
 function Get-ChezmoiValue([string]$Expression, [string]$Fallback = '') {
     if (Test-Command 'chezmoi') {
+        # Windows PowerShell 5.1 turns native stderr into a terminating error under 'Stop'
+        $ErrorActionPreference = 'Continue'
         $value = (& chezmoi execute-template "{{ $Expression }}" 2>$null | Out-String).Trim()
         if ($LASTEXITCODE -eq 0 -and
             -not [string]::IsNullOrWhiteSpace($value) -and
