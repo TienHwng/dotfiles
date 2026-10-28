@@ -48,7 +48,7 @@ GRUB_THEME='/usr/share/grub/themes/blackice/theme.txt'
 #GRUB_THEME='/boot/grub/themes/blackice/theme.txt'
 
 # Uncomment to get a beep at GRUB start
-GRUB_INIT_TUNE="480 440 1"
+#GRUB_INIT_TUNE="480 440 1"
 
 # Uncomment to make GRUB remember the last selection. This requires
 # setting 'GRUB_DEFAULT=saved' above.
@@ -64,3 +64,4 @@ GRUB_DISABLE_SUBMENU='false'
 GRUB_DISABLE_OS_PROBER='false'
 GRUB_EARLY_INITRD_LINUX_STOCK=''
 GRUB_TOP_LEVEL='/boot/vmlinuz-linux-cachyos'
+GRUB_DISABLE_BOOTNEXT=true
