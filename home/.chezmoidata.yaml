@@ -9,6 +9,9 @@ features:
 
 accounts:
   ssh:
+    # bitwarden: keys live in the vault and the Bitwarden desktop SSH agent serves them.
+    # file: a passphrase-protected key file on disk (headless machines without Bitwarden).
+    agent: bitwarden
     keyType: ed25519
     keyPathArch: ~/.ssh/id_ed25519
     keyPathUnix: ~/.ssh/id_ed25519

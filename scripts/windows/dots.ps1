@@ -23,7 +23,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
 
-$script:Steps = @('packages', 'git', 'accounts', 'fonts', 'shell', 'apply')
+# accounts runs after apply: gh login needs the rendered gh credential helper and ssh config
+$script:Steps = @('packages', 'git', 'fonts', 'shell', 'apply', 'accounts')
 
 function Show-Usage {
     Write-Host @'
@@ -31,8 +32,8 @@ Usage: dots <command> [options]
 
 Commands:
   bootstrap [-DryRun] [-NonInteractive] [-Skip step,...]
-                  Set up this machine step by step: packages, git, accounts,
-                  fonts, shell, apply. Each step shows a preview and asks
+                  Set up this machine step by step: packages, git, fonts,
+                  shell, apply, accounts. Each step shows a preview and asks
                   run / skip / quit before changing anything.
   packages [-DryRun]
                   Install missing WinGet and Scoop packages from the manifest
@@ -87,7 +88,7 @@ function Get-StepDescription([string]$Step) {
     switch ($Step) {
         'packages' { 'Install WinGet and Scoop packages from home/.chezmoidata/packages.yaml' }
         'git' { 'Check the Git identity used by the git template' }
-        'accounts' { 'Check the SSH key and GitHub CLI login' }
+        'accounts' { 'Log in to GitHub with gh and check the SSH key in the Bitwarden agent' }
         'fonts' { 'Install Nerd Fonts from the manifest with Scoop' }
         'shell' { 'Set XDG_CONFIG_HOME and the PowerShell 7 profile stub' }
         'apply' { 'Apply dotfiles from home/ with chezmoi' }
@@ -214,6 +215,16 @@ function Invoke-PackageInstall {
     }
 }
 
+function Test-SshAgentKey {
+    # Windows PowerShell 5.1 turns native stderr into a terminating error under 'Stop'
+    $ErrorActionPreference = 'Continue'
+    if (-not (Test-Command 'ssh-add')) {
+        return $false
+    }
+    & ssh-add -l *> $null
+    return $LASTEXITCODE -eq 0
+}
+
 # Returns the number of failed required checks
 function Invoke-Doctor {
     $failures = 0
@@ -229,7 +240,7 @@ function Invoke-Doctor {
     }
 
     Write-Step 'Optional tools'
-    foreach ($tool in @('pwsh', 'winget', 'scoop', 'oh-my-posh', 'gum', 'gitleaks', 'fzf')) {
+    foreach ($tool in @('pwsh', 'winget', 'scoop', 'oh-my-posh', 'gum', 'gitleaks', 'fzf', 'bw')) {
         if (Test-Command $tool) {
             Write-Success "${tool}: $((Get-Command $tool).Source)"
         } else {
@@ -263,6 +274,15 @@ function Invoke-Doctor {
         Write-Success "Profile stub: $stubFile"
     } else {
         Write-ToolWarning "Profile stub missing at $stubFile; run the shell step: dots bootstrap"
+    }
+
+    Write-Step 'SSH agent'
+    if ((Get-ChezmoiValue '.accounts.ssh.agent' 'bitwarden') -ne 'bitwarden') {
+        Write-Success 'SSH keys are files on disk (.accounts.ssh.agent = file)'
+    } elseif (Test-SshAgentKey) {
+        Write-Success 'Bitwarden SSH agent is running and holds keys'
+    } else {
+        Write-ToolWarning 'Bitwarden SSH agent is not running or holds no keys; see the accounts step: dots bootstrap'
     }
 
     Write-Step 'Git hooks'

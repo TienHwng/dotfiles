@@ -85,6 +85,16 @@ packages:
       arch: gum
       brew: gum
       scoop: gum
+    # Secrets and SSH keys (L1): desktop app serves the SSH agent, bw renders templates
+    - name: bitwarden
+      gui: true
+      arch: bitwarden
+      brewCask: bitwarden
+      winget: Bitwarden.Bitwarden
+    - name: bitwarden-cli
+      arch: bitwarden-cli
+      brew: bitwarden-cli
+      scoop: bitwarden-cli
     - name: oh-my-posh
       arch: oh-my-posh-bin
       scoop: oh-my-posh

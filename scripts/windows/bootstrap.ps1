@@ -209,7 +209,7 @@ if (-not (Test-Path -LiteralPath $activeScriptRoot)) {
     throw "Bootstrap script directory not found: $activeScriptRoot"
 }
 
-# The steps themselves (packages, git, accounts, fonts, shell, apply) live in dots.ps1
+# The steps themselves (packages, git, fonts, shell, apply, accounts) live in dots.ps1
 $skip = @()
 if ($SkipPackages) { $skip += 'packages' }
 if ($SkipGit) { $skip += 'git' }

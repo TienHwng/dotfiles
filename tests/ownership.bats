@@ -51,8 +51,24 @@ setup() {
   [[ "$output" == *'name = Test User'* ]]
   [[ "$output" == *'email = test@example.test'* ]]
 
+  # Bitwarden agent (default): no key file, Linux points ssh at the agent socket
   run chezmoi --source "$PROJECT_ROOT" --override-data "$data" execute-template <"$PROJECT_ROOT/home/dot_ssh/private_config.tmpl"
   [ "$status" -eq 0 ]
   [[ "$output" == *'Host github.com'* ]]
+  [[ "$output" == *'IdentityAgent ~/.bitwarden-ssh-agent.sock'* ]]
+  [[ "$output" != *'IdentityFile'* ]]
+
+  # Windows: Bitwarden answers on the default OpenSSH agent pipe
+  run chezmoi --source "$PROJECT_ROOT" --override-data '{"chezmoi":{"os":"windows"}}' \
+    execute-template <"$PROJECT_ROOT/home/dot_ssh/private_config.tmpl"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'IdentityAgent'* ]]
+  [[ "$output" != *'IdentityFile'* ]]
+
+  # Key file mode for headless machines
+  run chezmoi --source "$PROJECT_ROOT" --override-data '{"accounts":{"ssh":{"agent":"file"}}}' \
+    execute-template <"$PROJECT_ROOT/home/dot_ssh/private_config.tmpl"
+  [ "$status" -eq 0 ]
   [[ "$output" == *'IdentityFile ~/.ssh/id_ed25519'* ]]
+  [[ "$output" != *'IdentityAgent'* ]]
 }

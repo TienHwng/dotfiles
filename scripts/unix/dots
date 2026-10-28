@@ -9,7 +9,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" >/de
 source "$SCRIPT_DIR/lib/common.sh"
 
 ROOT_DIR="$(repo_root)"
-STEPS=(packages git accounts fonts shell apply)
+# accounts runs after apply: gh login needs the rendered gh credential helper and ssh config
+STEPS=(packages git fonts shell apply accounts)
 DRY_RUN="${DRY_RUN:-0}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
 
@@ -19,8 +20,8 @@ Usage: dots <command> [options]
 
 Commands:
   bootstrap [--dry-run] [--non-interactive] [--skip STEP]...
-                  Set up this machine step by step: packages, git, accounts,
-                  fonts, shell, apply. Each step shows a preview and asks
+                  Set up this machine step by step: packages, git, fonts,
+                  shell, apply, accounts. Each step shows a preview and asks
                   run / skip / quit before changing anything.
   packages [--diff | --dry-run]
                   Install missing packages from the manifest (preview, then
@@ -81,7 +82,7 @@ step_description() {
   case "$1" in
     packages) printf 'Install packages from home/.chezmoidata/packages.yaml' ;;
     git) printf 'Check the Git identity used by the git template' ;;
-    accounts) printf 'Check the SSH key and GitHub CLI login' ;;
+    accounts) printf 'Log in to GitHub with gh and check the SSH key in the Bitwarden agent' ;;
     fonts) printf 'Install Nerd Fonts from the manifest' ;;
     shell) printf 'Make %s the login shell' "$(login_shell)" ;;
     apply) printf 'Apply dotfiles from home/ with chezmoi' ;;
@@ -242,7 +243,7 @@ cmd_doctor() {
   done
 
   log_step 'Optional tools'
-  for tool in gum gitleaks fzf; do
+  for tool in gum gitleaks fzf bw; do
     if has "$tool"; then
       log_success "$tool: $(command -v "$tool")"
     else
@@ -261,6 +262,15 @@ cmd_doctor() {
     fi
   else
     log_warn "No package list for platform: $platform"
+  fi
+
+  log_step 'SSH agent'
+  if [[ "$(chezmoi_value '.accounts.ssh.agent' 'bitwarden')" != 'bitwarden' ]]; then
+    log_success 'SSH keys are files on disk (.accounts.ssh.agent = file)'
+  elif SSH_AUTH_SOCK="$HOME/.bitwarden-ssh-agent.sock" ssh-add -l >/dev/null 2>&1; then
+    log_success 'Bitwarden SSH agent is running and holds keys'
+  else
+    log_warn 'Bitwarden SSH agent is not running or holds no keys; see the accounts step: dots bootstrap'
   fi
 
   log_step 'Git hooks'

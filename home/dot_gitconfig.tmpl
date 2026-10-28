@@ -28,14 +28,18 @@
 
 [credential]
 {{- if eq .chezmoi.os "windows" }}
-	helper = manager-core
+	helper = manager
 {{- else }}
 	helper = cache --timeout=7200
 {{- end }}
 
-{{- /* GitHub CLI as credential helper; replaces `gh auth setup-git`, which would write this file directly */}}
+{{- /* GitHub CLI as credential helper on every OS; replaces `gh auth setup-git`, which would
+       write this file directly. With it in place `gh auth login` does not offer to. */}}
 {{- $gh := lookPath "gh" }}
-{{- if and $gh (ne .chezmoi.os "windows") }}
+{{- if $gh }}
+{{- /* Forward slashes for Git's sh; single quotes only when needed, as gh itself writes it */}}
+{{- $gh = $gh | replace "\\" "/" }}
+{{- if regexMatch "[ $]" $gh }}{{ $gh = printf "'%s'" $gh }}{{ end }}
 [credential "https://github.com"]
 	helper =
 	helper = !{{ $gh }} auth git-credential

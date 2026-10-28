@@ -7,6 +7,10 @@
 mode = "symlink"
 {{- end }}
 
+[bitwarden]
+    # Templates that call bitwarden* functions run `bw unlock` only when BW_SESSION is unset
+    unlock = "auto"
+
 [data]
 gitName = {{ $gitName | quote }}
 gitEmail = {{ $gitEmail | quote }}

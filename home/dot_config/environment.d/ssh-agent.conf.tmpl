@@ -1,0 +1,5 @@
+{{- if eq .accounts.ssh.agent "bitwarden" -}}
+# Bitwarden desktop serves SSH keys on this socket (Settings > Enable SSH agent).
+# ~/.ssh/config already points ssh at it; this is for ssh-add and other agent clients.
+SSH_AUTH_SOCK=${HOME}/.bitwarden-ssh-agent.sock
+{{- end }}

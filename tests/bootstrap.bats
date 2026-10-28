@@ -100,7 +100,7 @@ setup() {
 @test "non-interactive account setup refuses implicit unencrypted key creation" {
   key_path="$HOME/.ssh/id_test"
 
-  run "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" --non-interactive \
+  run "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" --ssh-agent file --non-interactive \
     --ssh-email user@example.test --ssh-key-path "$key_path"
 
   [ "$status" -ne 0 ]
@@ -114,7 +114,7 @@ setup() {
   mkdir -p "$(dirname "$key_path")"
   printf '%s\n' 'existing-private-key-placeholder' >"$key_path"
 
-  run "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" --force --non-interactive \
+  run "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" --ssh-agent file --force --non-interactive \
     --ssh-email user@example.test --ssh-key-path "$key_path"
 
   [ "$status" -ne 0 ]
@@ -132,7 +132,7 @@ setup() {
   chmod +x "$mock_bin/gh"
 
   run env PATH="$mock_bin:$PATH" "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" \
-    --dry-run --non-interactive --allow-unencrypted-key \
+    --ssh-agent file --dry-run --non-interactive --allow-unencrypted-key \
     --ssh-email user@example.test --ssh-key-path "$key_path"
 
   [ "$status" -eq 0 ]
@@ -148,11 +148,11 @@ setup() {
   printf '%s\n' 'existing-private-key-placeholder' >"$key_path"
   before="$(sha256sum "$key_path")"
 
-  run "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" --non-interactive \
+  run "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" --ssh-agent file --non-interactive \
     --ssh-email user@example.test --ssh-key-path "$key_path"
   [ "$status" -eq 0 ]
 
-  run "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" --non-interactive \
+  run "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" --ssh-agent file --non-interactive \
     --ssh-email user@example.test --ssh-key-path "$key_path"
   [ "$status" -eq 0 ]
 
@@ -170,4 +170,99 @@ setup() {
   [[ "$output" != *'No such file'* ]]
   [[ "$output" == *'+ chezmoi init --promptDefaults https://github.com/TienHwng/dotfiles.git'* ]]
   [[ "$output" == *'Dry-run requires an existing local repository checkout'* ]]
+}
+
+# Mock ssh-add (exit code $1, prints one key on 0), ssh (prints $2) and gh (logged in;
+# records ssh-key uploads) for the Bitwarden agent mode
+mock_bitwarden_agent() {
+  mock_bin="$BATS_TEST_TMPDIR/agent-bin"
+  upload_marker="$BATS_TEST_TMPDIR/gh-ssh-key-add"
+  mkdir -p "$mock_bin"
+  cat >"$mock_bin/ssh-add" <<EOF
+#!/usr/bin/env bash
+[[ "$1" == 0 ]] && printf '%s\n' 'ssh-ed25519 AAAATESTKEY bitwarden'
+exit $1
+EOF
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" %q\nexit 1\n' "$2" >"$mock_bin/ssh"
+  cat >"$mock_bin/gh" <<EOF
+#!/usr/bin/env bash
+[[ "\$1" == ssh-key ]] && touch '$upload_marker'
+exit 0
+EOF
+  chmod +x "$mock_bin/ssh-add" "$mock_bin/ssh" "$mock_bin/gh"
+}
+
+@test "Bitwarden dry-run reports an unreachable agent without failing or writing files" {
+  mock_bitwarden_agent 2 ''
+
+  run env PATH="$mock_bin:$PATH" "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" \
+    --ssh-agent bitwarden --dry-run --non-interactive
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Bitwarden SSH agent is not reachable'* ]]
+  [[ "$output" == *'gh auth login --hostname github.com --git-protocol https --web'* ]]
+  [ ! -e "$HOME/.ssh" ]
+}
+
+@test "non-interactive Bitwarden mode fails when the agent is not reachable" {
+  mock_bitwarden_agent 2 ''
+
+  run env PATH="$mock_bin:$PATH" "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" \
+    --ssh-agent bitwarden --non-interactive
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'Enable SSH agent'* ]]
+  [[ "$output" == *'not reachable'* ]]
+}
+
+@test "non-interactive Bitwarden mode fails when the agent holds no keys" {
+  mock_bitwarden_agent 1 ''
+
+  run env PATH="$mock_bin:$PATH" "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" \
+    --ssh-agent bitwarden --non-interactive
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'holds no keys'* ]]
+}
+
+@test "Bitwarden mode passes when GitHub accepts the agent key" {
+  mock_bitwarden_agent 0 'Hi tester! You have successfully authenticated, but GitHub does not provide shell access.'
+
+  run env PATH="$mock_bin:$PATH" "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" \
+    --ssh-agent bitwarden --non-interactive
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'holds 1 key(s)'* ]]
+  [[ "$output" == *'GitHub accepts the SSH key'* ]]
+  [ ! -e "$upload_marker" ]
+  [ ! -e "$HOME/.ssh/id_ed25519" ]
+}
+
+@test "non-interactive Bitwarden mode prints an unknown key instead of uploading it" {
+  mock_bitwarden_agent 0 'git@github.com: Permission denied (publickey).'
+
+  run env PATH="$mock_bin:$PATH" "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" \
+    --ssh-agent bitwarden --non-interactive
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'ssh-ed25519 AAAATESTKEY bitwarden'* ]]
+  [ ! -e "$upload_marker" ]
+}
+
+@test "interactive Bitwarden mode uploads the key with gh after yes" {
+  mock_bitwarden_agent 0 'git@github.com: Permission denied (publickey).'
+
+  # shellcheck disable=SC2016
+  run env PATH="$mock_bin:$PATH" bash -c 'printf "y\n" | "$1" --ssh-agent bitwarden' _ \
+    "$PROJECT_ROOT/scripts/unix/setup-accounts.sh"
+
+  [ "$status" -eq 0 ]
+  [ -e "$upload_marker" ]
+}
+
+@test "unknown SSH agent modes are rejected" {
+  run "$PROJECT_ROOT/scripts/unix/setup-accounts.sh" --ssh-agent gnome --dry-run
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'Unknown SSH agent mode: gnome'* ]]
 }

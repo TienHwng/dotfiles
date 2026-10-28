@@ -317,7 +317,7 @@ main() {
 
   log_step "Platform: $platform"
 
-  # The steps themselves (packages, git, accounts, fonts, shell, apply) live in dots
+  # The steps themselves (packages, git, fonts, shell, apply, accounts) live in dots
   dots_args=(bootstrap)
   [[ "$DRY_RUN" == '1' ]] && dots_args+=(--dry-run)
   [[ "$NON_INTERACTIVE" == '1' ]] && dots_args+=(--non-interactive)

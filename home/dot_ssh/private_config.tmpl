@@ -1,6 +1,17 @@
 Host *
   ServerAliveInterval 60
   ServerAliveCountMax 3
+{{- if eq .accounts.ssh.agent "bitwarden" }}
+{{- if ne .chezmoi.os "windows" }}
+  # Bitwarden desktop serves the SSH keys; private keys never touch the disk.
+  # Windows needs no setting: Bitwarden answers on the OpenSSH agent pipe.
+  IdentityAgent ~/.bitwarden-ssh-agent.sock
+{{- end }}
+
+Host github.com
+  HostName github.com
+  User git
+{{- else }}
   AddKeysToAgent yes
 
 {{- $keyPath := "~/.ssh/id_ed25519" }}
@@ -19,3 +30,4 @@ Host github.com
   IdentityFile {{ $keyPath }}
   IdentitiesOnly yes
   AddKeysToAgent yes
+{{- end }}
