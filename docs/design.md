@@ -297,15 +297,26 @@ production.
 | Item | Status |
 |---|---|
 | `root/` source, applied manually via `chezmoi-root`/`cmr` in `home/dot_zshrc` | `[Implemented]` |
-| Separate config/state directory | `[Planned: P0]` |
-| Shared machine data, templates, drop-ins, hooks, PKGBUILD, `dots system` | `[Planned: P6]` |
+| Separate config/state directory, root cache, source ownership restored after each `cmr` | `[Implemented]` |
+| System config rendered by the user instance from `home/dot_config/chezmoi-root/chezmoi.toml.tmpl` | `[Implemented]` |
+| `cmr` review flow (status + diff + confirm), `cmr edit` (edit repo copy as the user, diff, confirm), `cmr capture` (fzf pick of files changed in `/`, `re-add`, templates listed for manual edit) | `[Implemented]` |
+| Machine data copied into the system config, templates per distro, drop-ins, hooks, PKGBUILD, `dots system` | `[Planned: P6]` |
 
-1. **Separate state.** Today `root.toml` sits in `~/.config/chezmoi/` next to the user config,
-   so both instances share `chezmoistate.boltdb`. Target: `~/.config/chezmoi-root/chezmoi.toml`,
-   with its state in that directory.
-2. **Shared machine data.** The user instance renders `~/.config/chezmoi-root/chezmoi.toml`
-   from a template, copying machine data into its `[data]` table, so both instances read the
-   same values.
+1. **Separate state.** chezmoi keeps `chezmoistate.boltdb` next to its config file, so the
+   system config lives in its own directory, `~/.config/chezmoi-root/chezmoi.toml`. `cmr`
+   runs plain `sudo` (not `sudo -E`, preserving only `EDITOR`/`VISUAL`) with
+   `--cache=/var/cache/chezmoi-root`, so nothing root-owned lands in the user's home.
+   Because `add`/`edit`/`re-add` run as root and create root-owned files in `root/`, `cmr`
+   chowns the source back to the user after every command; git does not track ownership and
+   chezmoi sets target ownership from the process that writes it, so this is safe.
+   `cmr cd` changes directory in the current shell instead of spawning a root shell.
+2. **Shared machine data.** The user instance already renders `~/.config/chezmoi-root/chezmoi.toml`
+   from `home/dot_config/chezmoi-root/chezmoi.toml.tmpl`. Planned: copy machine data into its
+   `[data]` table, so both instances read the same values.
+   Read-only lookups that `cmr` runs as the user (`source-path`) pass a throwaway
+   `--persistent-state`, because the real state file is root-owned.
+   Note: with an empty state file (first run after the move), chezmoi cannot tell that `/` was
+   edited by hand and reports ` M` instead of `MM`; review `cmr diff` before the first apply.
 3. **Templates per distro/machine.** `root/.chezmoiignore` gates files by distro, so planned
    distros (e.g. Ubuntu, which uses `update-grub`) can be added later.
 4. **Prefer drop-ins** (`/etc/sddm.conf.d/`, `/etc/mkinitcpio.conf.d/`, `sysctl.d`,

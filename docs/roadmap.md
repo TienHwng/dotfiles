@@ -21,7 +21,6 @@ Status tags are defined in [README.md](README.md); designs are in [design.md](de
 Known gaps in the current state:
 
 - `home/.chezmoiignore` is not OS-aware: applying on Windows would write Linux-only files.
-- The user and system chezmoi instances share one state file.
 - KDE `*rc` files are managed as whole files and always show drift.
 - No secrets-manager integration; SSH keys are created on disk.
 
@@ -34,7 +33,7 @@ Each phase is one pull request and MUST keep `make validate` green. Primary plat
 
 | Phase | Content | Done when |
 |---|---|---|
-| **P0 Safety** | OS-aware `.chezmoiignore`; move the system instance config/state to `~/.config/chezmoi-root/`; gitleaks pre-commit + CI | `chezmoi apply --dry-run` on Windows touches no Linux-only file; gitleaks job passes |
+| **P0 Safety** | OS-aware `.chezmoiignore`; gitleaks pre-commit + CI. (Done early: system instance config/state moved to `~/.config/chezmoi-root/`, `cmr` restores source ownership.) | `chezmoi apply --dry-run` on Windows touches no Linux-only file; gitleaks job passes |
 | **P1 Manifest + `dots` (CachyOS)** | `home/.chezmoidata/packages.yaml`; install scripts read `chezmoi data`; `dots` (Bash, gum) with `bootstrap`, `packages [--diff]`, `doctor`, `update`, `backup`, `cleanup`; remove Fedora backend and `packages/*.txt`; archlinux CI container | A fresh CachyOS VM gets every package from the manifest through `dots bootstrap` |
 | **P2 Windows parity** | chezmoi on Windows, `XDG_CONFIG_HOME`, PowerShell profile stub, winget + Scoop from the manifest, fonts, `dots.ps1`; Pester, PSScriptAnalyzer, `windows-latest` CI job | A fresh Windows VM/Sandbox completes L2–L3 through `dots.ps1 bootstrap` |
 | **P3 Secrets** | `gh auth login` step, Bitwarden templates, Bitwarden SSH agent, rewrite `setup-accounts` | `ssh -T git@github.com` works with no private key on disk, on both primary OSes |

@@ -488,24 +488,171 @@ _chezmoi_has_subcommand() {
 
 # ===================================
 # Chezmoi wrapper for root-managed system files
+#   cmr                 show status + diff, ask, then apply
+#   cmr edit FILE...    edit the repo copy as this user, show diff, ask, then apply
+#   cmr capture         pick files changed directly in / and pull them back into the repo
+#   cmr cd              cd into the root source directory
+#   cmr <anything>      passed to chezmoi as root (e.g. cmr apply, cmr add /etc/x)
 # ===================================
 chezmoi-root() {
-  local config_file="$HOME/.config/chezmoi/root.toml"
+  # Own directory so the persistent state (stored next to the config) is not shared with the user instance
+  local config_file="$HOME/.config/chezmoi-root/chezmoi.toml"
+  local legacy_config="$HOME/.config/chezmoi/root.toml"
+  local cache_dir="/var/cache/chezmoi-root"
+  local chezmoi_bin="${commands[chezmoi]}"
+  local source_dir dest_dir rc=0
 
   # Check whether the config file exists
   if [[ ! -f "$config_file" ]]; then
     print -P "%F{red}[ERROR] Chezmoi root config file not found at: $config_file%f" >&2
+    if [[ -f "$legacy_config" ]]; then
+      print -r -- "Move the old config there: mkdir -p ${config_file:h} && mv $legacy_config $config_file" >&2
+    fi
     return 1
   fi
 
-  # If no command is passed (just typing `cmr`), default to running `apply`
-  if [[ $# -eq 0 ]]; then
-    print -P "%F{yellow}[INFO] Applying system configuration using $config_file%f"
-    sudo -E chezmoi --config="$config_file" apply
-  else
-    # If a command is passed (for example: `cmr cd`, `cmr status`), run that command
-    sudo -E chezmoi --config="$config_file" "$@"
+  if [[ -z "$chezmoi_bin" ]]; then
+    print -P "%F{red}[ERROR] chezmoi binary not found in PATH%f" >&2
+    return 1
   fi
+
+  # Read sourceDir/destDir from the config instead of asking chezmoi, which would open root's state file as this user
+  source_dir="$(sed -n 's/^[[:space:]]*sourceDir[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$config_file")"
+  dest_dir="$(sed -n 's/^[[:space:]]*destDir[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$config_file")"
+  dest_dir="${dest_dir:-/}"
+  if [[ -z "$source_dir" || ! -d "$source_dir" ]]; then
+    print -P "%F{red}[ERROR] sourceDir missing or invalid in $config_file%f" >&2
+    return 1
+  fi
+
+  # Plain sudo (not -E): root keeps its own HOME, and the cache lives outside this user's home
+  local -a root_cmd=(sudo --preserve-env=EDITOR,VISUAL "$chezmoi_bin" --config="$config_file" --cache="$cache_dir")
+  # Read-only lookups run as this user; a throwaway state file avoids opening root's state
+  local tmp_state_dir
+  local -a user_cmd editor
+  editor=(${=${VISUAL:-${EDITOR:-vi}}})
+
+  case "${1:-}" in
+    cd)
+      # `cmr cd` stays a normal shell: a root shell in the source would create root-owned files
+      cd "$source_dir"
+      return
+      ;;
+
+    "")
+      local changes diff_output
+      changes="$("${root_cmd[@]}" status)" || return
+      if [[ -z "$changes" ]]; then
+        print -P "%F{green}[OK] / already matches $source_dir%f"
+        return 0
+      fi
+      diff_output="$("${root_cmd[@]}" diff --no-pager)" || return
+      print -r -- "$changes"
+      print -r -- "$diff_output"
+      if read -q "?Apply these changes to / ? [y/N] "; then
+        print
+        "${root_cmd[@]}" apply
+        rc=$?
+      else
+        print
+        print -P "%F{yellow}[INFO] Nothing applied%f"
+      fi
+      ;;
+
+    edit)
+      shift
+      if (( $# == 0 )); then
+        "${editor[@]}" "$source_dir"
+        return
+      fi
+
+      local -a source_files
+      local diff_output
+      tmp_state_dir="$(mktemp -d)"
+      user_cmd=("$chezmoi_bin" --config="$config_file" --persistent-state="$tmp_state_dir/state.boltdb")
+      source_files=("${(@f)$("${user_cmd[@]}" source-path "$@")}")
+      rc=$?
+      rm -rf "$tmp_state_dir"
+      (( rc == 0 )) || return $rc
+
+      "${editor[@]}" "${source_files[@]}"
+      diff_output="$("${root_cmd[@]}" diff --no-pager "$@")" || return
+      if [[ -z "$diff_output" ]]; then
+        print -P "%F{green}[OK] No changes to apply%f"
+        return 0
+      fi
+      print -r -- "$diff_output"
+      if read -q "?Apply to / ? [y/N] "; then
+        print
+        "${root_cmd[@]}" apply "$@"
+        rc=$?
+      else
+        print
+        print -P "%F{yellow}[INFO] Saved in the repo only; run cmr to apply later%f"
+      fi
+      ;;
+
+    capture)
+      if [[ -z "${commands[fzf]}" ]]; then
+        print -P "%F{red}[ERROR] cmr capture needs fzf%f" >&2
+        return 1
+      fi
+
+      local changes picked
+      local -a candidates targets plain templates
+      changes="$("${root_cmd[@]}" status)" || return
+      # Only modified files can be pulled back; "MM" means / was also edited since the last apply
+      candidates=(${(f)"$(print -r -- "$changes" | awk -v dest="${dest_dir%/}" 'substr($0,1,2) ~ /M/ { printf "%s/%s\t%s\n", dest, substr($0,4), substr($0,1,2) }')"})
+      if (( ${#candidates} == 0 )); then
+        print -P "%F{green}[OK] No modified files to capture%f"
+        return 0
+      fi
+
+      picked="$(print -rl -- "${candidates[@]}" | fzf --multi --delimiter=$'\t' \
+        --header='TAB: select, ENTER: pull the /etc version into the repo' \
+        --preview="sudo -n ${(q)chezmoi_bin} --config=${(q)config_file} --cache=${(q)cache_dir} diff --no-pager {1}")"
+      [[ -n "$picked" ]] || return 0
+      targets=(${(f)"$(print -r -- "$picked" | cut -f1)"})
+
+      # re-add silently skips templates, so list those for a manual edit instead
+      local -a source_files
+      local i
+      tmp_state_dir="$(mktemp -d)"
+      user_cmd=("$chezmoi_bin" --config="$config_file" --persistent-state="$tmp_state_dir/state.boltdb")
+      source_files=("${(@f)$("${user_cmd[@]}" source-path "${targets[@]}")}")
+      rm -rf "$tmp_state_dir"
+      for i in {1..${#targets}}; do
+        if [[ "${source_files[i]}" == *.tmpl ]]; then
+          templates+=("${targets[i]}")
+        else
+          plain+=("${targets[i]}")
+        fi
+      done
+
+      if (( ${#plain} )); then
+        "${root_cmd[@]}" re-add "${plain[@]}"
+        rc=$?
+      fi
+      if (( ${#templates} )); then
+        print -P "%F{yellow}[INFO] Templates are not re-added automatically; review and edit them by hand:%f"
+        print -rl -- "  cmr diff ${^templates}" "  cmr edit ${^templates}"
+      fi
+      git -C "$source_dir" status --short -- .
+      ;;
+
+    *)
+      "${root_cmd[@]}" "$@"
+      rc=$?
+      ;;
+  esac
+
+  # add/edit/re-add run as root and leave root-owned files in the source; hand them back to this user
+  if [[ -n "$(find "$source_dir" ! -user "$USER" -print -quit 2>/dev/null)" ]]; then
+    print -P "%F{yellow}[INFO] Restoring ownership of $source_dir to $USER%f"
+    sudo chown -R "$USER:$(id -gn)" "$source_dir"
+  fi
+
+  return $rc
 }
 
 # Shortcut alias for convenience
