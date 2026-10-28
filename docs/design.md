@@ -398,7 +398,7 @@ Order inside `dots system` on Windows:
 |---|---|
 | Nerd Fonts via the manifest `nerdFonts` list (Linux: release archives; Windows: Scoop) | `[Implemented]` |
 | Wallpaper repository + chezmoi external + `wallpaper` step that sets it (KDE, Windows) | `[Implemented]` |
-| Repository `TienHwng/wallpapers` created and filled; local clone migrated | Pending: needs the owner's go-ahead |
+| Repository `TienHwng/wallpapers` created (private) and filled; `~/Pictures/wallpaper` on CachyOS is now its clone (old upstream clone kept as `~/Pictures/wallpaper.upstream`) | Done (2026-10-28) |
 
 - Private repository `TienHwng/wallpapers` (owner's choice over using the public upstream or a
   public fork). The images come from the public `mylinuxforwork/wallpaper` repository
