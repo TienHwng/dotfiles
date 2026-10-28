@@ -13,6 +13,7 @@ NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
 PROMPT=0
 FORCE=0
 DRY_RUN=0
+ALLOW_UNENCRYPTED_KEY=0
 
 usage() {
   cat <<'EOF'
@@ -26,6 +27,7 @@ Options:
   --ssh-key-type TYPE
   --prompt
   --force
+  --allow-unencrypted-key
   --non-interactive
   --dry-run
 EOF
@@ -53,11 +55,30 @@ while (($#)); do
       SSH_KEY_TYPE="$2"
       shift 2
       ;;
-    --prompt) PROMPT=1; shift ;;
-    --force) FORCE=1; shift ;;
-    --non-interactive) NON_INTERACTIVE=1; shift ;;
-    --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) usage; exit 0 ;;
+    --prompt)
+      PROMPT=1
+      shift
+      ;;
+    --force)
+      FORCE=1
+      shift
+      ;;
+    --allow-unencrypted-key)
+      ALLOW_UNENCRYPTED_KEY=1
+      shift
+      ;;
+    --non-interactive)
+      NON_INTERACTIVE=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     *) die "Unknown option: $1" ;;
   esac
 done
@@ -71,30 +92,34 @@ fi
 platform="$(detect_platform)"
 
 if [[ "$PROMPT" != '1' ]]; then
-  [[ -n "$GITHUB_USERNAME" ]] || GITHUB_USERNAME="$(chezmoi_value '.accounts.github.username')"
-  [[ -n "$SSH_KEY_EMAIL" ]] || SSH_KEY_EMAIL="$(chezmoi_value '.accounts.ssh.email')"
+  [[ -n "$GITHUB_USERNAME" ]] || GITHUB_USERNAME="$(chezmoi_value '.githubUsername')"
+  [[ -n "$SSH_KEY_EMAIL" ]] || SSH_KEY_EMAIL="$(chezmoi_value '.sshEmail')"
 fi
 
 if [[ -z "$SSH_KEY_PATH" ]]; then
   if [[ "$platform" == 'arch' ]]; then
-    SSH_KEY_PATH="$(chezmoi_value '.accounts.ssh.keyPathArch' '~/.ssh/id_ed25519')"
+    SSH_KEY_PATH="$(chezmoi_value '.accounts.ssh.keyPathArch' "$HOME/.ssh/id_ed25519")"
   else
-    SSH_KEY_PATH="$(chezmoi_value '.accounts.ssh.keyPathUnix' '~/.ssh/id_ed25519')"
+    SSH_KEY_PATH="$(chezmoi_value '.accounts.ssh.keyPathUnix' "$HOME/.ssh/id_ed25519")"
   fi
 fi
 
 [[ -n "$SSH_KEY_TYPE" ]] || SSH_KEY_TYPE="$(chezmoi_value '.accounts.ssh.keyType' 'ed25519')"
 
-if [[ -z "$SSH_KEY_EMAIL" ]]; then
+if [[ -z "$SSH_KEY_EMAIL" ]] && has git; then
   SSH_KEY_EMAIL="$(git config --global --get user.email 2>/dev/null || true)"
 fi
 
-if [[ "$PROMPT" == '1' && "$NON_INTERACTIVE" != '1' ]]; then
-  read -r -p 'GitHub username (optional): ' GITHUB_USERNAME
-fi
-
-if [[ -z "$SSH_KEY_EMAIL" && "$NON_INTERACTIVE" != '1' ]]; then
-  read -r -p 'SSH key email: ' SSH_KEY_EMAIL
+if [[ "$PROMPT" == '1' || (-z "$SSH_KEY_EMAIL" && "$NON_INTERACTIVE" != '1') ]]; then
+  if [[ "$DRY_RUN" == '1' ]]; then
+    print_command chezmoi init --prompt
+    log_warn 'Account prompts were not executed during dry-run.'
+  else
+    require_command chezmoi 'chezmoi is required to store machine-specific account data.'
+    chezmoi init --prompt
+    [[ -n "$GITHUB_USERNAME" ]] || GITHUB_USERNAME="$(chezmoi_value '.githubUsername')"
+    SSH_KEY_EMAIL="$(chezmoi_value '.sshEmail')"
+  fi
 fi
 
 if [[ "$SSH_KEY_PATH" == ~* ]]; then
@@ -102,9 +127,29 @@ if [[ "$SSH_KEY_PATH" == ~* ]]; then
 fi
 
 [[ -n "$SSH_KEY_PATH" ]] || die 'SSH key path cannot be empty.'
-[[ -n "$SSH_KEY_EMAIL" ]] || die 'SSH key email cannot be empty. Provide --ssh-email or set accounts.ssh.email.'
+if [[ -z "$SSH_KEY_EMAIL" ]]; then
+  if [[ "$DRY_RUN" == '1' ]]; then
+    log_warn 'SSH key email is missing; a real run would stop before key generation.'
+  else
+    die 'SSH key email cannot be empty. Run chezmoi init --prompt or provide --ssh-email.'
+  fi
+fi
 
-has ssh-keygen || die 'ssh-keygen is required to manage SSH keys.'
+if ! has ssh-keygen; then
+  if [[ "$DRY_RUN" == '1' ]]; then
+    log_warn 'ssh-keygen is unavailable; printing the intended operation only.'
+  else
+    die 'ssh-keygen is required to manage SSH keys.'
+  fi
+fi
+
+if [[ (! -f "$SSH_KEY_PATH" || "$FORCE" == '1') && "$NON_INTERACTIVE" == '1' && "$ALLOW_UNENCRYPTED_KEY" != '1' ]]; then
+  if [[ "$DRY_RUN" == '1' ]]; then
+    log_warn 'Non-interactive key generation requires --allow-unencrypted-key; no key would be created.'
+  else
+    die 'Refusing to create an unencrypted SSH key non-interactively. Pre-create a protected key, use --skip-accounts, or explicitly pass --allow-unencrypted-key.'
+  fi
+fi
 
 ssh_dir="$(dirname "$SSH_KEY_PATH")"
 run_or_print mkdir -p "$ssh_dir"
@@ -119,53 +164,19 @@ fi
 
 if [[ ! -f "$SSH_KEY_PATH" ]]; then
   log_step "Generating SSH key: $SSH_KEY_PATH"
-  run_or_print ssh-keygen -t "$SSH_KEY_TYPE" -C "$SSH_KEY_EMAIL" -f "$SSH_KEY_PATH" -N ''
+  ssh_keygen_args=(-t "$SSH_KEY_TYPE" -C "$SSH_KEY_EMAIL" -f "$SSH_KEY_PATH")
+  [[ "$ALLOW_UNENCRYPTED_KEY" == '1' ]] && ssh_keygen_args+=(-N '')
+  run_or_print ssh-keygen "${ssh_keygen_args[@]}"
 else
   log_success "Keeping existing SSH key: $SSH_KEY_PATH"
 fi
 
-ssh_config="$HOME/.ssh/config"
-start_marker='# BEGIN DOTFILES GITHUB'
-end_marker='# END DOTFILES GITHUB'
-managed_block=$(cat <<EOF
-$start_marker
-Host github.com
-  HostName github.com
-  User git
-  IdentityFile $SSH_KEY_PATH
-  IdentitiesOnly yes
-  AddKeysToAgent yes
-$end_marker
-EOF
-)
-
-if [[ "$DRY_RUN" == '1' ]]; then
-  log_step "Would ensure GitHub SSH host block in $ssh_config"
-else
-  tmp_file="$(mktemp "${TMPDIR:-/tmp}/dotfiles-ssh-config.XXXXXX")"
-  if [[ -f "$ssh_config" ]]; then
-    awk -v start="$start_marker" -v end="$end_marker" '
-      $0 == start {skip=1; next}
-      $0 == end {skip=0; next}
-      skip == 0 {print}
-    ' "$ssh_config" > "$tmp_file"
-    if [[ -s "$tmp_file" && "$(tail -c1 "$tmp_file" 2>/dev/null || true)" != $'\n' ]]; then
-      printf '\n' >> "$tmp_file"
-    fi
-  fi
-
-  printf '%s\n' "$managed_block" >> "$tmp_file"
-  mv "$tmp_file" "$ssh_config"
-  chmod 600 "$ssh_config"
-  log_success "SSH config updated: $ssh_config"
-fi
-
-if has git && [[ -n "$GITHUB_USERNAME" ]]; then
-  run_or_print git config --global github.user "$GITHUB_USERNAME"
-fi
+log_success 'SSH host configuration is owned by home/dot_ssh/private_config.tmpl'
 
 if has gh; then
-  if gh auth status >/dev/null 2>&1; then
+  if [[ "$DRY_RUN" == '1' ]]; then
+    log_step 'Would check GitHub CLI authentication status'
+  elif gh auth status >/dev/null 2>&1; then
     log_success 'GitHub CLI authentication already configured'
   else
     log_warn 'GitHub CLI is installed but not authenticated. Run: gh auth login --git-protocol ssh --web'

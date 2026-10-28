@@ -1,9 +1,9 @@
 [user]
-{{- if .git.name }}
-	name = {{ .git.name }}
+{{- if .gitName }}
+	name = {{ .gitName }}
 {{- end }}
-{{- if .git.email }}
-	email = {{ .git.email }}
+{{- if .gitEmail }}
+	email = {{ .gitEmail }}
 {{- end }}
 
 [init]
@@ -33,7 +33,18 @@
 	helper = cache --timeout=7200
 {{- end }}
 
-{{- if .accounts.github.username }}
+{{- /* GitHub CLI as credential helper; replaces `gh auth setup-git`, which would write this file directly */}}
+{{- $gh := lookPath "gh" }}
+{{- if and $gh (ne .chezmoi.os "windows") }}
+[credential "https://github.com"]
+	helper =
+	helper = !{{ $gh }} auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !{{ $gh }} auth git-credential
+{{- end }}
+
+{{- if .githubUsername }}
 [github]
-	user = {{ .accounts.github.username }}
+	user = {{ .githubUsername }}
 {{- end }}

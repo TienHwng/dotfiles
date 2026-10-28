@@ -18,10 +18,22 @@ EOF
 
 while (($#)); do
   case "$1" in
-    --packages) UPDATE_PACKAGES=1; shift ;;
-    --fonts) UPDATE_FONTS=1; shift ;;
-    --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) usage; exit 0 ;;
+    --packages)
+      UPDATE_PACKAGES=1
+      shift
+      ;;
+    --fonts)
+      UPDATE_FONTS=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     *) die "Unknown option: $1" ;;
   esac
 done

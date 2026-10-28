@@ -22,9 +22,18 @@ EOF
 
 while (($#)); do
   case "$1" in
-    --force) FORCE=1; shift ;;
-    --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) usage; exit 0 ;;
+    --force)
+      FORCE=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     *) die "Unknown option: $1" ;;
   esac
 done

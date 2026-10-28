@@ -5,6 +5,9 @@ default:
 bootstrap-unix:
     ./scripts/unix/bootstrap.sh
 
+bootstrap-unix-dry:
+    ./scripts/unix/bootstrap.sh --dry-run
+
 packages-unix:
     ./scripts/unix/install-packages.sh
 
@@ -27,3 +30,15 @@ preview:
 doctor:
     chezmoi doctor
     chezmoi verify
+
+test:
+    bats tests
+
+lint:
+    find scripts/unix tests -type f \( -name '*.sh' -o -name '*.bash' -o -name '*.bats' \) -print0 | xargs -0 shellcheck
+    shfmt -d -i 2 -ci -bn scripts/unix tests
+
+templates:
+    ./tests/validate-templates.sh
+
+validate: lint test templates

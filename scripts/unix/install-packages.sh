@@ -26,8 +26,14 @@ EOF
 
 while (($#)); do
   case "$1" in
-    --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) usage; exit 0 ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     *) die "Unknown option: $1" ;;
   esac
 done
@@ -41,6 +47,12 @@ PACKAGE_FILE="$ROOT_DIR/packages/$PLATFORM.txt"
 declare -a PACKAGES=()
 declare -a FORMULAE=()
 declare -a CASKS=()
+
+cleanup_paru_build() {
+  if [[ -n "${build_dir:-}" && -d "$build_dir" ]]; then
+    rm -rf -- "$build_dir"
+  fi
+}
 
 after_contains() {
   local needle="$1" item
@@ -65,7 +77,7 @@ install_paru() {
 
   log_step 'Installing paru...'
 
-  if pacman -Si paru >/dev/null 2>&1; then
+  if has pacman && pacman -Si paru >/dev/null 2>&1; then
     run_root_or_print pacman -S --needed --noconfirm paru
     return
   fi
@@ -80,8 +92,9 @@ install_paru() {
   run_root pacman -S --needed --noconfirm base-devel git
 
   build_dir="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-paru.XXXXXX")"
+  trap cleanup_paru_build EXIT
+  trap 'cleanup_paru_build; exit 130' INT TERM
   git clone https://aur.archlinux.org/paru-bin.git "$build_dir/paru-bin" || {
-    rm -rf -- "$build_dir"
     die 'Could not clone paru-bin from the AUR.'
   }
 
@@ -89,11 +102,12 @@ install_paru() {
     cd "$build_dir/paru-bin"
     makepkg -si --needed --noconfirm
   ) || {
-    rm -rf -- "$build_dir"
     die 'Could not build and install paru-bin.'
   }
 
-  rm -rf -- "$build_dir"
+  cleanup_paru_build
+  build_dir=''
+  trap - EXIT INT TERM
   has paru || die 'paru was installed but is not available in PATH.'
 }
 
@@ -110,21 +124,37 @@ done < <(read_list_file "$PACKAGE_FILE")
 
 case "$PLATFORM" in
   arch)
-    ((${#PACKAGES[@]})) || { log_warn 'No Arch packages configured'; exit 0; }
+    ((${#PACKAGES[@]})) || {
+      log_warn 'No Arch packages configured'
+      exit 0
+    }
+    if ! has pacman; then
+      if [[ "$DRY_RUN" == '1' ]]; then
+        log_warn 'pacman is unavailable; package operations will only be printed.'
+      else
+        die 'pacman is required for the Arch package backend.'
+      fi
+    fi
     [[ "$AUR_HELPER" == 'paru' ]] || die "Unsupported AUR helper: $AUR_HELPER (expected: paru)"
     install_paru
     log_step "Installing ${#PACKAGES[@]} package(s) with $AUR_HELPER..."
     run_or_print "$AUR_HELPER" -S --needed --noconfirm "${PACKAGES[@]}"
     ;;
   apt)
-    ((${#PACKAGES[@]})) || { log_warn 'No APT packages configured'; exit 0; }
+    ((${#PACKAGES[@]})) || {
+      log_warn 'No APT packages configured'
+      exit 0
+    }
     log_step 'Refreshing APT package metadata...'
     run_root_or_print apt-get update
     log_step "Installing ${#PACKAGES[@]} package(s) with APT..."
     run_root_or_print apt-get install -y "${PACKAGES[@]}"
     ;;
   fedora)
-    ((${#PACKAGES[@]})) || { log_warn 'No Fedora packages configured'; exit 0; }
+    ((${#PACKAGES[@]})) || {
+      log_warn 'No Fedora packages configured'
+      exit 0
+    }
     log_step "Installing ${#PACKAGES[@]} package(s) with DNF..."
     run_root_or_print dnf install -y "${PACKAGES[@]}"
     ;;
@@ -132,6 +162,7 @@ case "$PLATFORM" in
     if ! has brew; then
       log_step 'Installing Homebrew...'
       if [[ "$DRY_RUN" == '1' ]]; then
+        # shellcheck disable=SC2016
         printf '%s\n' '+ /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
       else
         has curl || die 'curl is required to install Homebrew.'

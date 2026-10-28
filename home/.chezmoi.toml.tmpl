@@ -1,1 +1,11 @@
+{{- $gitName := promptStringOnce . "gitName" "Git user name" "" -}}
+{{- $gitEmail := promptStringOnce . "gitEmail" "Git email" "" -}}
+{{- $githubUsername := promptStringOnce . "githubUsername" "GitHub username (optional)" "" -}}
+{{- $sshEmail := promptStringOnce . "sshEmail" "SSH key email" "" -}}
 mode = "symlink"
+
+[data]
+gitName = {{ $gitName | quote }}
+gitEmail = {{ $gitEmail | quote }}
+githubUsername = {{ $githubUsername | quote }}
+sshEmail = {{ $sshEmail | quote }}

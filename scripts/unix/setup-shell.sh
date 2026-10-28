@@ -18,17 +18,35 @@ EOF
 
 while (($#)); do
   case "$1" in
-    bash|zsh|fish) SHELL_NAME="$1"; shift ;;
-    --non-interactive) NON_INTERACTIVE=1; shift ;;
-    --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) usage; exit 0 ;;
+    bash | zsh | fish)
+      SHELL_NAME="$1"
+      shift
+      ;;
+    --non-interactive)
+      NON_INTERACTIVE=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     *) die "Unsupported option or shell: $1" ;;
   esac
 done
 
 export DRY_RUN
-has "$SHELL_NAME" || die "$SHELL_NAME is not installed."
-shell_path="$(command -v "$SHELL_NAME")"
+if has "$SHELL_NAME"; then
+  shell_path="$(command -v "$SHELL_NAME")"
+elif [[ "$DRY_RUN" == '1' ]]; then
+  shell_path="/usr/bin/$SHELL_NAME"
+  log_warn "$SHELL_NAME is unavailable; assuming the package would provide $shell_path."
+else
+  die "$SHELL_NAME is not installed."
+fi
 current_shell="${SHELL:-}"
 
 if [[ "$current_shell" == "$shell_path" ]]; then
@@ -37,12 +55,8 @@ if [[ "$current_shell" == "$shell_path" ]]; then
 fi
 
 if [[ -f /etc/shells ]] && ! grep -Fxq "$shell_path" /etc/shells; then
-  log_step "Adding $shell_path to /etc/shells..."
-  if [[ "$DRY_RUN" == '1' ]]; then
-    print_command sh -c "printf '%s\\n' '$shell_path' >> /etc/shells"
-  else
-    printf '%s\n' "$shell_path" | run_root tee -a /etc/shells >/dev/null
-  fi
+  log_warn "$shell_path is not listed in /etc/shells. Add it manually before changing the login shell."
+  exit 0
 fi
 
 if ! has chsh; then
@@ -53,6 +67,11 @@ fi
 log_step "Changing login shell to $shell_path..."
 if [[ "$DRY_RUN" == '1' ]]; then
   print_command chsh -s "$shell_path"
+  exit 0
+fi
+
+if [[ "$NON_INTERACTIVE" == '1' ]]; then
+  log_warn "Non-interactive mode will not invoke chsh. Run manually: chsh -s $shell_path"
   exit 0
 fi
 

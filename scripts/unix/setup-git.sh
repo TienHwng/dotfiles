@@ -39,60 +39,70 @@ while (($#)); do
       GIT_EMAIL="$2"
       shift 2
       ;;
-    --prompt) PROMPT=1; shift ;;
-    --force) FORCE=1; shift ;;
-    --non-interactive) NON_INTERACTIVE=1; shift ;;
-    --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) usage; exit 0 ;;
+    --prompt)
+      PROMPT=1
+      shift
+      ;;
+    --force)
+      FORCE=1
+      shift
+      ;;
+    --non-interactive)
+      NON_INTERACTIVE=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     *) die "Unknown option: $1" ;;
   esac
 done
 
 export DRY_RUN
-has git || die 'git is not installed.'
+if ! has git; then
+  if [[ "$DRY_RUN" == '1' ]]; then
+    log_warn 'git is unavailable; dry-run can only validate chezmoi data ownership.'
+  else
+    die 'git is not installed.'
+  fi
+fi
 
 if [[ "$PROMPT" == '1' && "$NON_INTERACTIVE" == '1' ]]; then
   die '--prompt cannot be used with --non-interactive.'
 fi
 
-if [[ "$PROMPT" != '1' ]]; then
-  [[ -n "$GIT_NAME" ]] || GIT_NAME="$(chezmoi_value '.git.name')"
-  [[ -n "$GIT_EMAIL" ]] || GIT_EMAIL="$(chezmoi_value '.git.email')"
+configured_name="$(chezmoi_value '.gitName')"
+configured_email="$(chezmoi_value '.gitEmail')"
+
+if [[ "$PROMPT" == '1' || ("$NON_INTERACTIVE" != '1' && (-z "$configured_name" || -z "$configured_email")) ]]; then
+  if [[ "$DRY_RUN" == '1' ]]; then
+    print_command chezmoi init --prompt
+    log_warn 'Git identity prompts were not executed during dry-run.'
+  else
+    require_command chezmoi 'chezmoi is required to store machine-specific Git data.'
+    chezmoi init --prompt
+    configured_name="$(chezmoi_value '.gitName')"
+    configured_email="$(chezmoi_value '.gitEmail')"
+  fi
 fi
 
-if [[ -z "$GIT_NAME" && "$NON_INTERACTIVE" != '1' ]]; then
-  read -r -p 'Git user name: ' GIT_NAME
-fi
-if [[ -z "$GIT_EMAIL" && "$NON_INTERACTIVE" != '1' ]]; then
-  read -r -p 'Git email: ' GIT_EMAIL
-fi
-
-existing_name="$(git config --global --get user.name || true)"
-existing_email="$(git config --global --get user.email || true)"
-
-if [[ -n "$GIT_NAME" && ( -z "$existing_name" || "$FORCE" == '1' ) ]]; then
-  run_or_print git config --global user.name "$GIT_NAME"
-elif [[ -n "$existing_name" ]]; then
-  log_success "Keeping existing Git user.name: $existing_name"
-else
-  log_warn 'Git user.name is not configured'
+if [[ -n "$GIT_NAME" && "$GIT_NAME" != "$configured_name" ]] \
+  || [[ -n "$GIT_EMAIL" && "$GIT_EMAIL" != "$configured_email" ]] \
+  || [[ "$FORCE" == '1' ]]; then
+  log_warn 'Direct Git writes are disabled. Re-run chezmoi init --prompt to change machine data.'
 fi
 
-if [[ -n "$GIT_EMAIL" && ( -z "$existing_email" || "$FORCE" == '1' ) ]]; then
-  run_or_print git config --global user.email "$GIT_EMAIL"
-elif [[ -n "$existing_email" ]]; then
-  log_success "Keeping existing Git user.email: $existing_email"
-else
-  log_warn 'Git user.email is not configured'
+if [[ -z "$configured_name" || -z "$configured_email" ]]; then
+  if [[ "$DRY_RUN" == '1' ]]; then
+    log_warn 'Git identity is incomplete; a real non-interactive bootstrap would stop before apply.'
+  else
+    die 'Git identity is incomplete. Run chezmoi init --prompt or populate data.gitName and data.gitEmail.'
+  fi
 fi
 
-run_or_print git config --global init.defaultBranch main
-run_or_print git config --global fetch.prune true
-run_or_print git config --global rerere.enabled true
-run_or_print git config --global push.autoSetupRemote true
-
-if has nvim && ! git config --global --get core.editor >/dev/null; then
-  run_or_print git config --global core.editor nvim
-fi
-
-log_success 'Git configuration complete'
+log_success 'Git configuration is owned by home/dot_gitconfig.tmpl'

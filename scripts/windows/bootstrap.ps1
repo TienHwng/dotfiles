@@ -88,15 +88,22 @@ function Resolve-SourceRepoRoot {
 }
 
 function Ensure-Chezmoi {
-    New-Item -ItemType Directory -Force -Path $ChezmoiBinDir | Out-Null
-    Add-UserPath $ChezmoiBinDir
-
     if (Test-Command 'chezmoi') {
         Write-Success "chezmoi is already installed: $((Get-Command chezmoi).Source)"
         return
     }
 
     Write-Step "Installing chezmoi into $ChezmoiBinDir..."
+
+    if ($DryRun) {
+        Write-Host "+ New-Item -ItemType Directory -Force -Path `"$ChezmoiBinDir`""
+        Write-Host "+ download and run the official chezmoi installer into `"$ChezmoiBinDir`""
+        Write-ToolWarning 'chezmoi is unavailable; template rendering and apply cannot be validated in this dry-run.'
+        return
+    }
+
+    New-Item -ItemType Directory -Force -Path $ChezmoiBinDir | Out-Null
+    Add-UserPath $ChezmoiBinDir
 
     if ($PSVersionTable.PSVersion.Major -le 5) {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -141,17 +148,34 @@ if ($shouldInit) {
     if ($NonInteractive) {
         $initArgs += '--promptDefaults'
     }
+    if ($PromptPersonal) {
+        $initArgs += '--prompt'
+    }
     $initArgs += $Repo
 
-    Invoke-NativeCommand -FilePath 'chezmoi' -ArgumentList $initArgs
-    Write-Success 'Dotfiles source initialized'
-
-    $repoRoot = Resolve-SourceRepoRoot
-    if ([string]::IsNullOrWhiteSpace($repoRoot)) {
-        throw 'Could not locate repository root from chezmoi source path.'
+    Invoke-NativeCommand -FilePath 'chezmoi' -ArgumentList $initArgs -DryRun:$DryRun
+    if ($DryRun) {
+        $repoRoot = Find-RepoRoot (Join-Path $PSScriptRoot '..\..')
+        if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+            throw 'Dry-run requires an existing local repository checkout.'
+        }
+        Write-ToolWarning 'Repository initialization was not executed; continuing against the local checkout.'
+    } else {
+        Write-Success 'Dotfiles source initialized'
+        $repoRoot = Resolve-SourceRepoRoot
+        if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+            throw 'Could not locate repository root from chezmoi source path.'
+        }
     }
 } else {
     Write-Success "Using existing chezmoi source: $repoRoot"
+
+    if ($PromptPersonal) {
+        Invoke-NativeCommand `
+            -FilePath 'chezmoi' `
+            -ArgumentList @('init', '--prompt') `
+            -DryRun:$DryRun | Out-Null
+    }
 }
 
 $activeScriptRoot = Join-Path $repoRoot 'scripts\windows'
@@ -170,7 +194,6 @@ if (-not $SkipPackages) {
 
 if (-not $SkipGit) {
     & (Join-Path $activeScriptRoot 'setup-git.ps1') `
-    -Prompt:$PromptPersonal `
         -NonInteractive:$NonInteractive `
         -DryRun:$DryRun
 } else {
@@ -179,7 +202,6 @@ if (-not $SkipGit) {
 
 if (-not $SkipAccounts) {
     & (Join-Path $activeScriptRoot 'setup-accounts.ps1') `
-    -Prompt:$PromptPersonal `
         -NonInteractive:$NonInteractive `
         -DryRun:$DryRun
 } else {
@@ -205,7 +227,7 @@ if (-not $SkipShell -and $setupShell -eq 'true') {
 }
 
 if (-not $SkipApply) {
-    if (-not (Test-Command 'chezmoi')) {
+    if (-not (Test-Command 'chezmoi') -and -not $DryRun) {
         Stop-Tool 'chezmoi is required before applying dotfiles.'
     }
 
@@ -214,7 +236,14 @@ if (-not $SkipApply) {
     if ($DryRun) {
         $arguments += '--dry-run'
     }
-    Invoke-NativeCommand -FilePath 'chezmoi' -ArgumentList $arguments
+    if ($NonInteractive) {
+        $arguments += '--no-tty'
+    }
+    $simulateApply = $DryRun -and -not (Test-Command 'chezmoi')
+    Invoke-NativeCommand `
+        -FilePath 'chezmoi' `
+        -ArgumentList $arguments `
+        -DryRun:$simulateApply
     Write-Success 'Dotfiles applied'
 } else {
     Write-ToolWarning 'Skipping chezmoi apply'

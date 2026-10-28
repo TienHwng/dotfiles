@@ -1,0 +1,77 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Bats
+        uses: bats-core/bats-action@4.0.0
+
+      - name: Set up shfmt
+        uses: mfinelli/setup-shfmt@v4
+        with:
+          shfmt-version: 3.14.1
+
+      - name: Set up chezmoi
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSLo "$RUNNER_TEMP/chezmoi_2.72.2_linux_amd64.tar.gz" \
+            https://github.com/twpayne/chezmoi/releases/download/v2.72.2/chezmoi_2.72.2_linux_amd64.tar.gz
+          curl -fsSLo "$RUNNER_TEMP/chezmoi_2.72.2_checksums.txt" \
+            https://github.com/twpayne/chezmoi/releases/download/v2.72.2/chezmoi_2.72.2_checksums.txt
+          (
+            cd "$RUNNER_TEMP"
+            grep ' chezmoi_2.72.2_linux_amd64.tar.gz$' chezmoi_2.72.2_checksums.txt \
+              | sha256sum --check --strict
+          )
+          tar -xzf "$RUNNER_TEMP/chezmoi_2.72.2_linux_amd64.tar.gz" \
+            -C "$RUNNER_TEMP/bin" chezmoi
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Check Bash syntax
+        run: find scripts/unix tests -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
+      - name: Run ShellCheck
+        run: find scripts/unix tests -type f \( -name '*.sh' -o -name '*.bash' -o -name '*.bats' \) -print0 | xargs -0 shellcheck
+
+      - name: Check shell formatting
+        run: shfmt -d -i 2 -ci -bn scripts/unix tests
+
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem scripts/windows -Recurse -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              $errors | ForEach-Object { Write-Error "$($_.Extent.File): $($_.Message)" }
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Run isolated tests
+        run: bats tests
+
+      - name: Validate chezmoi templates
+        run: ./tests/validate-templates.sh

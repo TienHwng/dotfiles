@@ -1,16 +1,14 @@
-git:
-  name: ""
-  email: ""
+gitName: ""
+gitEmail: ""
+githubUsername: ""
+sshEmail: ""
 
 features:
   installFonts: true
   setupShell: true
 
 accounts:
-  github:
-    username: ""
   ssh:
-    email: ""
     keyType: ed25519
     keyPathArch: ~/.ssh/id_ed25519
     keyPathUnix: ~/.ssh/id_ed25519

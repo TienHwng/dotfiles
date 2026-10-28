@@ -22,8 +22,14 @@ while (($#)); do
       DESTINATION="$2"
       shift 2
       ;;
-    --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) usage; exit 0 ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     *) die "Unknown option: $1" ;;
   esac
 done
@@ -58,11 +64,11 @@ if [[ -f "$config_file" ]]; then
 fi
 
 if has git && [[ -d "$repo_dir/.git" ]]; then
-  git -C "$repo_dir" status --short > "$backup_dir/git-status.txt"
-  git -C "$repo_dir" log -1 --oneline > "$backup_dir/git-head.txt"
+  git -C "$repo_dir" status --short >"$backup_dir/git-status.txt"
+  git -C "$repo_dir" log -1 --oneline >"$backup_dir/git-head.txt"
 fi
 
-cat > "$backup_dir/RESTORE.txt" <<EOF
+cat >"$backup_dir/RESTORE.txt" <<EOF
 Created: $(date -Iseconds)
 Source state: $source_dir
 Repository: $repo_dir

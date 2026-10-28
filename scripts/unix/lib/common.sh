@@ -1,22 +1,30 @@
 #!/usr/bin/env bash
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_BOLD=$'\033[1m'
   C_CYAN=$'\033[36m'
   C_GREEN=$'\033[32m'
   C_YELLOW=$'\033[33m'
   C_RED=$'\033[31m'
   C_RESET=$'\033[0m'
 else
-  C_BOLD='' C_CYAN='' C_GREEN='' C_YELLOW='' C_RED='' C_RESET=''
+  C_CYAN='' C_GREEN='' C_YELLOW='' C_RED='' C_RESET=''
 fi
 
-log_step()    { printf '%s→%s %s\n' "$C_CYAN" "$C_RESET" "$*"; }
+log_step() { printf '%s→%s %s\n' "$C_CYAN" "$C_RESET" "$*"; }
 log_success() { printf '%s✔%s %s\n' "$C_GREEN" "$C_RESET" "$*"; }
-log_warn()    { printf '%s!%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
-log_error()   { printf '%s✘%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; }
-die()         { log_error "$*"; exit 1; }
-has()         { command -v "$1" >/dev/null 2>&1; }
+log_warn() { printf '%s!%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
+log_error() { printf '%s✘%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; }
+die() {
+  log_error "$*"
+  exit 1
+}
+has() { command -v "$1" >/dev/null 2>&1; }
+
+require_command() {
+  local command_name="$1" message="${2:-$1 is required.}"
+
+  has "$command_name" || die "$message"
+}
 
 repo_root() {
   cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." >/dev/null 2>&1 && pwd
@@ -43,9 +51,17 @@ run_root() {
   if [[ "$(id -u)" -eq 0 ]]; then
     "$@"
   elif has sudo; then
-    sudo "$@"
+    if [[ "${NON_INTERACTIVE:-0}" == '1' ]]; then
+      sudo -n "$@"
+    else
+      sudo "$@"
+    fi
   elif has doas; then
-    doas "$@"
+    if [[ "${NON_INTERACTIVE:-0}" == '1' ]]; then
+      doas -n "$@"
+    else
+      doas "$@"
+    fi
   else
     die "Root privileges are required for: $*"
   fi
@@ -70,9 +86,17 @@ run_root_or_print() {
     if [[ "$(id -u)" -eq 0 ]]; then
       print_command "$@"
     elif has sudo; then
-      print_command sudo "$@"
+      if [[ "${NON_INTERACTIVE:-0}" == '1' ]]; then
+        print_command sudo -n "$@"
+      else
+        print_command sudo "$@"
+      fi
     elif has doas; then
-      print_command doas "$@"
+      if [[ "${NON_INTERACTIVE:-0}" == '1' ]]; then
+        print_command doas -n "$@"
+      else
+        print_command doas "$@"
+      fi
     else
       print_command sudo "$@"
     fi
@@ -83,6 +107,17 @@ run_root_or_print() {
 
 detect_platform() {
   local kernel
+
+  if [[ -n "${DOTFILES_PLATFORM:-}" ]]; then
+    case "$DOTFILES_PLATFORM" in
+      arch | apt | fedora | brew | unknown)
+        printf '%s\n' "$DOTFILES_PLATFORM"
+        return
+        ;;
+      *) die "Invalid DOTFILES_PLATFORM override: $DOTFILES_PLATFORM" ;;
+    esac
+  fi
+
   kernel="$(uname -s 2>/dev/null || true)"
 
   if [[ "$kernel" == 'Darwin' ]]; then
