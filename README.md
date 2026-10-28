@@ -20,7 +20,7 @@ that previews every change and asks before applying it.
 | Dotfiles | Shell, git, Neovim, terminal, prompt, SSH config | chezmoi (`home/`) |
 | Desktop settings *(planned)* | KDE Plasma keys, Windows user registry | `kwriteconfig6`, PowerShell |
 | System settings | `/etc`, GRUB, SDDM, Plymouth; Windows machine registry, debloat, drivers *(Windows planned)* | second chezmoi instance (`root/`), PowerShell |
-| Assets *(planned)* | Wallpapers (private Git LFS repo), Nerd Fonts | chezmoi external, Scoop/paru |
+| Assets | Wallpapers (private Git LFS repo, set on KDE and Windows), Nerd Fonts | chezmoi external, `plasma-apply-wallpaperimage` / `SystemParametersInfo`, Scoop/paru |
 | Sync & capture *(planned)* | "Repository changed" notifications; pick local changes to commit back | systemd timer, Scheduled Task, `dots capture` |
 
 It does **not** install the OS, back up personal data, or replace app-native sync
@@ -101,8 +101,8 @@ The answers stay in the local, untracked `~/.config/chezmoi/chezmoi.toml`. The r
 public and never contains identity, keys, or tokens.
 
 SSH keys live in the Bitwarden vault and the Bitwarden desktop app serves them as an SSH agent
-(Settings > Enable SSH agent); no private key is written to disk. The last bootstrap step,
-`accounts`, logs in to GitHub with `gh` (git stays on HTTPS), checks that the agent holds a key
+(Settings > Enable SSH agent); no private key is written to disk. The `accounts`
+bootstrap step logs in to GitHub with `gh` (git stays on HTTPS), checks that the agent holds a key
 that GitHub accepts, and offers to add it. Headless machines can set
 `accounts.ssh.agent: file` to use a passphrase-protected key file instead. Templates can read
 secrets from Bitwarden through chezmoi's `bitwarden*` functions; none does yet.

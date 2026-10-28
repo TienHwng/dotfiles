@@ -88,7 +88,7 @@ PowerShell 7; options are PowerShell-style: `-DryRun`, `-NonInteractive`, `-Skip
 
 | Command | Behaviour | Status |
 |---|---|---|
-| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps packages, git, fonts, shell, apply, accounts (accounts last: `gh auth login` needs the rendered gh credential helper and ssh config); previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
+| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps packages, git (also renders `~/.gitconfig`), accounts, fonts, shell, apply (everything except externals), wallpaper (fetches the wallpaper external, sets the wallpaper). The git step renders the gh credential helper so `gh auth login` in accounts does not offer to edit `~/.gitconfig`, and accounts comes before anything that clones a private repository; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
 | `dots sync` | `git pull --ff-only` → `chezmoi diff` → confirm → `chezmoi apply`. Reports manifest changes and offers `dots packages`. | `[Planned: P7]` |
 | `dots sync --check` | Fetch only; report how many commits the machine is behind. Used by the timer. | `[Planned: P7]` |
 | `dots capture` | TUI listing drift (files, KDE keys, registry values, packages outside the manifest); the chosen items are written back to the repository, then commit and push. | `[Planned: P7]` |
@@ -135,7 +135,7 @@ step; until then `dots` uses plain prompts.
 | `~/.ssh/config` and `environment.d` point at the Bitwarden agent (Linux) | `[Implemented]` |
 | Bitwarden CLI installed and `[bitwarden] unlock = "auto"` in the chezmoi config | `[Implemented]` |
 | Templates that read secrets with `bitwarden*` functions | `[Future]`: no secret is needed yet |
-| PoC-3: the agent with git/ssh on a real CachyOS and Windows install | Open |
+| PoC-3: the agent with git/ssh on a real CachyOS and Windows install | Deferred by the owner (2026-10-28) |
 
 - **GitHub access is HTTPS through `gh`** (owner's choice; remotes stay `https://`).
   `gh auth login --git-protocol https --web` (browser device flow). The git template renders
@@ -145,7 +145,7 @@ step; until then `dots` uses plain prompts.
   other hosts). This lets git clone private repositories **before** any SSH key exists. Do
   **not** run `gh auth setup-git`: it writes `~/.gitconfig` directly, which the template owns.
   Because the helper is already gh's, `gh auth login` does not ask to set it up; that is why
-  the `accounts` step runs after `apply`.
+  the `git` step renders `~/.gitconfig` before the `accounts` step logs in.
 - **Commit signing:** off (owner's choice).
 - **Tokens and API keys:** none are needed yet. When one is, a template calls
   `bitwardenFields` / `bitwarden` (`bitwarden.unlock = "auto"` already makes chezmoi run
@@ -266,8 +266,10 @@ Rules:
 - Windows-only app configs, when one is managed, live under `home/AppData/…`.
 - Apps with their own sync are not configured here. `dots bootstrap` ends by printing
   "sign in to sync" reminders for them.
-- `home/Documents/Setup Scripts` and `home/Pictures/Wallpapers/.keep` are leftovers to move
-  or remove in P4.
+- zsh plugins: `.zshrc` enables `zsh-autosuggestions`, `zsh-syntax-highlighting` (both in
+  `home/dot_oh-my-zsh/custom/plugins`), and `zsh-history-substring-search`, `auto-notify`
+  (MichaelAquilina/zsh-auto-notify), `you-should-use` (MichaelAquilina/zsh-you-should-use),
+  which the repository does not provide yet. Open gap: add them (e.g. as chezmoi externals).
 
 ### L4 — Desktop settings, user scope
 
@@ -395,34 +397,35 @@ Order inside `dots system` on Windows:
 | Item | Status |
 |---|---|
 | Nerd Fonts via the manifest `nerdFonts` list (Linux: release archives; Windows: Scoop) | `[Implemented]` |
-| Wallpaper repository + chezmoi external + setting the wallpaper | `[Planned: P4]` |
+| Wallpaper repository + chezmoi external + `wallpaper` step that sets it (KDE, Windows) | `[Implemented]` |
+| Repository `TienHwng/wallpapers` created and filled; local clone migrated | Pending: needs the owner's go-ahead |
 
-- Private repository `TienHwng/wallpapers`, with `.gitattributes`
-  `*.jpg *.jpeg *.png *.webp filter=lfs diff=lfs merge=lfs -text`.
-- GitHub Free includes 10 GiB of LFS storage and 10 GiB of bandwidth per month. 1.5 GB fits
-  (about six full clones per month). Deleted LFS objects keep counting until the repository is
-  deleted, so avoid churn.
-- Pulled by a chezmoi external, gated by `features.wallpapers`:
-
-  ```toml
-  # home/.chezmoiexternal.toml.tmpl
-  {{ if .features.wallpapers }}
-  ["Pictures/wallpaper"]
-      type = "git-repo"
-      url = "https://github.com/TienHwng/wallpapers.git"
-      refreshPeriod = "168h"
-      [pull]
-          args = ["--ff-only"]
-  {{ end }}
-  ```
+- Private repository `TienHwng/wallpapers` (owner's choice over using the public upstream or a
+  public fork), with `.gitattributes` `*.jpg *.jpeg *.png *.webp filter=lfs diff=lfs merge=lfs
+  -text`. The images come from the public `mylinuxforwork/wallpaper` repository (GPL-2.0), so
+  its `LICENSE` and a source note stay in the repository.
+- About 755 MB of images. GitHub Free includes 10 GiB of LFS storage and 10 GiB of bandwidth
+  per month, so a full clone costs under a tenth of the monthly bandwidth. Deleted LFS objects
+  keep counting until the repository is deleted, so avoid churn.
+- Data (`home/.chezmoidata.yaml`): `features.wallpapers`, `wallpapers.repo`, `wallpapers.dir`
+  (`Pictures/wallpaper`), `wallpapers.current` (`space2.jpg`).
+- `home/.chezmoiexternal.toml.tmpl` declares a `git-repo` external at `wallpapers.dir`
+  (`clone --depth 1`, `pull --ff-only`, `refreshPeriod = "168h"`) when `features.wallpapers`
+  is on. The `apply` step of `dots` excludes externals (`--exclude externals`); the
+  `wallpaper` step (`setup-wallpaper.sh/.ps1`) runs `chezmoi apply <dir>` after `accounts`,
+  so the private clone has gh's credentials. A plain `chezmoi apply` also fetches it.
+- chezmoi runs `git pull` in whatever repository already sits at that path. The wallpaper step
+  therefore stops when the directory is a clone of another repository and asks the owner to
+  move it away.
 
 - Prerequisites: `git-lfs` installed (bundled with Git for Windows; package `git-lfs` on
   Arch). The LFS filter MUST be added to `home/dot_gitconfig.tmpl` (`[filter "lfs"]`), because
   that template owns `~/.gitconfig`. Never run `git lfs install`, which writes to the file
   directly. Authentication comes from the `gh` credential helper in the git template (L1).
-- Setting the wallpaper: the file name lives in data (`desktop.wallpaper`). KDE uses
+- Setting the wallpaper: the file name lives in data (`wallpapers.current`). KDE uses
   `plasma-apply-wallpaperimage`. Windows calls `SystemParametersInfo`
-  (`SPI_SETDESKWALLPAPER`) from PowerShell. The SDDM login background is part of L5.
+  (`SPI_SETDESKWALLPAPER`, saved to the profile) from PowerShell. Hyprland (hyprpaper) is not
+  handled. The SDDM login background and the lock screen are part of L5.
 - Fonts: Scoop bucket `nerd-fonts` on Windows (per-user, no admin); packages on Arch.
 
 ### L7 — Sync and capture `[Planned: P7]`
@@ -465,7 +468,7 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 │   ├── .chezmoi.toml.tmpl          # identity prompts           [Implemented]
 │   ├── .chezmoidata.yaml           # defaults, features.*       [Implemented]
 │   ├── .chezmoidata/               # packages.yaml [Implemented]; kde.yaml, windows.yaml [Planned]
-│   ├── .chezmoiexternal.toml.tmpl  # wallpaper repo             [Planned: P4]
+│   ├── .chezmoiexternal.toml.tmpl  # wallpaper repo             [Implemented]
 │   ├── .chezmoiignore              # OS-aware                   [Implemented]
 │   ├── .chezmoiscripts/            # run_onchange_ scripts      [Planned]
 │   ├── dot_config/                 # nvim, kitty, wezterm, ...  [Implemented]
@@ -554,7 +557,8 @@ user timer.
 | Pester (`tests/windows`, `make test-windows`) + PSScriptAnalyzer (`make lint-windows`) for `scripts/windows` | `[Implemented]` |
 | `windows-latest` job: config rendered with fake prompt values, analyzer, Pester, `bootstrap.ps1 -DryRun -NonInteractive` on Windows PowerShell 5.1 and PowerShell 7 | `[Implemented]` |
 | `archlinux` container job, as a regular user: Bats tests, template render, `bootstrap.sh --dry-run --non-interactive` (every step) with fake prompt values, HOME unchanged | `[Implemented]` |
-| Ownership test update for the system step and for `[filter "lfs"]` in the git template | `[Planned: P4/P6]` |
+| Ownership test: no script runs `git lfs install` or `gh auth setup-git`; the git template owns `[filter "lfs"]` (`tests/wallpaper.bats`) | `[Implemented]` |
+| Ownership test update for the system step | `[Planned: P6]` |
 
 Tests MUST never provision the real machine.
 
