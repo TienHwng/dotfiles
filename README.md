@@ -18,7 +18,7 @@ that previews every change and asks before applying it.
 | Identity & secrets | GitHub login (HTTPS via `gh`), SSH keys served from the vault; tokens *(when needed)* | `gh`, Bitwarden (vault + SSH agent) |
 | Packages | Apps and CLI tools from one manifest (`home/.chezmoidata/packages.yaml`) | paru (CachyOS), winget for GUI apps + Scoop for CLI tools (Windows) |
 | Dotfiles | Shell, git, Neovim, terminal, prompt, SSH config | chezmoi (`home/`) |
-| Desktop settings *(planned)* | KDE Plasma keys, Windows user registry | `kwriteconfig6`, PowerShell |
+| Desktop settings | KDE Plasma keys (shortcuts, KWin, theme, splash); Windows user registry *(planned)* | `kwriteconfig6`, PowerShell |
 | System settings | `/etc`, GRUB, SDDM, Plymouth; Windows machine registry, debloat, drivers *(Windows planned)* | second chezmoi instance (`root/`), PowerShell |
 | Assets | Wallpapers (private Git repo, set on KDE and Windows), Nerd Fonts | chezmoi external, `plasma-apply-wallpaperimage` / `SystemParametersInfo`, Scoop/paru |
 | Sync & capture *(planned)* | "Repository changed" notifications; pick local changes to commit back | systemd timer, Scheduled Task, `dots capture` |

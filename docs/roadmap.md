@@ -20,7 +20,7 @@ Status tags are defined in [README.md](README.md); designs are in [design.md](de
 
 Known gaps in the current state:
 
-- KDE `*rc` files are managed as whole files and always show drift.
+- `.zshrc` enables three zsh plugins the repository does not provide (see design L3).
 - No template reads a Bitwarden secret yet (none is needed).
 
 Deferred owner tasks (the owner postponed these; ask before closing the related phase):
@@ -46,7 +46,9 @@ Each phase is one pull request and MUST keep `make validate` green. Primary plat
 | **P2 Windows parity** (code done) | **Done:** chezmoi copy mode on Windows, `XDG_CONFIG_HOME`, PowerShell profile stub + shared profile (oh-my-posh, `dots`), winget (GUI) + Scoop (CLI, Nerd Fonts) from the manifest, `dots.ps1` (`bootstrap.ps1` hands over to it), Pester, PSScriptAnalyzer, `windows-latest` CI job. **Left:** the acceptance run on a fresh Windows VM/Sandbox, PoC-4 | A fresh Windows VM/Sandbox completes L2–L3 through `dots.ps1 bootstrap` |
 | **P3 Secrets** (code done) | **Done:** `accounts` step: `gh auth login` over HTTPS, gh credential helper on every OS, Bitwarden SSH agent check and key upload, `bw` status; `.accounts.ssh.agent` (`bitwarden`/`file`); ssh config and `environment.d` point at the agent; Bitwarden desktop and CLI in the manifest; `[bitwarden] unlock = "auto"`. **Left:** PoC-3 on real CachyOS and Windows installs (deferred by the owner on 2026-10-28, to revisit later); secret templates when a secret is needed | `ssh -T git@github.com` works with no private key on disk, on both primary OSes |
 | **P4 Assets** (code done) | **Done:** wallpaper data and `git-repo` external (plain Git, no LFS), `wallpaper` step (`setup-wallpaper.sh/.ps1`: fetch, refuse a foreign clone, set the wallpaper on KDE and Windows), `git` step renders `~/.gitconfig` and `accounts` moved before `apply`, `home/Documents` and `home/Pictures` leftovers removed. private `TienHwng/wallpapers` created and filled, CachyOS clone migrated. **Left:** the acceptance run on Windows (same wallpaper after `dots.ps1 bootstrap`) | Same wallpaper shows on Windows and CachyOS after bootstrap |
-| **P5 Desktop + Windows system** | `kde.yaml` replaces whole `*rc` files; `windows.yaml` HKCU/HKLM; dual-boot fixes (clock: either Windows keeps UTC, `HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation` `RealTimeIsUniversal` = 1 DWORD, or Linux keeps local time, `timedatectl set-local-rtc 1 --adjust-system-clock`; pick one); Win11Debloat (pinned); G-Helper; NVIDIA; `dots system` on Windows | `git status` stays clean after a day of KDE use; Windows tweaks re-apply idempotently |
+| **P5a KDE settings** (code done) | `home/.chezmoidata/kde.yaml` + `desktop` step (`setup-desktop.sh`: current → new per key, `plasma-apply-lookandfeel`, `kwriteconfig6 --notify`, KWin reconfigure); whole `*rc` files removed from the source and ignored; `tests/desktop.bats` | `git status` stays clean after a day of KDE use |
+| **P5b Windows registry + admin step** | `windows.yaml` HKCU (Windows side of the `desktop` step) and HKLM; dual-boot: `RealTimeIsUniversal=1` (owner's choice) and Fast Startup off; disable the OpenSSH Authentication Agent; `dots system` on Windows | Windows tweaks re-apply idempotently |
+| **P5c Windows debloat + drivers** | Win11Debloat (pinned, checksum-verified, explicit parameters); G-Helper instead of Armoury Crate; NVIDIA | A fresh Windows install ends up debloated with G-Helper and the NVIDIA driver |
 | **P6 Linux system** | Shared machine data for the system instance, drop-ins, GRUB template, Plymouth PKGBUILD, post-apply hooks, `dots system` on Linux; update `tests/ownership.bats` and `CLAUDE.md` for the new policy | `dots system` shows a correct diff and applies it; CI still never touches `root/` |
 | **P7 Sync + capture** | systemd user timer, Windows Scheduled Task + BurntToast, `dots sync [--check]`, `dots status`, `dots capture`; retire the `chezmoi push` zsh wrapper | A KDE setting change reaches the repository in three commands or fewer, and the other OS is notified at next login |
 
@@ -94,7 +96,7 @@ Fedora support, Chocolatey.
 | ID | Question | How to check | Fallback |
 |---|---|---|---|
 | PoC-1 (P4) | ~~Does a chezmoi `git-repo` external fetch LFS objects?~~ Dropped: the wallpaper repository does not use LFS. | — | — |
-| PoC-2 (P5) | Does `kwriteconfig6` take effect without logging out? | Try each managed key on CachyOS | Mark keys that need a re-login and print a notice |
+| PoC-2 (P5) | Does `kwriteconfig6` take effect without logging out? | Partly answered: KWin keys reload with `qdbus6 org.kde.KWin /KWin reconfigure`; global shortcuts need a new login (no kglobalaccel service in Plasma 6). Still to watch: look-and-feel and `kdeglobals` keys live | The step prints a notice for shortcuts |
 | PoC-3 (P3) | Does the Bitwarden SSH agent work on CachyOS (native package) and Windows together with git? | `ssh-add -l`, `git push`. **Deferred** by the owner (2026-10-28); steps in README "Machine-specific values and secrets" | Render a key from Bitwarden to disk with mode 600 |
 | PoC-4 (P2) | Does the PowerShell profile stub land in the right place when OneDrive redirects `Documents`? | Toggle Known Folder Move in a VM | Set the profile path via environment variable |
 | PoC-5 (P5) | Are the pinned Win11Debloat parameters stable across releases? | Read release notes on every bump | Move the needed tweaks into `windows.yaml` |

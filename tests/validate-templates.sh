@@ -30,7 +30,7 @@ chezmoi \
 [[ -z "$(chezmoi --config "$TMP_ROOT/chezmoi-defaults.toml" execute-template '{{ .gitEmail }}')" ]]
 [[ -z "$(chezmoi --config "$TMP_ROOT/chezmoi-defaults.toml" execute-template '{{ .sshEmail }}')" ]]
 
-data='{"gitName":"Test User","gitEmail":"test@example.test","githubUsername":"tester","sshEmail":"test@example.test","features":{"installFonts":true,"setupShell":true,"wallpapers":false},"accounts":{"ssh":{"agent":"bitwarden","keyType":"ed25519","keyPathArch":"~/.ssh/id_ed25519","keyPathUnix":"~/.ssh/id_ed25519","keyPathWindows":"~/.ssh/id_ed25519"}}}'
+data='{"gitName":"Test User","gitEmail":"test@example.test","githubUsername":"tester","sshEmail":"test@example.test","features":{"installFonts":true,"setupShell":true,"desktop":true,"wallpapers":false},"accounts":{"ssh":{"agent":"bitwarden","keyType":"ed25519","keyPathArch":"~/.ssh/id_ed25519","keyPathUnix":"~/.ssh/id_ed25519","keyPathWindows":"~/.ssh/id_ed25519"}}}'
 
 chezmoi \
   --source "$ROOT_DIR/home" \

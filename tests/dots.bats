@@ -51,7 +51,7 @@ mock_package_tools() {
   before="$(find "$HOME" -mindepth 1 -print | sort)"
 
   run "$DOTS" bootstrap --dry-run --non-interactive \
-    --skip packages --skip git --skip accounts --skip fonts --skip shell --skip apply --skip wallpaper
+    --skip packages --skip git --skip accounts --skip fonts --skip shell --skip apply --skip desktop --skip wallpaper
 
   [ "$status" -eq 0 ]
   [ "$before" = "$(find "$HOME" -mindepth 1 -print | sort)" ]
@@ -91,7 +91,7 @@ mock_package_tools() {
 @test "bootstrap.sh hands its steps to dots bootstrap" {
   run env DOTFILES_PLATFORM=arch "$PROJECT_ROOT/scripts/unix/bootstrap.sh" \
     --dry-run --non-interactive --skip-packages --skip-git --skip-accounts \
-    --skip-fonts --skip-shell --skip-apply --skip-wallpaper
+    --skip-fonts --skip-shell --skip-apply --skip-desktop --skip-wallpaper
 
   [ "$status" -eq 0 ]
   [[ "$output" == *'[packages]'* ]]

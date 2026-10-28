@@ -10,13 +10,16 @@
 .config/hypr
 .config/kitty
 .config/tmux
+.local/share/plasma
+{{- end }}
+
+{{- /* KDE *rc files are managed per key from .chezmoidata/kde.yaml (dots desktop step);
+       never add them whole, Plasma rewrites them constantly */}}
 .config/kdeglobals
 .config/kglobalshortcutsrc
 .config/ksplashrc
 .config/kwinrc
 .config/plasmashellrc
-.local/share/plasma
-{{- end }}
 
 {{- /* Unix-only targets */}}
 {{- if eq .chezmoi.os "windows" }}

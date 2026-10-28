@@ -273,31 +273,36 @@ Rules:
 
 ### L4 — Desktop settings, user scope
 
-#### KDE Plasma `[Planned: P5]`
+#### KDE Plasma `[Implemented]` (P5a)
 
-Problem: `kdeglobals`, `kwinrc`, `kglobalshortcutsrc`, `plasmashellrc` are currently managed
-as whole files `[Implemented]`. Plasma rewrites them constantly, so the repository always shows
-noise.
-
-Target: manage individual keys from data.
+Plasma rewrites its `*rc` files constantly, so managing them whole made the repository show
+noise. They are now managed **per key from data**; the whole files left the chezmoi source
+and are listed in `home/.chezmoiignore` on every OS so nobody adds them back.
 
 ```yaml
 # home/.chezmoidata/kde.yaml
 kde:
-  kdeglobals:
-    General: { ColorScheme: "BreezeDark" }
-  kwinrc:
-    Plugins: { blurEnabled: "true" }
-    Desktops: { Number: "4", Rows: "1" }
-  kglobalshortcutsrc:
-    kwin: { "Window Close": "Meta+Q,Alt+F4,Close Window" }
+  lookAndFeel: org.kde.breezetwilight.desktop      # plasma-apply-lookandfeel --apply
+  settings:                                        # one entry per key
+    - { file: kwinrc, group: [NightColor], key: Active, value: "true" }
+    - { file: kglobalshortcutsrc, group: [services, kitty.desktop], key: _launch, value: "Meta+T" }
 ```
 
-- `run_onchange_after_kde-settings.sh.tmpl` (Linux with KDE only) renders one
-  `kwriteconfig6 --file F --group G --key K V` per key (nested groups: repeat `--group`),
-  then reloads KWin (`qdbus6 org.kde.KWin /KWin reconfigure`). It embeds a hash of
-  `kde.yaml` so it re-runs only when the data changes.
-- The whole `*rc` files leave the chezmoi source and go into `.chezmoiignore`.
+- Current keys (owner's picks): custom global shortcuts (Meta+U shut down, Meta+A /
+  Meta+Shift+A activities, Meta+T kitty, Tiles editor unbound), KWin (fcitx5 Wayland input
+  method, Night Color, one desktop), look (Breeze Twilight, contrast, Vivaldi as browser), and
+  the Kuro splash (`ksplashrc`; theme files in `home/dot_local/share/plasma`).
+- `scripts/kde-settings.tmpl` renders one line per key (file, groups joined by the ASCII unit
+  separator, key, value), like `package-list.tmpl` does for packages.
+- The `desktop` step of `dots` (`scripts/unix/setup-desktop.sh`, after `apply` so the splash
+  theme exists, before `wallpaper`) reads each key with `kreadconfig6`, prints
+  `file [group] key: current -> new` for the ones that differ, then applies the global theme
+  first (it rewrites colors) and writes each key with `kwriteconfig6 --notify` (nested groups:
+  repeated `--group`). It reloads KWin with `qdbus6 org.kde.KWin /KWin reconfigure` when a
+  `kwinrc` key changed. Global shortcuts take effect after the next login: Plasma 6 runs
+  kglobalaccel inside KWin, with no service to restart. Without Plasma 6 the step does nothing.
+  The owner chose a dots step over a `run_onchange_` script so every change is previewed and
+  confirmed. Gate: `features.desktop`.
 - `dots capture kde` compares managed keys (`kreadconfig6`) with the YAML.
   `dots capture kde --discover` diffs snapshots of `~/.config/*rc` taken before and after a
   change in System Settings, so new keys can be picked.
@@ -307,7 +312,7 @@ kde:
   so it is not synced. Values that must be fixed per machine go into machine data.
 - Themes, icons, cursors (~11 MB) stay in the repository or come from packages.
 
-#### Windows user registry (HKCU) `[Planned: P5]`
+#### Windows user registry (HKCU) `[Planned: P5b]`
 
 ```yaml
 # home/.chezmoidata/windows.yaml
@@ -322,7 +327,7 @@ windows:
       - { path: 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power', name: HiberbootEnabled, type: DWord, value: 0 }
 ```
 
-One idempotent PowerShell script reads current values, prints a diff table, asks, applies
+The Windows side of the `desktop` step: one idempotent PowerShell script reads current values, prints a diff table, asks, applies
 with `Set-ItemProperty`, and restarts Explorer when needed. Do **not** use the DSC v3
 `Microsoft.Windows/Registry` resource: Microsoft documents it as a proof of concept, not for
 production.
@@ -375,12 +380,13 @@ production.
   with regressions on recent kernels).
 - NVIDIA kernel parameters live in the GRUB template behind a `hasNvidia` data flag.
 
-#### Windows: admin step `[Planned: P5]`
+#### Windows: admin step `[Planned: P5b/P5c]`
 
 Order inside `dots system` on Windows:
 
 1. HKLM values from `windows.registry.machine`. Two of them exist for dual-boot:
-   - `RealTimeIsUniversal=1`: Windows reads the hardware clock as UTC, like Linux.
+   - `RealTimeIsUniversal=1`: Windows reads the hardware clock as UTC, like Linux (owner's
+     choice; Linux keeps the default UTC clock).
    - Fast Startup off (`HiberbootEnabled=0`): avoids a half-hibernated Windows.
 2. Disable the OpenSSH Authentication Agent service so the Bitwarden agent works (L1).
 3. Debloat/privacy with [Win11Debloat](https://github.com/Raphire/Win11Debloat), **pinned to a

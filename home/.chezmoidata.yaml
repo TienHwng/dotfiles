@@ -6,6 +6,7 @@ sshEmail: ""
 features:
   installFonts: true
   setupShell: true
+  desktop: true
   wallpapers: true
 
 # Private Git repository cloned by home/.chezmoiexternal.toml.tmpl (L6)

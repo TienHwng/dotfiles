@@ -1,0 +1,5 @@
+{{- /* One KDE key per line: file<TAB>groups (joined by ASCII unit separator)<TAB>key<TAB>value.
+       Read by scripts/unix/setup-desktop.sh; data in home/.chezmoidata/kde.yaml. */ -}}
+{{- range .kde.settings -}}
+{{ .file }}{{ "\t" }}{{ join "\x1f" .group }}{{ "\t" }}{{ .key }}{{ "\t" }}{{ .value }}{{ "\n" }}
+{{- end -}}

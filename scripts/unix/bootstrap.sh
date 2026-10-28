@@ -60,6 +60,7 @@ SKIP_GIT=0
 SKIP_ACCOUNTS=0
 SKIP_SHELL=0
 SKIP_APPLY=0
+SKIP_DESKTOP=0
 SKIP_WALLPAPER=0
 
 usage() {
@@ -84,6 +85,7 @@ Options:
   --skip-accounts
   --skip-shell
   --skip-apply
+  --skip-desktop
   --skip-wallpaper
 EOF
 }
@@ -253,6 +255,10 @@ main() {
         SKIP_APPLY=1
         shift
         ;;
+      --skip-desktop)
+        SKIP_DESKTOP=1
+        shift
+        ;;
       --skip-wallpaper)
         SKIP_WALLPAPER=1
         shift
@@ -323,7 +329,7 @@ main() {
 
   log_step "Platform: $platform"
 
-  # The steps themselves (packages, git, accounts, fonts, shell, apply, wallpaper) live in dots
+  # The steps themselves (packages, git, accounts, fonts, shell, apply, desktop, wallpaper) live in dots
   dots_args=(bootstrap)
   [[ "$DRY_RUN" == '1' ]] && dots_args+=(--dry-run)
   [[ "$NON_INTERACTIVE" == '1' ]] && dots_args+=(--non-interactive)
@@ -333,6 +339,7 @@ main() {
   [[ "$SKIP_FONTS" == '1' ]] && dots_args+=(--skip fonts)
   [[ "$SKIP_SHELL" == '1' ]] && dots_args+=(--skip shell)
   [[ "$SKIP_APPLY" == '1' ]] && dots_args+=(--skip apply)
+  [[ "$SKIP_DESKTOP" == '1' ]] && dots_args+=(--skip desktop)
   [[ "$SKIP_WALLPAPER" == '1' ]] && dots_args+=(--skip wallpaper)
   "$active_script_dir/dots" "${dots_args[@]}"
 

@@ -1,0 +1,30 @@
+# KDE Plasma settings, managed per key (L4). The `desktop` step of dots reads them through
+# scripts/kde-settings.tmpl, shows current -> new for each key that differs, and writes them
+# with kwriteconfig6. Whole *rc files are not managed: Plasma rewrites them constantly.
+#
+# lookAndFeel: global theme, applied with plasma-apply-lookandfeel (it also sets the colors).
+# settings:    one entry per key. group is a list for nested groups ([services][kitty.desktop]).
+#              Global shortcuts are "active,default,friendly name".
+# Screen-specific state (panels, tiling, display layout) stays manual.
+
+kde:
+  lookAndFeel: org.kde.breezetwilight.desktop
+  settings:
+    # Global shortcuts (take effect after the next login)
+    - { file: kglobalshortcutsrc, group: [ksmserver], key: Shut Down, value: "Meta+U,none,Shut Down" }
+    - { file: kglobalshortcutsrc, group: [kwin], key: Edit Tiles, value: "none,Meta+T,Toggle Tiles Editor" }
+    - { file: kglobalshortcutsrc, group: [plasmashell], key: next activity, value: "Meta+A,none,Walk through activities" }
+    - { file: kglobalshortcutsrc, group: [plasmashell], key: previous activity, value: "Meta+Shift+A,none,Walk through activities (Reverse)" }
+    - { file: kglobalshortcutsrc, group: [services, kitty.desktop], key: _launch, value: "Meta+T" }
+    # KWin
+    - { file: kwinrc, group: [Wayland], key: InputMethod, value: /usr/share/applications/fcitx5-wayland-launcher.desktop }
+    - { file: kwinrc, group: [NightColor], key: Active, value: "true" }
+    - { file: kwinrc, group: [Desktops], key: Number, value: "1" }
+    - { file: kwinrc, group: [Desktops], key: Rows, value: "1" }
+    # Look and default apps
+    - { file: kdeglobals, group: [KDE], key: contrast, value: "4" }
+    - { file: kdeglobals, group: [KDE], key: frameContrast, value: "0.2" }
+    - { file: kdeglobals, group: [General], key: BrowserApplication, value: vivaldi-stable.desktop }
+    # Splash screen (theme in home/dot_local/share/plasma/look-and-feel/a2n.kuro)
+    - { file: ksplashrc, group: [KSplash], key: Engine, value: KSplashQML }
+    - { file: ksplashrc, group: [KSplash], key: Theme, value: a2n.kuro }

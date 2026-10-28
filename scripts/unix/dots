@@ -11,7 +11,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 ROOT_DIR="$(repo_root)"
 # git renders ~/.gitconfig (gh credential helper) so accounts can log in to gh before
 # anything clones a private repository; wallpaper needs that login.
-STEPS=(packages git accounts fonts shell apply wallpaper)
+STEPS=(packages git accounts fonts shell apply desktop wallpaper)
 DRY_RUN="${DRY_RUN:-0}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
 
@@ -22,7 +22,7 @@ Usage: dots <command> [options]
 Commands:
   bootstrap [--dry-run] [--non-interactive] [--skip STEP]...
                   Set up this machine step by step: packages, git, accounts,
-                  fonts, shell, apply, wallpaper. Each step shows a preview and asks
+                  fonts, shell, apply, desktop, wallpaper. Each step shows a preview and asks
                   run / skip / quit before changing anything.
   packages [--diff | --dry-run]
                   Install missing packages from the manifest (preview, then
@@ -87,6 +87,7 @@ step_description() {
     fonts) printf 'Install Nerd Fonts from the manifest' ;;
     shell) printf 'Make %s the login shell' "$(login_shell)" ;;
     apply) printf 'Apply dotfiles from home/ with chezmoi (externals come later)' ;;
+    desktop) printf 'Apply KDE Plasma settings from home/.chezmoidata/kde.yaml' ;;
     wallpaper) printf 'Fetch the wallpaper repository and set the desktop wallpaper' ;;
   esac
 }
@@ -95,6 +96,7 @@ step_enabled() {
   case "$1" in
     fonts) [[ "$(chezmoi_value '.features.installFonts' 'true')" == 'true' ]] ;;
     shell) [[ "$(chezmoi_value '.features.setupShell' 'true')" == 'true' ]] ;;
+    desktop) [[ "$(chezmoi_value '.features.desktop' 'true')" == 'true' ]] ;;
     wallpaper) [[ "$(chezmoi_value '.features.wallpapers' 'true')" == 'true' ]] ;;
     *) return 0 ;;
   esac
@@ -119,6 +121,7 @@ run_step() {
     fonts) "$SCRIPT_DIR/install-fonts.sh" "${dry[@]}" ;;
     shell) "$SCRIPT_DIR/setup-shell.sh" "$(login_shell)" "${dry[@]}" "${quiet[@]}" ;;
     apply) apply_dotfiles "$mode" ;;
+    desktop) "$SCRIPT_DIR/setup-desktop.sh" "${dry[@]}" ;;
     wallpaper) "$SCRIPT_DIR/setup-wallpaper.sh" "${dry[@]}" ;;
   esac
 }
