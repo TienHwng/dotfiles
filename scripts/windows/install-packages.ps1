@@ -53,7 +53,7 @@ foreach ($package in $packages) {
         Invoke-NativeCommand -FilePath 'winget' -ArgumentList $arguments -DryRun:$DryRun | Out-Null
     } catch {
         if ($ContinueOnError) {
-            Write-ToolWarning "Could not process $package: $($_.Exception.Message)"
+            Write-ToolWarning "Could not process ${package}: $($_.Exception.Message)"
         } else {
             throw
         }
