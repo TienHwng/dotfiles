@@ -76,18 +76,19 @@ This replaces the earlier service/provider architecture. Do not create
 |---|---|
 | `scripts/unix/bootstrap.sh`: prerequisites, chezmoi, repository init, then `dots bootstrap` | `[Implemented]` |
 | `scripts/unix/dots` (Bash) with gum prompts and a plain-prompt fallback (`DOTS_NO_GUM=1`); `~/.local/bin/dots` symlink from `home/dot_local/bin/symlink_dots.tmpl` | `[Implemented]` |
-| `scripts/windows/bootstrap.ps1` orchestrates the Windows steps directly | `[Implemented]` |
-| `scripts/windows/dots.ps1` | `[Planned: P2]` |
+| `scripts/windows/bootstrap.ps1`: chezmoi, repository init, then `dots.ps1 bootstrap` | `[Implemented]` |
+| `scripts/windows/dots.ps1` with the same commands and steps (gum or `Read-Host`); `dots` function in the shared PowerShell profile | `[Implemented]` |
 
 `dots` exists twice with the same interface: `scripts/unix/dots` (Bash) and
-`scripts/windows/dots.ps1` (PowerShell 7). The TUI uses
+`scripts/windows/dots.ps1` (runs on Windows PowerShell 5.1, which a fresh Windows has, and
+PowerShell 7; options are PowerShell-style: `-DryRun`, `-NonInteractive`, `-Skip a,b`). The TUI uses
 [gum](https://github.com/charmbracelet/gum), available from pacman, winget, and Scoop.
 
 #### Command reference
 
 | Command | Behaviour | Status |
 |---|---|---|
-| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash): steps packages, git, accounts, fonts, shell, apply; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
+| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps packages, git, accounts, fonts, shell, apply; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
 | `dots sync` | `git pull --ff-only` → `chezmoi diff` → confirm → `chezmoi apply`. Reports manifest changes and offers `dots packages`. | `[Planned: P7]` |
 | `dots sync --check` | Fetch only; report how many commits the machine is behind. Used by the timer. | `[Planned: P7]` |
 | `dots capture` | TUI listing drift (files, KDE keys, registry values, packages outside the manifest); the chosen items are written back to the repository, then commit and push. | `[Planned: P7]` |
@@ -450,7 +451,8 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 │   ├── dot_config/                 # nvim, kitty, wezterm, ...  [Implemented]
 │   │   ├── chezmoi-root/           # system instance config     [Implemented]
 │   │   └── systemd/user/           # dots-sync timer            [Planned: P7]
-│   ├── AppData/                    # Windows-only configs       [Planned: P2]
+│   ├── dot_config/powershell/      # shared pwsh profile (Windows) [Implemented]
+│   ├── AppData/                    # Windows-only configs       [Planned, when one is managed]
 │   └── dot_wslconfig               # Windows-only               [Planned: platform]
 ├── root/                           # system chezmoi source      [Implemented, manual]
 ├── pkgbuilds/                      # local Arch packages        [Planned: P6]
@@ -459,9 +461,10 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 │   ├── unix/                       # bootstrap.sh, install-*.sh, setup-*.sh, update.sh,
 │   │                               # backup.sh, cleanup.sh, lib/common.sh  [Implemented]
 │   │                               # dots [Implemented]; system.sh, capture.sh [Planned]
-│   └── windows/                    # *.ps1 counterparts, lib/Common.ps1    [Implemented, parse-checked]
-│                                   # dots.ps1, system.ps1, capture.ps1     [Planned]
-├── tests/                          # bats, template validation  [Implemented]; Pester [Planned: P2]
+│   └── windows/                    # dots.ps1, *.ps1 steps, lib/Common.ps1 [Implemented]
+│                                   # system.ps1, capture.ps1               [Planned]
+├── tests/                          # bats, template validation, windows/*.Tests.ps1 (Pester) [Implemented]
+├── PSScriptAnalyzerSettings.psd1   # analyzer rules for scripts/windows [Implemented]
 ├── Justfile, Makefile              # identical recipes          [Implemented]
 └── temp/, misc/                    # gitignored scratch
 ```
@@ -528,8 +531,8 @@ user timer.
 | Ownership tests (`tests/ownership.bats`) | `[Implemented]` |
 | gitleaks (pre-commit hook, `make secrets`, CI history scan) | `[Implemented]` |
 | Manifest tests (`tests/manifest.bats`): unique names, at least one package per mapped entry, rendering, headless filter, `--diff` | `[Implemented]` |
-| Pester + PSScriptAnalyzer for `scripts/windows` | `[Planned: P2]` |
-| `windows-latest` job: `chezmoi init --apply --dry-run` with fake prompt values, `dots.ps1 bootstrap -DryRun` | `[Planned: P2]` |
+| Pester (`tests/windows`, `make test-windows`) + PSScriptAnalyzer (`make lint-windows`) for `scripts/windows` | `[Implemented]` |
+| `windows-latest` job: config rendered with fake prompt values, analyzer, Pester, `bootstrap.ps1 -DryRun -NonInteractive` on Windows PowerShell 5.1 | `[Implemented]` |
 | `archlinux` container job: template render, `dots bootstrap --dry-run` | `[Planned: P1]` |
 | Ownership test update for the system step and for `[filter "lfs"]` in the git template | `[Planned: P4/P6]` |
 

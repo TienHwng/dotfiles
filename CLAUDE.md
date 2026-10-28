@@ -23,7 +23,9 @@ roadmap phase that changes the behaviour is merged; update both in the same chan
 `just` and `make` expose identical recipes (`make help` lists them):
 
 ```bash
-make validate          # syntax + lint + test + templates + secrets (everything CI runs except the PowerShell parse)
+make validate          # syntax + lint + test + templates + secrets (the Ubuntu CI job except the PowerShell parse)
+make test-windows      # Pester tests in tests/windows (needs pwsh + Pester 5.7)
+make lint-windows      # PSScriptAnalyzer with PSScriptAnalyzerSettings.psd1 (needs pwsh)
 make test              # bats tests
 make lint              # shellcheck + shfmt -d -i 2 -ci -bn scripts/unix tests .githooks
 make templates         # ./tests/validate-templates.sh (renders chezmoi templates in a temp HOME)
@@ -33,6 +35,7 @@ make preview           # chezmoi apply --dry-run --verbose
 ./scripts/unix/bootstrap.sh --dry-run   # safe preview of the full bootstrap
 dots help                               # the user-facing CLI (scripts/unix/dots, symlinked to ~/.local/bin/dots)
 dots bootstrap --dry-run --non-interactive
+pwsh -NoProfile -File scripts/windows/dots.ps1 bootstrap -DryRun -NonInteractive   # Windows counterpart
 ```
 
 Run a single test file or test: `bats tests/common.bats`, or `bats tests/bootstrap.bats -f 'package dry-run'`.
@@ -83,6 +86,7 @@ Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFro
 - `bootstrap.sh` ends with an `if [[ "${BASH_SOURCE[0]}" == "$0" ]]` guard around `main` so Bats can `source` it and call/mock individual functions (e.g. override `has`). Add the same guard to a script before unit-testing its functions.
 - `DOTFILES_PLATFORM` overrides platform detection; tests use it.
 - Tests use `setup_isolated_home` from `tests/test_helper.bash` and mock binaries on `PATH`; they must never provision the real machine.
-- Logging: Bash `log_step`/`log_success`/`log_warn`/`log_error`/`die`; PowerShell `Write-Step`/`Write-Success`/`Write-ToolWarning`/`Stop-Tool`.
+- Logging: Bash `log_step`/`log_success`/`log_warn`/`log_error`/`die`; PowerShell `Write-Step`/`Write-Success`/`Write-Failure`/`Write-ToolWarning`/`Stop-Tool`.
+- PowerShell must run on Windows PowerShell 5.1 (a fresh Windows has only that) and PowerShell 7: no `??`, `?:`, `&&`; keep sources ASCII (5.1 reads BOM-less files as ANSI). `bootstrap.ps1` must also run downloaded on its own, before the clone. Pester tests live in `tests/windows`; mock with `Mock`, never touch the real profile or environment.
 - Style: Bash, 2-space indent, `shfmt -ci -bn`, must pass ShellCheck. PowerShell uses 4 spaces.
 - Never install/reinstall an OS, partition disks, or build `[Future]` items unless asked.

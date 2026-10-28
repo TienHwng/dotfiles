@@ -8,16 +8,15 @@ Built on [chezmoi](https://www.chezmoi.io/), with a step-by-step terminal UI (`d
 that previews every change and asks before applying it.
 
 > **Status:** under active development. This README describes the target design.
-> Items marked *(planned)* do not exist yet. On CachyOS the entry point is `dots`
-> (Bash); on Windows it is still `scripts/windows/bootstrap.ps1` until `dots.ps1` lands.
-> See [docs/roadmap.md](docs/roadmap.md) for what is implemented.
+> Items marked *(planned)* do not exist yet. The entry point is `dots`: Bash on CachyOS,
+> `dots.ps1` on Windows (not yet run on a fresh Windows install). See [docs/roadmap.md](docs/roadmap.md) for what is implemented.
 
 ## What it does
 
 | Layer | What gets restored | Tooling |
 |---|---|---|
 | Identity & secrets *(planned)* | GitHub login, SSH keys, tokens | `gh`, Bitwarden (vault + SSH agent) |
-| Packages | Apps and CLI tools from one manifest (`home/.chezmoidata/packages.yaml`) | paru (CachyOS), winget + Scoop *(Scoop planned)* (Windows) |
+| Packages | Apps and CLI tools from one manifest (`home/.chezmoidata/packages.yaml`) | paru (CachyOS), winget for GUI apps + Scoop for CLI tools (Windows) |
 | Dotfiles | Shell, git, Neovim, terminal, prompt, SSH config | chezmoi (`home/`) |
 | Desktop settings *(planned)* | KDE Plasma keys, Windows user registry | `kwriteconfig6`, PowerShell |
 | System settings | `/etc`, GRUB, SDDM, Plymouth; Windows machine registry, debloat, drivers *(Windows planned)* | second chezmoi instance (`root/`), PowerShell |
@@ -49,13 +48,16 @@ less /tmp/dots-bootstrap.sh && bash /tmp/dots-bootstrap.sh
 
 **Windows 11**
 
+Run from a normal (not elevated) PowerShell window; Scoop refuses an administrator shell.
+
 ```powershell
 irm https://raw.githubusercontent.com/TienHwng/dotfiles/main/scripts/windows/bootstrap.ps1 -OutFile $env:TEMP\dots-bootstrap.ps1
-notepad $env:TEMP\dots-bootstrap.ps1; & $env:TEMP\dots-bootstrap.ps1
+notepad $env:TEMP\dots-bootstrap.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\dots-bootstrap.ps1
 ```
 
-The bootstrap installs `git`, `chezmoi`, `gum`, and `jq`, clones this repository into the
-chezmoi source directory, and starts `dots bootstrap` (Windows: *planned*). Each step shows a preview
+The bootstrap installs `chezmoi` (plus `git`, `gum`, and `jq` on CachyOS), clones this
+repository into the chezmoi source directory, and starts `dots bootstrap`. Each step shows a preview
 and asks before running; you can skip any step. At the end it prints the manual checklist
 (sign in to Bitwarden and to apps with their own sync).
 
@@ -80,10 +82,12 @@ Preview everything without changing the machine:
 | `dots backup` | Tarball of the repository plus the local, untracked chezmoi configs |
 | `dots cleanup` | Clear package-manager and chezmoi caches |
 
-On CachyOS, `bootstrap`, `packages`, `doctor`, `update`, `backup`, and `cleanup` work today
-(`~/.local/bin/dots` is a chezmoi-managed symlink to `scripts/unix/dots`); `sync`, `capture`,
-`system`, and `status` are *(planned)*, and so is the Windows `dots.ps1`. `just` / `make`
-recipes remain available (`make help` lists them).
+`bootstrap`, `packages`, `doctor`, `update`, `backup`, and `cleanup` work today on both OSes;
+`sync`, `capture`, `system`, and `status` are *(planned)*. On CachyOS `~/.local/bin/dots` is a
+chezmoi-managed symlink to `scripts/unix/dots`. On Windows, `dots` is a function in the shared
+PowerShell profile (`~/.config/powershell/profile.ps1`) that runs `scripts/windows/dots.ps1`,
+with PowerShell-style options (`dots bootstrap -DryRun`, `dots packages`). `dots packages --diff`
+is CachyOS-only for now. `just` / `make` recipes remain available (`make help` lists them).
 
 ## Machine-specific values and secrets
 
@@ -104,8 +108,8 @@ templates are rendered *(planned)*.
 ├── home/                 # user-level chezmoi source
 ├── root/                 # system-level chezmoi source (second instance, Linux)
 ├── scripts/unix/         # Bash scripts and the dots CLI
-├── scripts/windows/      # PowerShell 7 scripts (+ dots.ps1, planned)
-├── tests/                # Bats tests and template validation
+├── scripts/windows/      # PowerShell scripts and dots.ps1 (Windows PowerShell 5.1 and 7)
+├── tests/                # Bats, Pester (tests/windows), template validation
 ├── .github/workflows/    # CI
 ├── Justfile, Makefile    # identical convenience recipes
 ```
@@ -113,7 +117,8 @@ templates are rendered *(planned)*.
 ## Development
 
 ```bash
-make validate   # syntax + lint + tests + template rendering + secret scan (what CI runs, minus PowerShell parse)
+make validate   # syntax + lint + tests + template rendering + secret scan (the Ubuntu CI job, minus PowerShell parse)
+make test-windows lint-windows   # Pester + PSScriptAnalyzer (needs pwsh; the Windows CI job)
 make test       # bats tests
 make lint       # shellcheck + shfmt -d -i 2 -ci -bn
 make templates  # render chezmoi templates in a temporary HOME
