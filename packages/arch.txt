@@ -84,3 +84,9 @@ xdg-desktop-portal-hyprland
 yazi
 zoxide
 zsh
+
+# Repository validation (make validate, pre-commit secret scan)
+bats
+gitleaks
+shellcheck
+shfmt

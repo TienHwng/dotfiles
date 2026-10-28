@@ -36,9 +36,16 @@ test:
 
 lint:
     find scripts/unix tests -type f \( -name '*.sh' -o -name '*.bash' -o -name '*.bats' \) -print0 | xargs -0 shellcheck
-    shfmt -d -i 2 -ci -bn scripts/unix tests
+    shellcheck .githooks/*
+    shfmt -d -i 2 -ci -bn scripts/unix tests .githooks
 
 templates:
     ./tests/validate-templates.sh
 
-validate: lint test templates
+secrets:
+    gitleaks git --redact --verbose
+
+hooks:
+    git config core.hooksPath .githooks
+
+validate: lint test templates secrets

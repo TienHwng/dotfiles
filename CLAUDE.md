@@ -23,17 +23,19 @@ roadmap phase that changes the behaviour is merged; update both in the same chan
 `just` and `make` expose identical recipes (`make help` lists them):
 
 ```bash
-make validate          # syntax + lint + test + templates (everything CI runs except the PowerShell parse)
+make validate          # syntax + lint + test + templates + secrets (everything CI runs except the PowerShell parse)
 make test              # bats tests
-make lint              # shellcheck + shfmt -d -i 2 -ci -bn scripts/unix tests
+make lint              # shellcheck + shfmt -d -i 2 -ci -bn scripts/unix tests .githooks
 make templates         # ./tests/validate-templates.sh (renders chezmoi templates in a temp HOME)
+make secrets           # gitleaks scan of the full Git history
+make hooks             # enable .githooks/pre-commit (gitleaks on staged changes) for this clone
 make preview           # chezmoi apply --dry-run --verbose
 ./scripts/unix/bootstrap.sh --dry-run   # safe preview of the full bootstrap
 ```
 
 Run a single test file or test: `bats tests/common.bats`, or `bats tests/bootstrap.bats -f 'package dry-run'`.
 
-Fix formatting with `shfmt -w -i 2 -ci -bn scripts/unix tests`. `tests/ownership.bats` requires `rg`; some tests skip when `chezmoi` is absent.
+Fix formatting with `shfmt -w -i 2 -ci -bn scripts/unix tests .githooks`. `tests/ownership.bats` requires `rg`; some tests skip when `chezmoi` is absent.
 
 ## Architecture (target, see docs/design.md)
 
@@ -56,7 +58,7 @@ Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFro
 ## Layout and ownership boundaries
 
 - `.chezmoiroot` contains `home`, so **`home/` is the user chezmoi source state** (`dot_*`, `private_*`, `empty_*`, `*.tmpl` naming). The repo root is the git working tree, cloned to `~/.local/share/chezmoi`.
-- `home/.chezmoiignore` must be OS-aware so Linux-only files never land on Windows and vice versa.
+- `home/.chezmoiignore` is OS-aware: Linux-only targets are ignored on non-Linux, Windows-only targets on non-Windows. Add every new OS-specific file to the matching list; `tests/chezmoiignore.bats` checks the managed set per OS.
 - `root/` is the **system chezmoi source state** (target `/`, run with sudo), applied by a second instance whose config and state live in `~/.config/chezmoi-root/`. Target policy: `dots system` applies it as an opt-in, interactive step with a diff. It is never applied by CI, tests, or `NON_INTERACTIVE=1`. Currently `tests/ownership.bats` forbids any script or workflow from referencing `root.toml`/`chezmoi-root`; that changes only in roadmap phase P6. The `chezmoi-root`/`cmr` function in `home/dot_zshrc` is the manual path until then: `cmr` shows status + diff and asks before applying, `cmr edit` edits the repo copy as the user, `cmr capture` pulls files changed in `/` back into the repo, and it chowns `root/` back to the user after every command. Its config is rendered from `home/dot_config/chezmoi-root/chezmoi.toml.tmpl`.
 - Prefer drop-ins under `/etc/*.d/` over owning whole system files; never write into `/usr` outside a package (`pkgbuilds/`).
 - Lists live in data, never in scripts: packages in `home/.chezmoidata/packages.yaml` (replacing `packages/*.txt`), KDE keys in `kde.yaml`, Windows registry values in `windows.yaml`. Arch installs via `paru -S --needed`, never as root. Windows uses winget for GUI/system apps and Scoop for CLI tools and fonts; no Chocolatey.

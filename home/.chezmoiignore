@@ -1,1 +1,26 @@
 *.md
+
+{{- /* Linux-only targets: shell, terminal, compositor, KDE, and the system instance config */}}
+{{- if ne .chezmoi.os "linux" }}
+.zshrc
+.oh-my-zsh
+.config/chezmoi-root
+.config/environment.d
+.config/fastfetch
+.config/hypr
+.config/kitty
+.config/tmux
+.config/kdeglobals
+.config/kglobalshortcutsrc
+.config/ksplashrc
+.config/kwinrc
+.config/plasmashellrc
+.local/share/plasma
+{{- end }}
+
+{{- /* Windows-only targets */}}
+{{- if ne .chezmoi.os "windows" }}
+AppData
+Documents/PowerShell
+.wslconfig
+{{- end }}

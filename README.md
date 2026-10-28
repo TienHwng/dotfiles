@@ -112,10 +112,12 @@ templates are rendered *(planned)*.
 ## Development
 
 ```bash
-make validate   # syntax + lint + tests + template rendering (what CI runs, minus PowerShell parse)
+make validate   # syntax + lint + tests + template rendering + secret scan (what CI runs, minus PowerShell parse)
 make test       # bats tests
 make lint       # shellcheck + shfmt -d -i 2 -ci -bn
 make templates  # render chezmoi templates in a temporary HOME
+make secrets    # gitleaks scan of the full history
+make hooks      # enable the gitleaks pre-commit hook for this clone
 make preview    # chezmoi apply --dry-run --verbose
 ```
 

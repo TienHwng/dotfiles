@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Block commits that add secrets: this repository is public.
+# Enabled with `make hooks` / `just hooks` (git config core.hooksPath .githooks).
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  printf '✘ gitleaks is not installed, so staged changes cannot be scanned for secrets.\n' >&2
+  printf '  Install it (pacman -S gitleaks / winget install Gitleaks.Gitleaks), or bypass once with git commit --no-verify.\n' >&2
+  exit 1
+fi
+
+exec gitleaks git --pre-commit --staged --redact --verbose

@@ -198,28 +198,19 @@ Rules:
 | Item | Status |
 |---|---|
 | chezmoi source in `home/` via `.chezmoiroot`, templates for git and SSH | `[Implemented]` |
-| OS-aware `.chezmoiignore` | `[Planned: P0]` |
+| OS-aware `.chezmoiignore` | `[Implemented]` |
 | Windows targets, `XDG_CONFIG_HOME`, PowerShell profile stub | `[Planned: P2]` |
 
 - **One config path on both OSes:** on Windows, set the user environment variable
   `XDG_CONFIG_HOME=%USERPROFILE%\.config`. Neovim, starship, WezTerm, and git then read
   `~/.config`, so `home/dot_config/nvim`, `starship.toml`, etc. are shared unchanged.
-- **`.chezmoiignore` MUST be OS-aware.** Today it only ignores `*.md`, so applying on Windows
-  would write `.zshrc`, `kitty`, `hypr`, `kwinrc`, etc. Target shape:
-
-  ```text
-  {{ if eq .chezmoi.os "windows" }}
-  .zshrc
-  .oh-my-zsh
-  .config/kitty
-  .config/hypr
-  .config/environment.d
-  .local/share/plasma
-  {{ else }}
-  AppData
-  .wslconfig
-  {{ end }}
-  ```
+- **`.chezmoiignore` is OS-aware** `[Implemented]`. Linux-only targets (`.zshrc`, `.oh-my-zsh`,
+  kitty, hypr, tmux, fastfetch, KDE `*rc` files, `.local/share/plasma`, the system instance
+  config) are ignored on every non-Linux OS; Windows-only targets (`AppData`,
+  `Documents/PowerShell`, `.wslconfig`) are ignored everywhere except Windows.
+  `tests/chezmoiignore.bats` checks the managed set per OS by overriding `.chezmoi.os`
+  (`chezmoi --override-data '{"chezmoi":{"os":"windows"}}' managed`). New OS-specific files
+  MUST be added to the matching list.
 
 - **PowerShell profile:** OneDrive "Known Folder Move" can relocate `Documents`, so the repo
   does not hard-code `Documents/PowerShell`. A `run_onchange_` script writes a small stub to
@@ -431,10 +422,10 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 │   ├── .chezmoidata.yaml           # defaults, features.*       [Implemented]
 │   ├── .chezmoidata/               # packages.yaml, kde.yaml, windows.yaml  [Planned]
 │   ├── .chezmoiexternal.toml.tmpl  # wallpaper repo             [Planned: P4]
-│   ├── .chezmoiignore              # OS-aware                   [Planned: P0]
+│   ├── .chezmoiignore              # OS-aware                   [Implemented]
 │   ├── .chezmoiscripts/            # run_onchange_ scripts      [Planned]
 │   ├── dot_config/                 # nvim, kitty, wezterm, ...  [Implemented]
-│   │   ├── chezmoi-root/           # system instance config     [Planned: P0/P6]
+│   │   ├── chezmoi-root/           # system instance config     [Implemented]
 │   │   └── systemd/user/           # dots-sync timer            [Planned: P7]
 │   ├── AppData/                    # Windows-only configs       [Planned: P2]
 │   └── dot_wslconfig               # Windows-only               [Planned: platform]
@@ -495,7 +486,8 @@ user timer.
 - The repository is **public**. It MUST NOT contain secrets, private keys, tokens, Wi-Fi/VPN
   credentials, or machine identity. Identity stays in the untracked local chezmoi config.
 - Sensitive values are rendered from Bitwarden at apply time.
-- gitleaks runs as a pre-commit hook and in CI `[Planned: P0]`.
+- gitleaks runs as a pre-commit hook (`.githooks/pre-commit`, enabled with `make hooks`) and
+  scans the full history in CI and in `make validate` (`make secrets`) `[Implemented]`.
 - Third-party scripts and installers are pinned to a version and checksum-verified. No
   `irm | iex` or `curl | sh` inside automated flows.
 - Review `root/` before committing: no network configuration or credentials.
@@ -511,7 +503,7 @@ user timer.
 | Template rendering in a temporary HOME (`tests/validate-templates.sh`) | `[Implemented]` |
 | PowerShell parse check | `[Implemented]` |
 | Ownership tests (`tests/ownership.bats`) | `[Implemented]` |
-| gitleaks | `[Planned: P0]` |
+| gitleaks (pre-commit hook, `make secrets`, CI history scan) | `[Implemented]` |
 | Manifest tests: every `mapped` entry has at least one manager; names unique | `[Planned: P1]` |
 | Pester + PSScriptAnalyzer for `scripts/windows` | `[Planned: P2]` |
 | `windows-latest` job: `chezmoi init --apply --dry-run` with fake prompt values, `dots.ps1 bootstrap -DryRun` | `[Planned: P2]` |

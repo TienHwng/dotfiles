@@ -7,10 +7,11 @@ CHEZMOI_CMD ?= chezmoi
 PWSH ?= pwsh
 SHELLCHECK ?= shellcheck
 SHFMT ?= shfmt
+GITLEAKS ?= gitleaks
 
 .PHONY: help bootstrap-unix bootstrap-unix-dry packages-unix update-unix \
 	bootstrap-windows packages-windows update-windows preview doctor syntax \
-	test lint templates validate
+	test lint templates secrets hooks validate
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "; printf "Available targets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-22s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -51,9 +52,16 @@ test: ## Run isolated Bats tests
 
 lint: ## Run ShellCheck and verify shfmt formatting
 	find scripts/unix tests -type f \( -name '*.sh' -o -name '*.bash' -o -name '*.bats' \) -print0 | xargs -0 $(SHELLCHECK)
-	$(SHFMT) -d -i 2 -ci -bn scripts/unix tests
+	$(SHELLCHECK) .githooks/*
+	$(SHFMT) -d -i 2 -ci -bn scripts/unix tests .githooks
 
 templates: ## Validate chezmoi templates in an isolated environment
 	./tests/validate-templates.sh
 
-validate: syntax lint test templates ## Run every safe local validation
+secrets: ## Scan the full Git history for secrets with gitleaks
+	$(GITLEAKS) git --redact --verbose
+
+hooks: ## Enable the repository Git hooks (gitleaks pre-commit)
+	git config core.hooksPath .githooks
+
+validate: syntax lint test templates secrets ## Run every safe local validation
