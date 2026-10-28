@@ -1,0 +1,12 @@
+{{- /* Wallpapers (L6): private Git LFS repository, cloned over HTTPS with the gh credential
+       helper. The wallpaper step of dots fetches it; the apply step excludes externals. */ -}}
+{{- if .features.wallpapers }}
+[{{ .wallpapers.dir | quote }}]
+    type = "git-repo"
+    url = {{ .wallpapers.repo | quote }}
+    refreshPeriod = "168h"
+    [{{ .wallpapers.dir | quote }}.clone]
+        args = ["--depth", "1"]
+    [{{ .wallpapers.dir | quote }}.pull]
+        args = ["--ff-only"]
+{{- end }}

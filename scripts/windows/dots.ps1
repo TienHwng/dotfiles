@@ -23,8 +23,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
 
-# accounts runs after apply: gh login needs the rendered gh credential helper and ssh config
-$script:Steps = @('packages', 'git', 'fonts', 'shell', 'apply', 'accounts')
+# git renders ~/.gitconfig (gh credential helper) so accounts can log in to gh before
+# anything clones a private repository; wallpaper needs that login.
+$script:Steps = @('packages', 'git', 'accounts', 'fonts', 'shell', 'apply', 'wallpaper')
 
 function Show-Usage {
     Write-Host @'
@@ -32,8 +33,8 @@ Usage: dots <command> [options]
 
 Commands:
   bootstrap [-DryRun] [-NonInteractive] [-Skip step,...]
-                  Set up this machine step by step: packages, git, fonts,
-                  shell, apply, accounts. Each step shows a preview and asks
+                  Set up this machine step by step: packages, git, accounts,
+                  fonts, shell, apply, wallpaper. Each step shows a preview and asks
                   run / skip / quit before changing anything.
   packages [-DryRun]
                   Install missing WinGet and Scoop packages from the manifest
@@ -87,11 +88,12 @@ function Confirm-Yes([string]$Message) {
 function Get-StepDescription([string]$Step) {
     switch ($Step) {
         'packages' { 'Install WinGet and Scoop packages from home/.chezmoidata/packages.yaml' }
-        'git' { 'Check the Git identity used by the git template' }
+        'git' { 'Check the Git identity and render ~/.gitconfig from the git template' }
         'accounts' { 'Log in to GitHub with gh and check the SSH key in the Bitwarden agent' }
         'fonts' { 'Install Nerd Fonts from the manifest with Scoop' }
         'shell' { 'Set XDG_CONFIG_HOME and the PowerShell 7 profile stub' }
-        'apply' { 'Apply dotfiles from home/ with chezmoi' }
+        'apply' { 'Apply dotfiles from home/ with chezmoi (externals come later)' }
+        'wallpaper' { 'Fetch the wallpaper repository and set the desktop wallpaper' }
     }
 }
 
@@ -99,14 +101,19 @@ function Test-StepEnabled([string]$Step) {
     switch ($Step) {
         'fonts' { return (Get-ChezmoiValue '.features.installFonts' 'true') -eq 'true' }
         'shell' { return (Get-ChezmoiValue '.features.setupShell' 'true') -eq 'true' }
+        'wallpaper' { return (Get-ChezmoiValue '.features.wallpapers' 'true') -eq 'true' }
         default { return $true }
     }
 }
 
-function Invoke-ChezmoiApply([string]$Mode) {
+# Apply the given targets, or everything except externals (the wallpaper step fetches those)
+function Invoke-ChezmoiApply([string]$Mode, [string[]]$Target = @()) {
     $arguments = @('--source', (Join-Path (Get-RepoRoot) 'home'))
     if ($NonInteractive) {
         $arguments += '--no-tty'
+    }
+    if ($Target.Count -eq 0) {
+        $arguments += @('--exclude', 'externals')
     }
 
     # Previews use diff: apply --dry-run still stops to ask about files changed outside chezmoi
@@ -114,12 +121,12 @@ function Invoke-ChezmoiApply([string]$Mode) {
         if (-not $DryRun) {
             Stop-Tool 'chezmoi is required before applying dotfiles.'
         }
-        Write-Host (Format-NativeCommand 'chezmoi' ($arguments + @('diff', '--no-pager')))
+        Write-Host (Format-NativeCommand 'chezmoi' ($arguments + @('diff', '--no-pager') + $Target))
         Write-ToolWarning 'chezmoi diff was not executed because chezmoi is unavailable.'
     } elseif ($DryRun -or $Mode -eq 'preview') {
-        Invoke-NativeCommand -FilePath 'chezmoi' -ArgumentList ($arguments + @('diff', '--no-pager')) | Out-Null
+        Invoke-NativeCommand -FilePath 'chezmoi' -ArgumentList ($arguments + @('diff', '--no-pager') + $Target) | Out-Null
     } else {
-        Invoke-NativeCommand -FilePath 'chezmoi' -ArgumentList ($arguments + @('apply', '--verbose')) | Out-Null
+        Invoke-NativeCommand -FilePath 'chezmoi' -ArgumentList ($arguments + @('apply', '--verbose') + $Target) | Out-Null
     }
 }
 
@@ -131,11 +138,15 @@ function Invoke-Step([string]$Step, [string]$Mode) {
 
     switch ($Step) {
         'packages' { & (Join-Path $PSScriptRoot 'install-packages.ps1') -DryRun:$dry; if (-not $dry) { Update-ProcessPath } }
-        'git' { & (Join-Path $PSScriptRoot 'setup-git.ps1') -DryRun:$dry -NonInteractive:$quiet }
+        'git' {
+            & (Join-Path $PSScriptRoot 'setup-git.ps1') -DryRun:$dry -NonInteractive:$quiet
+            Invoke-ChezmoiApply $Mode @(Join-Path $HOME '.gitconfig')
+        }
         'accounts' { & (Join-Path $PSScriptRoot 'setup-accounts.ps1') -DryRun:$dry -NonInteractive:$quiet }
         'fonts' { & (Join-Path $PSScriptRoot 'install-fonts.ps1') -DryRun:$dry }
         'shell' { & (Join-Path $PSScriptRoot 'setup-shell.ps1') -Shell 'pwsh' -DryRun:$dry }
         'apply' { Invoke-ChezmoiApply $Mode }
+        'wallpaper' { & (Join-Path $PSScriptRoot 'setup-wallpaper.ps1') -DryRun:$dry }
     }
 }
 

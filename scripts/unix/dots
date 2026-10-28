@@ -9,8 +9,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" >/de
 source "$SCRIPT_DIR/lib/common.sh"
 
 ROOT_DIR="$(repo_root)"
-# accounts runs after apply: gh login needs the rendered gh credential helper and ssh config
-STEPS=(packages git fonts shell apply accounts)
+# git renders ~/.gitconfig (gh credential helper) so accounts can log in to gh before
+# anything clones a private repository; wallpaper needs that login.
+STEPS=(packages git accounts fonts shell apply wallpaper)
 DRY_RUN="${DRY_RUN:-0}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
 
@@ -20,8 +21,8 @@ Usage: dots <command> [options]
 
 Commands:
   bootstrap [--dry-run] [--non-interactive] [--skip STEP]...
-                  Set up this machine step by step: packages, git, fonts,
-                  shell, apply, accounts. Each step shows a preview and asks
+                  Set up this machine step by step: packages, git, accounts,
+                  fonts, shell, apply, wallpaper. Each step shows a preview and asks
                   run / skip / quit before changing anything.
   packages [--diff | --dry-run]
                   Install missing packages from the manifest (preview, then
@@ -81,11 +82,12 @@ login_shell() {
 step_description() {
   case "$1" in
     packages) printf 'Install packages from home/.chezmoidata/packages.yaml' ;;
-    git) printf 'Check the Git identity used by the git template' ;;
+    git) printf 'Check the Git identity and render ~/.gitconfig from the git template' ;;
     accounts) printf 'Log in to GitHub with gh and check the SSH key in the Bitwarden agent' ;;
     fonts) printf 'Install Nerd Fonts from the manifest' ;;
     shell) printf 'Make %s the login shell' "$(login_shell)" ;;
-    apply) printf 'Apply dotfiles from home/ with chezmoi' ;;
+    apply) printf 'Apply dotfiles from home/ with chezmoi (externals come later)' ;;
+    wallpaper) printf 'Fetch the wallpaper repository and set the desktop wallpaper' ;;
   esac
 }
 
@@ -93,6 +95,7 @@ step_enabled() {
   case "$1" in
     fonts) [[ "$(chezmoi_value '.features.installFonts' 'true')" == 'true' ]] ;;
     shell) [[ "$(chezmoi_value '.features.setupShell' 'true')" == 'true' ]] ;;
+    wallpaper) [[ "$(chezmoi_value '.features.wallpapers' 'true')" == 'true' ]] ;;
     *) return 0 ;;
   esac
 }
@@ -108,29 +111,36 @@ run_step() {
 
   case "$step" in
     packages) "$SCRIPT_DIR/install-packages.sh" "${dry[@]}" ;;
-    git) "$SCRIPT_DIR/setup-git.sh" "${dry[@]}" "${quiet[@]}" ;;
+    git)
+      "$SCRIPT_DIR/setup-git.sh" "${dry[@]}" "${quiet[@]}"
+      apply_dotfiles "$mode" "$HOME/.gitconfig"
+      ;;
     accounts) "$SCRIPT_DIR/setup-accounts.sh" "${dry[@]}" "${quiet[@]}" ;;
     fonts) "$SCRIPT_DIR/install-fonts.sh" "${dry[@]}" ;;
     shell) "$SCRIPT_DIR/setup-shell.sh" "$(login_shell)" "${dry[@]}" "${quiet[@]}" ;;
     apply) apply_dotfiles "$mode" ;;
+    wallpaper) "$SCRIPT_DIR/setup-wallpaper.sh" "${dry[@]}" ;;
   esac
 }
 
+# Apply the given targets, or everything except externals (the wallpaper step fetches those)
 apply_dotfiles() {
   local mode="$1"
-  local -a chezmoi_args=(--source "$ROOT_DIR/home")
+  shift
+  local -a chezmoi_args=(--source "$ROOT_DIR/home") targets=("$@")
 
   [[ "$NON_INTERACTIVE" == '1' ]] && chezmoi_args+=(--no-tty)
+  ((${#targets[@]})) || chezmoi_args+=(--exclude externals)
 
   # Previews use diff: apply --dry-run still stops to ask about files changed outside chezmoi
   if ! has chezmoi; then
     [[ "$DRY_RUN" == '1' ]] || die 'chezmoi is required before applying dotfiles.'
-    print_command chezmoi "${chezmoi_args[@]}" diff --no-pager
+    print_command chezmoi "${chezmoi_args[@]}" diff --no-pager "${targets[@]}"
     log_warn 'chezmoi diff was not executed because chezmoi is unavailable.'
   elif [[ "$DRY_RUN" == '1' || "$mode" == 'preview' ]]; then
-    chezmoi "${chezmoi_args[@]}" diff --no-pager
+    chezmoi "${chezmoi_args[@]}" diff --no-pager "${targets[@]}"
   else
-    chezmoi "${chezmoi_args[@]}" apply --verbose
+    chezmoi "${chezmoi_args[@]}" apply --verbose "${targets[@]}"
   fi
 }
 

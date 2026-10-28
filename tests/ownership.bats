@@ -19,6 +19,14 @@ setup() {
   [ -f "$PROJECT_ROOT/home/dot_ssh/private_config.tmpl" ]
 }
 
+@test "no script writes ~/.gitconfig through git lfs install or gh auth setup-git" {
+  # Comments may name them (to forbid them); code must not run them
+  run grep -rnE '^[^#]*(git lfs install|git-lfs install|gh auth setup-git)' \
+    "$PROJECT_ROOT/scripts" "$PROJECT_ROOT/.github/workflows"
+
+  [ "$status" -eq 1 ]
+}
+
 @test "bootstrap automation does not apply protected root source state" {
   # Scripts may name the system config file (backup copies it, doctor checks it exists)
   # but must never run chezmoi against the system instance or the root/ source.

@@ -20,14 +20,14 @@ Describe 'dots.ps1 commands' {
     }
 
     It 'completes a dry run with every step skipped' {
-        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip packages, git, accounts, fonts, shell, apply *>&1 | Out-String
+        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip packages, git, accounts, fonts, shell, apply, wallpaper *>&1 | Out-String
         $output | Should -Match 'Skipping packages'
         $output | Should -Match 'Skipping apply'
         $output | Should -Match 'Bootstrap complete'
     }
 
     It 'accepts -Skip as one comma-separated string, as pwsh -File passes it' {
-        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip 'packages,git,accounts,fonts,shell,apply' *>&1 | Out-String
+        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip 'packages,git,accounts,fonts,shell,apply,wallpaper' *>&1 | Out-String
         $output | Should -Match 'Skipping fonts'
         $output | Should -Match 'Bootstrap complete'
     }
