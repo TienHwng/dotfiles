@@ -101,6 +101,48 @@ jobs:
       - name: Validate chezmoi templates
         run: ./tests/validate-templates.sh
 
+  arch:
+    # The primary Linux platform: real pacman, run as a regular user like on CachyOS
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Install tools and a regular user
+        run: |
+          pacman -Syu --noconfirm --needed git chezmoi bats shellcheck shfmt jq openssh diffutils
+          useradd --create-home tester
+
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Hand the checkout to the test user
+        run: chown -R tester:tester "$GITHUB_WORKSPACE"
+
+      - name: Run Bats tests
+        run: runuser -u tester -- env HOME=/home/tester bats tests
+
+      - name: Validate chezmoi templates
+        run: runuser -u tester -- env HOME=/home/tester ./tests/validate-templates.sh
+
+      - name: Dry-run bootstrap
+        run: |
+          runuser -u tester -- env HOME=/home/tester bash -euo pipefail -c '
+            mkdir -p "$HOME/.config/chezmoi"
+            chezmoi execute-template --init \
+              --promptString "Git user name=CI User,Git email=ci@example.test,GitHub username (optional)=ci,SSH key email=ci@example.test" \
+              <home/.chezmoi.toml.tmpl >"$HOME/.config/chezmoi/chezmoi.toml"
+            before="$(find "$HOME" -mindepth 1 | sort)"
+            ./scripts/unix/bootstrap.sh --dry-run --non-interactive --skip-accounts
+            if [[ "$before" != "$(find "$HOME" -mindepth 1 | sort)" ]]; then
+              echo "The dry-run changed HOME" >&2
+              exit 1
+            fi
+          '
+
   windows:
     runs-on: windows-latest
     timeout-minutes: 20
@@ -156,4 +198,8 @@ jobs:
 
       - name: Dry-run bootstrap on Windows PowerShell 5.1
         shell: powershell
+        run: ./scripts/windows/bootstrap.ps1 -DryRun -NonInteractive -SkipGit -SkipAccounts
+
+      - name: Dry-run bootstrap on PowerShell 7
+        shell: pwsh
         run: ./scripts/windows/bootstrap.ps1 -DryRun -NonInteractive -SkipGit -SkipAccounts

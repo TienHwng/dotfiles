@@ -532,8 +532,8 @@ user timer.
 | gitleaks (pre-commit hook, `make secrets`, CI history scan) | `[Implemented]` |
 | Manifest tests (`tests/manifest.bats`): unique names, at least one package per mapped entry, rendering, headless filter, `--diff` | `[Implemented]` |
 | Pester (`tests/windows`, `make test-windows`) + PSScriptAnalyzer (`make lint-windows`) for `scripts/windows` | `[Implemented]` |
-| `windows-latest` job: config rendered with fake prompt values, analyzer, Pester, `bootstrap.ps1 -DryRun -NonInteractive` on Windows PowerShell 5.1 | `[Implemented]` |
-| `archlinux` container job: template render, `dots bootstrap --dry-run` | `[Planned: P1]` |
+| `windows-latest` job: config rendered with fake prompt values, analyzer, Pester, `bootstrap.ps1 -DryRun -NonInteractive` on Windows PowerShell 5.1 and PowerShell 7 | `[Implemented]` |
+| `archlinux` container job, as a regular user: Bats tests, template render, `bootstrap.sh --dry-run --non-interactive` with fake prompt values, HOME unchanged | `[Implemented]` |
 | Ownership test update for the system step and for `[filter "lfs"]` in the git template | `[Planned: P4/P6]` |
 
 Tests MUST never provision the real machine.

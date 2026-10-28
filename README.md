@@ -56,6 +56,11 @@ notepad $env:TEMP\dots-bootstrap.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\dots-bootstrap.ps1
 ```
 
+A fresh Windows only has Windows PowerShell 5.1, so the command above uses `powershell`. If
+PowerShell 7 is already installed, `pwsh -NoProfile -ExecutionPolicy Bypass -File ...` works
+the same. The packages step installs PowerShell 7, and the shell step points its profile at
+the shared `~/.config/powershell/profile.ps1`; use PowerShell 7 from then on.
+
 The bootstrap installs `chezmoi` (plus `git`, `gum`, and `jq` on CachyOS), clones this
 repository into the chezmoi source directory, and starts `dots bootstrap`. Each step shows a preview
 and asks before running; you can skip any step. At the end it prints the manual checklist
