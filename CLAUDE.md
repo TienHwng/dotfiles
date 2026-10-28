@@ -68,7 +68,7 @@ Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFro
 
 - `home/.chezmoi.toml.tmpl` prompts for `gitName`, `gitEmail`, `githubUsername`, `sshEmail` and stores them only in the local untracked `~/.config/chezmoi/chezmoi.toml`. `home/.chezmoidata.yaml` holds empty defaults plus `features.*` and `accounts.ssh.*`.
 - The repository is **public**: never commit secrets, keys, tokens, or identity. Secrets come from Bitwarden template functions; SSH keys are served by the Bitwarden SSH agent.
-- `home/dot_gitconfig.tmpl` and `home/dot_ssh/private_config.tmpl` are the **only** writers of `~/.gitconfig` and `~/.ssh/config`. Setup scripts only validate/collect data; an ownership test fails if they call `git config` or write SSH config directly. Never run `git lfs install`; the LFS filter belongs in the git template.
+- `home/dot_gitconfig.tmpl` and `home/dot_ssh/private_config.tmpl` are the **only** writers of `~/.gitconfig` and `~/.ssh/config`. Setup scripts only validate/collect data; an ownership test fails if they call `git config` or write SSH config directly. Never run `git lfs install` or `gh auth setup-git`; the LFS filter and the `gh` credential helper belong in the git template.
 - If you add a new template variable, update `.chezmoidata.yaml` defaults and the `--override-data` JSON / `--promptString` lists in `tests/validate-templates.sh` and `tests/ownership.bats`.
 
 ## Script conventions

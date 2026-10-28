@@ -124,12 +124,16 @@ runs `chezmoi init TienHwng/dotfiles` (public, no auth needed), then hands over 
 |---|---|
 | Git/SSH identity prompts stored in local chezmoi config | `[Implemented]` |
 | Passphrase-protected SSH key creation in `setup-accounts.sh` | `[Implemented]` (to be replaced in P3) |
-| `gh auth login` + `gh auth setup-git` | `[Planned: P3]` |
+| `gh` credential helper rendered by `home/dot_gitconfig.tmpl` (Linux, when `gh` is on `PATH`) | `[Implemented]` |
+| `gh auth login` step in `dots bootstrap` | `[Planned: P3]` |
 | Bitwarden templates and SSH agent | `[Planned: P3]` |
 
-- **GitHub access:** `gh auth login` (browser device flow) then `gh auth setup-git`. This lets
-  git clone the private wallpaper repository over HTTPS **before** any SSH key exists, which
-  breaks the "need a key to fetch the key" loop.
+- **GitHub access:** `gh auth login` (browser device flow). The git template already renders
+  `gh auth git-credential` as the credential helper for `https://github.com` and
+  `https://gist.github.com` whenever `gh` is on `PATH` (Linux; Windows uses Git Credential
+  Manager). This lets git clone the private wallpaper repository over HTTPS **before** any SSH
+  key exists, which breaks the "need a key to fetch the key" loop. Do **not** run
+  `gh auth setup-git`: it writes `~/.gitconfig` directly, which the template owns.
 - **Tokens and API keys:** chezmoi templates call `bitwardenFields` / `bitwarden`, with
   `bitwarden.unlock = "auto"` so chezmoi unlocks only when `BW_SESSION` is not set.
 - **SSH keys live in the Bitwarden vault** and are served by the Bitwarden desktop SSH agent
@@ -369,7 +373,7 @@ Order inside `dots system` on Windows:
 - Prerequisites: `git-lfs` installed (bundled with Git for Windows; package `git-lfs` on
   Arch). The LFS filter MUST be added to `home/dot_gitconfig.tmpl` (`[filter "lfs"]`), because
   that template owns `~/.gitconfig`. Never run `git lfs install`, which writes to the file
-  directly. Authentication comes from `gh auth setup-git` (L1).
+  directly. Authentication comes from the `gh` credential helper in the git template (L1).
 - Setting the wallpaper: the file name lives in data (`desktop.wallpaper`). KDE uses
   `plasma-apply-wallpaperimage`. Windows calls `SystemParametersInfo`
   (`SPI_SETDESKWALLPAPER`) from PowerShell. The SDDM login background is part of L5.
@@ -534,6 +538,6 @@ MUST NOT:
 - Apply the system instance from CI, tests, or non-interactive runs.
 - Run paru/makepkg as root.
 - Write into `/usr` outside a package.
-- Run `git lfs install`, `git config --global`, or anything else that writes files owned by templates.
+- Run `git lfs install`, `gh auth setup-git`, `git config --global`, or anything else that writes files owned by templates.
 - Add Chocolatey, Fedora support, or service/provider directories.
 - Build `[Future]` items unless the owner asks.
