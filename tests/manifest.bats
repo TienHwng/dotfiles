@@ -44,6 +44,13 @@ manifest_list() {
   [ "$status" -eq 0 ]
   [[ "$output" == *'Git.Git'* ]]
   [[ "$output" == *'Microsoft.PowerShell'* ]]
+  [[ "$output" != *'ripgrep'* ]]
+
+  # Windows CLI tools come from Scoop, not WinGet
+  run manifest_list scoop
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'ripgrep'* ]]
+  [[ "$output" == *'oh-my-posh'* ]]
 
   run manifest_list nerdFonts
   [ "$status" -eq 0 ]

@@ -87,7 +87,8 @@ function Invoke-NativeCommand {
         return 0
     }
 
-    & $FilePath @ArgumentList
+    # Out-Host keeps the command's output on screen and out of the return value
+    & $FilePath @ArgumentList | Out-Host
     $exitCode = $LASTEXITCODE
 
     if ($exitCode -ne 0 -and -not $IgnoreExitCode) {
@@ -95,6 +96,59 @@ function Invoke-NativeCommand {
     }
 
     return $exitCode
+}
+
+function Test-Elevated {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# True when the exact WinGet package id is installed
+function Test-WingetPackage([string]$Id) {
+    & winget list --id $Id --exact --source winget --accept-source-agreements --disable-interactivity *> $null
+    return $LASTEXITCODE -eq 0
+}
+
+function Get-ScoopRoot {
+    if ($env:SCOOP) {
+        return $env:SCOOP
+    }
+    return Join-Path $HOME 'scoop'
+}
+
+# True when a Scoop app ("app" or "bucket/app") is installed for this user
+function Test-ScoopApp([string]$Name) {
+    $app = ($Name -split '/')[-1]
+    return Test-Path -LiteralPath (Join-Path (Get-ScoopRoot) "apps\$app\current")
+}
+
+# Scoop installs per user and refuses an elevated shell
+function Install-Scoop([switch]$DryRun) {
+    if (Test-Command 'scoop') {
+        return
+    }
+    if ($DryRun) {
+        Write-Host '+ Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression'
+        return
+    }
+    if (Test-Elevated) {
+        Stop-Tool 'Scoop cannot be installed from an elevated shell. Run dots from a normal PowerShell window.'
+    }
+
+    Write-Step 'Installing Scoop...'
+    Invoke-RestMethod -Uri 'https://get.scoop.sh' | Invoke-Expression
+    Update-ProcessPath
+    if (-not (Test-Command 'scoop')) {
+        Stop-Tool 'Scoop was installed but is not on PATH; open a new terminal and run dots again.'
+    }
+}
+
+function Add-ScoopBucket([string]$Bucket, [switch]$DryRun) {
+    if (Test-Path -LiteralPath (Join-Path (Get-ScoopRoot) "buckets\$Bucket")) {
+        return
+    }
+    Invoke-NativeCommand -FilePath 'scoop' -ArgumentList @('bucket', 'add', $Bucket) -DryRun:$DryRun | Out-Null
 }
 
 function Update-ProcessPath {

@@ -77,9 +77,7 @@ Fedora support, Chocolatey.
 
 | Decision | Options | Needed by |
 |---|---|---|
-| Cross-platform prompt | starship or oh-my-posh | P2 |
-| Windows terminal | Windows Terminal (default) or WezTerm (one Lua config for both OSes; config already in `home/dot_config/wezterm`) | P2 |
-| Editor | VS Code only, or also Cursor (changes whether editor settings live in the repository) | P2 |
+| Windows terminal | Stay on Windows Terminal, or move both OSes to WezTerm (config already in `home/dot_config/wezterm`) or Alacritty | When the owner decides to switch |
 | Machine data keys | Final names and values for `hasNvidia`, `isLaptop`, display-related keys once a second physical machine exists | Second machine |
 
 ## 6. Proofs of concept to run before the related phase

@@ -7,6 +7,8 @@
 # <list>:  packages that exist for one manager only.
 #
 # Lists: arch (paru, CachyOS/Arch), apt, brew, brewCask, winget, scoop, nerdFonts.
+# Windows: winget for GUI and system apps, scoop for CLI tools. Scoop names may
+# carry a bucket ("extras/app"); the bucket is added before installing.
 # Scripts read them with scripts/package-list.tmpl; see docs/design.md (L2).
 
 packages:
@@ -20,37 +22,37 @@ packages:
       arch: neovim
       apt: neovim
       brew: neovim
-      winget: Neovim.Neovim
+      scoop: neovim
     - name: ripgrep
       arch: ripgrep
       apt: ripgrep
       brew: ripgrep
-      winget: BurntSushi.ripgrep.MSVC
+      scoop: ripgrep
     - name: fd
       arch: fd
       apt: fd-find
       brew: fd
-      winget: sharkdp.fd
+      scoop: fd
     - name: bat
       apt: bat
       brew: bat
-      winget: sharkdp.bat
+      scoop: bat
     - name: fzf
       arch: fzf
       apt: fzf
       brew: fzf
-      winget: junegunn.fzf
+      scoop: fzf
     - name: jq
       arch: jq
       apt: jq
       brew: jq
-      winget: jqlang.jq
+      scoop: jq
     - name: 7zip
       arch: 7zip
-      winget: 7zip.7zip
+      scoop: 7zip
     - name: github-cli
       arch: github-cli
-      winget: GitHub.cli
+      scoop: gh
     - name: tmux
       arch: tmux
       apt: tmux
@@ -82,7 +84,10 @@ packages:
     - name: gum
       arch: gum
       brew: gum
-      winget: charmbracelet.gum
+      scoop: gum
+    - name: oh-my-posh
+      arch: oh-my-posh-bin
+      scoop: oh-my-posh
     - name: wezterm
       gui: true
       brewCask: wezterm
@@ -92,15 +97,15 @@ packages:
       arch: shellcheck
       apt: shellcheck
       brew: shellcheck
-      winget: koalaman.shellcheck
+      scoop: shellcheck
     - name: shfmt
       arch: shfmt
       apt: shfmt
       brew: shfmt
-      winget: mvdan.shfmt
+      scoop: shfmt
     - name: gitleaks
       arch: gitleaks
-      winget: Gitleaks.Gitleaks
+      scoop: gitleaks
 
   arch:
     # Base system, boot, and package tooling
@@ -166,7 +171,6 @@ packages:
     - navi
     - nano
     - vim
-    - oh-my-posh-bin
     - thefuck
     - yazi
     - zoxide
@@ -209,5 +213,6 @@ packages:
   scoop: []
 
   # Nerd Fonts release archive names, installed per user by install-fonts
+  # (Linux: release archive; Windows: Scoop nerd-fonts/<name>-NF)
   nerdFonts:
     - JetBrainsMono

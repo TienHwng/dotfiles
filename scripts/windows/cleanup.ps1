@@ -18,11 +18,10 @@ $cacheDir = Get-ChezmoiValue '.chezmoi.cacheDir'
 if (-not [string]::IsNullOrWhiteSpace($cacheDir)) {
     $paths.Add($cacheDir)
 }
-$paths.Add((Join-Path ([System.IO.Path]::GetTempPath()) 'dotfiles-font-*'))
 
 foreach ($path in $paths) {
-    $matches = @(Get-Item -Path $path -ErrorAction SilentlyContinue)
-    foreach ($match in $matches) {
+    $items = @(Get-Item -Path $path -ErrorAction SilentlyContinue)
+    foreach ($match in $items) {
         if ($DryRun) {
             Write-Host "+ Remove-Item -Recurse -Force `"$($match.FullName)`""
         } else {

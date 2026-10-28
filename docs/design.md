@@ -14,11 +14,13 @@ These decisions were made with the owner. Do not change them without asking.
 | Starting point | The owner installs the OS by hand. `dots` runs inside a freshly installed, networked OS. |
 | Sync model | Restore after reinstall **and** periodic sync: a timer fetches, notifies, and the owner reviews a diff before applying. Nothing is applied silently. |
 | Scope | Dotfiles/CLI, GUI app settings, desktop/OS settings, system-level settings. Personal data is out of scope. |
-| Cross-OS sharing | Only cross-platform app configs: git, VS Code, Neovim, PowerShell 7, starship/oh-my-posh, fonts, wallpapers. |
+| Cross-OS sharing | Only cross-platform app configs: git, VS Code, Neovim, PowerShell 7, oh-my-posh, fonts, wallpapers. |
 | Platforms | Primary: Windows 11, CachyOS. Planned: Arch Linux, Ubuntu desktop (KDE), Ubuntu WSL, macOS, NixOS. Fedora: dropped. |
 | Machines | Today: one dual-boot laptop (see reference hardware). Later: more physical machines. Anything that differs per machine (GPU, laptop vs desktop, displays) comes from machine data (hostname, `hasNvidia`, `isLaptop`, …), never from hard-coded values. |
 | Windows usage | Admin rights; also used for gaming. Game launchers (e.g. Steam) are installed from the manifest; signing in is a manual checklist item; game saves are personal data and out of scope. |
-| Editors | VS Code uses its own Settings Sync. If Cursor is used, its settings and extension list are managed in the repository, because Cursor does not use VS Code Settings Sync. |
+| Editors | VS Code only, with its own Settings Sync; its settings are not in the repository. Cursor is not used. |
+| Prompt | oh-my-posh on zsh and PowerShell 7, one theme for both (today the built-in `montys`). |
+| Terminal | Linux: kitty. Windows: Windows Terminal for now; its settings are not managed. A switch to WezTerm or Alacritty (one config for both OSes) is under consideration. |
 | Packages | One manifest with per-OS name mapping for cross-platform apps; niche apps in per-manager lists. Windows uses **winget** (GUI/system apps) and **Scoop** (CLI tools, Nerd Fonts). No Chocolatey. |
 | Windows OS settings | Registry tweaks, debloat/privacy, CLI tools and fonts, NVIDIA and ASUS tools. |
 | Interaction | Step-by-step with confirmation, driven by a terminal UI (TUI). |
@@ -153,11 +155,11 @@ step; until then `dots` uses plain prompts.
 |---|---|
 | Manifest `home/.chezmoidata/packages.yaml` (replaced `packages/*.txt`) | `[Implemented]` |
 | `scripts/package-list.tmpl` renderer, `manifest_list` (Bash) / `Get-ManifestList` (PowerShell) | `[Implemented]` |
-| `install-packages.sh` (paru, apt, brew) and `install-packages.ps1` (winget) read the manifest | `[Implemented]` |
+| `install-packages.sh` (paru, apt, brew) and `install-packages.ps1` (winget, then Scoop) read the manifest | `[Implemented]` |
 | `install-packages.sh --diff` report (arch, apt, brew) | `[Implemented]` |
 | Fonts (`nerdFonts` list) read from the manifest | `[Implemented]` |
 | Fedora backend | Removed |
-| Scoop installs, Windows `--diff`, interactive "add to manifest / uninstall" | `[Planned: P2]` / `[Planned: P7]` |
+| Windows `--diff`, interactive "add to manifest / uninstall" | `[Planned: P7]` |
 
 Manifest format (`home/.chezmoidata/packages.yaml`):
 
@@ -169,7 +171,7 @@ packages:
       arch: neovim
       apt: neovim
       brew: neovim
-      winget: Neovim.Neovim
+      scoop: neovim             # Windows CLI tools come from Scoop
     - name: wezterm
       gui: true                 # skipped when DOTFILES_HEADLESS=1 (WSL, servers)
       brewCask: wezterm
@@ -180,8 +182,8 @@ packages:
   brew: []
   brewCask: []
   winget: [Microsoft.PowerShell]
-  scoop: []
-  nerdFonts: [JetBrainsMono]    # Nerd Fonts release archives, installed per user
+  scoop: []                   # "bucket/app" adds the bucket first
+  nerdFonts: [JetBrainsMono]    # Linux: release archive; Windows: Scoop nerd-fonts/<name>-NF
 ```
 
 How a list is read:
@@ -197,7 +199,9 @@ How a list is read:
 Rules:
 
 - Manager per platform: CachyOS/Arch → `arch` (paru, `--needed`, never as root);
-  Windows → `winget` for GUI/system apps, `scoop` for CLI tools and fonts (P2).
+  Windows → `winget` for GUI/system apps, `scoop` for CLI tools and fonts. Both skip
+  packages that are already installed; `-Upgrade` upgrades them instead. Scoop is installed
+  per user on first use and refuses an elevated shell.
   Planned: Ubuntu → `apt` (+ `flatpak`/`snap` for GUI); macOS → `brew` + `brewCask`;
   NixOS → `nix`. A new manager is a new key, with no structural change.
 - Put an app in `mapped` as soon as it is installed by two or more managers.
@@ -219,8 +223,8 @@ Rules:
 | Windows targets, `XDG_CONFIG_HOME`, PowerShell profile stub | `[Planned: P2]` |
 
 - **One config path on both OSes:** on Windows, set the user environment variable
-  `XDG_CONFIG_HOME=%USERPROFILE%\.config`. Neovim, starship, WezTerm, and git then read
-  `~/.config`, so `home/dot_config/nvim`, `starship.toml`, etc. are shared unchanged.
+  `XDG_CONFIG_HOME=%USERPROFILE%\.config`. Neovim, oh-my-posh, WezTerm/Alacritty, and git then read
+  `~/.config`, so `home/dot_config/nvim` etc. are shared unchanged.
 - **`.chezmoiignore` is OS-aware** `[Implemented]`. Linux-only targets (`.zshrc`, `.oh-my-zsh`,
   kitty, hypr, tmux, fastfetch, KDE `*rc` files, `.local/share/plasma`, the system instance
   config) are ignored on every non-Linux OS; Windows-only targets (`AppData`,
@@ -232,13 +236,11 @@ Rules:
 - **PowerShell profile:** OneDrive "Known Folder Move" can relocate `Documents`, so the repo
   does not hard-code `Documents/PowerShell`. A `run_onchange_` script writes a small stub to
   the real `$PROFILE.CurrentUserAllHosts` that dot-sources the chezmoi-managed
-  `~/.config/powershell/profile.ps1`.
-- Windows-only app configs (e.g. Windows Terminal `settings.json`) live under `home/AppData/…`.
+  `~/.config/powershell/profile.ps1`. That profile starts oh-my-posh with the same theme
+  name as `.zshrc` (`OMP_THEME_NAME`, default `montys`).
+- Windows-only app configs, when one is managed, live under `home/AppData/…`.
 - Apps with their own sync are not configured here. `dots bootstrap` ends by printing
   "sign in to sync" reminders for them.
-- Cursor `[Planned: P2]`, only if the owner uses it: `settings.json` and `keybindings.json`
-  are managed under its per-OS config path, and an extension list in the manifest is
-  installed with `cursor --install-extension`.
 - `home/Documents/Setup Scripts` and `home/Pictures/Wallpapers/.keep` are leftovers to move
   or remove in P4.
 
@@ -367,7 +369,7 @@ Order inside `dots system` on Windows:
 
 | Item | Status |
 |---|---|
-| Nerd Fonts from release archives via the manifest `nerdFonts` list | `[Implemented]` |
+| Nerd Fonts via the manifest `nerdFonts` list (Linux: release archives; Windows: Scoop) | `[Implemented]` |
 | Wallpaper repository + chezmoi external + setting the wallpaper | `[Planned: P4]` |
 
 - Private repository `TienHwng/wallpapers`, with `.gitattributes`
