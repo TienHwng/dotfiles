@@ -3,6 +3,13 @@ Id_1=4b87decd-0cb8-4a3e-a2c4-6cbaac4dbf6e
 Number=1
 Rows=1
 
+[NightColor]
+Active=true
+
+[Tiling][4b87decd-0cb8-4a3e-a2c4-6cbaac4dbf6e][]
+padding=4
+tiles={"layoutDirection":"horizontal","tiles":[{"width":0.25},{"width":0.5},{"width":0.25}]}
+
 [Tiling][4b87decd-0cb8-4a3e-a2c4-6cbaac4dbf6e][0aa5b045-e9ca-4d11-95d4-aecab25863ae]
 padding=4
 tiles={"layoutDirection":"horizontal","tiles":[{"width":0.25},{"width":0.5},{"width":0.25}]}

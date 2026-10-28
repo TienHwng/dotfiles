@@ -10,7 +10,7 @@
     "logo": {
     	"source": "~/.config/fastfetch/logo/cool_guy.jpg",
     	"type": "kitty",
-        "recache": true,
+        "cache": "regen",
     	"height": 18,
         "padding": {
             "top": 2,
