@@ -52,8 +52,8 @@ Eight layers, all driven by chezmoi data:
 | L1 Identity | `accounts` step (after `git`, which renders `~/.gitconfig`; before `apply`): `gh auth login` over HTTPS, Bitwarden SSH agent (`.accounts.ssh.agent`: `bitwarden`/`file`), Bitwarden templates |
 | L2 Packages | `home/.chezmoidata/packages.yaml` manifest → paru / winget / Scoop |
 | L3 Dotfiles | user chezmoi instance, source `home/` |
-| L4 Desktop | `desktop` step: KDE keys from `kde.yaml` via `kwriteconfig6` (whole `*rc` files are ignored, never add them); Windows HKCU from `windows.yaml` (planned) |
-| L5 System | system chezmoi instance, source `root/` (Linux); Windows HKLM, debloat, drivers |
+| L4 Desktop | `desktop` step: KDE keys from `kde.yaml` via `kwriteconfig6` (whole `*rc` files are ignored, never add them); Windows HKCU from `windows.yaml` (`setup-registry.ps1 -Scope user`) |
+| L5 System | system chezmoi instance, source `root/` (Linux); Windows `dots system` (`setup-system.ps1`: HKLM from `windows.yaml`, OpenSSH agent service off; admin, interactive only); debloat, drivers (planned) |
 | L6 Assets | private wallpaper repo (plain Git, no LFS) via `.chezmoiexternal`, fetched and set by the `wallpaper` step (the `apply` step excludes externals); fonts |
 | L7 Sync | systemd user timer / Scheduled Task (notify only), `dots capture` |
 

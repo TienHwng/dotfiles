@@ -12,7 +12,9 @@ param(
     [switch]$SkipAccounts,
     [switch]$SkipShell,
     [switch]$SkipApply,
-    [switch]$SkipWallpaper
+    [switch]$SkipDesktop,
+    [switch]$SkipWallpaper,
+    [switch]$SkipSystem
 )
 
 Set-StrictMode -Version Latest
@@ -210,7 +212,8 @@ if (-not (Test-Path -LiteralPath $activeScriptRoot)) {
     throw "Bootstrap script directory not found: $activeScriptRoot"
 }
 
-# The steps themselves (packages, git, accounts, fonts, shell, apply, wallpaper) live in dots.ps1
+# The steps themselves (packages, git, accounts, fonts, shell, apply, desktop, wallpaper,
+# system) live in dots.ps1
 $skip = @()
 if ($SkipPackages) { $skip += 'packages' }
 if ($SkipGit) { $skip += 'git' }
@@ -218,7 +221,9 @@ if ($SkipAccounts) { $skip += 'accounts' }
 if ($SkipFonts) { $skip += 'fonts' }
 if ($SkipShell) { $skip += 'shell' }
 if ($SkipApply) { $skip += 'apply' }
+if ($SkipDesktop) { $skip += 'desktop' }
 if ($SkipWallpaper) { $skip += 'wallpaper' }
+if ($SkipSystem) { $skip += 'system' }
 
 $dotsArguments = @{
     Command = 'bootstrap'

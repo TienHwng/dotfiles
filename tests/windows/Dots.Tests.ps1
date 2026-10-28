@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'dots.ps1 commands' {
     It 'lists every command in help' {
         $output = & $Dots help 6>&1 | Out-String
-        foreach ($name in @('bootstrap', 'packages', 'doctor', 'update', 'backup', 'cleanup')) {
+        foreach ($name in @('bootstrap', 'packages', 'system', 'doctor', 'update', 'backup', 'cleanup')) {
             $output | Should -Match $name
         }
     }
@@ -20,16 +20,54 @@ Describe 'dots.ps1 commands' {
     }
 
     It 'completes a dry run with every step skipped' {
-        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip packages, git, accounts, fonts, shell, apply, wallpaper *>&1 | Out-String
+        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip packages, git, accounts, fonts, shell, apply, desktop, wallpaper, system *>&1 | Out-String
         $output | Should -Match 'Skipping packages'
         $output | Should -Match 'Skipping apply'
         $output | Should -Match 'Bootstrap complete'
     }
 
     It 'accepts -Skip as one comma-separated string, as pwsh -File passes it' {
-        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip 'packages,git,accounts,fonts,shell,apply,wallpaper' *>&1 | Out-String
+        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip 'packages,git,accounts,fonts,shell,apply,desktop,wallpaper,system' *>&1 | Out-String
         $output | Should -Match 'Skipping fonts'
         $output | Should -Match 'Bootstrap complete'
+    }
+}
+
+Describe 'System step policy' {
+    BeforeEach {
+        . $Dots
+        Mock Test-StepEnabled { $true }
+        Mock Write-ManualChecklist { }
+    }
+
+    It 'skips system in a non-interactive bootstrap' {
+        $script:Calls = [System.Collections.Generic.List[string]]::new()
+        Mock Invoke-Step { $script:Calls.Add("$Step/$Mode") }
+        # dots.ps1 functions read the variable from the calling scope
+        Set-Variable -Name NonInteractive -Value $true
+
+        $output = Invoke-Bootstrap 3>&1 6>$null | Out-String
+
+        $script:Calls | Should -Not -Contain 'system/run'
+        $script:Calls | Should -Contain 'desktop/run'
+        $output | Should -Match 'Skipping system'
+    }
+
+    It 'refuses dots system without a terminal unless it is a dry run' {
+        # dots.ps1 functions read the variable from the calling scope
+        Set-Variable -Name NonInteractive -Value $true
+
+        { Invoke-SystemCommand 6>$null } | Should -Throw '*never runs non-interactively*'
+    }
+
+    It 'previews, asks, then applies dots system' {
+        $script:Calls = [System.Collections.Generic.List[string]]::new()
+        Mock Invoke-System { $script:Calls.Add("preview=$Preview") }
+        Mock Read-Host { 'y' }
+
+        Invoke-SystemCommand 6>$null
+
+        $script:Calls | Should -Be @('preview=True', 'preview=False')
     }
 }
 

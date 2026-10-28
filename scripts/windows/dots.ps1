@@ -24,8 +24,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
 
 # git renders ~/.gitconfig (gh credential helper) so accounts can log in to gh before
-# anything clones a private repository; wallpaper needs that login.
-$script:Steps = @('packages', 'git', 'accounts', 'fonts', 'shell', 'apply', 'wallpaper')
+# anything clones a private repository; wallpaper needs that login. system (admin) goes last.
+$script:Steps = @('packages', 'git', 'accounts', 'fonts', 'shell', 'apply', 'desktop', 'wallpaper', 'system')
 
 function Show-Usage {
     Write-Host @'
@@ -34,11 +34,15 @@ Usage: dots <command> [options]
 Commands:
   bootstrap [-DryRun] [-NonInteractive] [-Skip step,...]
                   Set up this machine step by step: packages, git, accounts,
-                  fonts, shell, apply, wallpaper. Each step shows a preview and asks
-                  run / skip / quit before changing anything.
+                  fonts, shell, apply, desktop, wallpaper, system. Each step shows a
+                  preview and asks run / skip / quit before changing anything.
+                  -NonInteractive skips system unless -DryRun is set.
   packages [-DryRun]
                   Install missing WinGet and Scoop packages from the manifest
                   (preview, then ask).
+  system [-DryRun]
+                  Machine registry values and the OpenSSH agent service: preview,
+                  then ask and apply in an administrator window. Never non-interactive.
   doctor          Check required tools, the shell setup, the manifest, and chezmoi.
   update [-Packages] [-Fonts] [-Upgrade] [-DryRun]
                   Pull and apply the repository, optionally packages and fonts.
@@ -93,7 +97,9 @@ function Get-StepDescription([string]$Step) {
         'fonts' { 'Install Nerd Fonts from the manifest with Scoop' }
         'shell' { 'Set XDG_CONFIG_HOME and the PowerShell 7 profile stub' }
         'apply' { 'Apply dotfiles from home/ with chezmoi (externals come later)' }
+        'desktop' { 'Set user registry values (HKCU) from home/.chezmoidata/windows.yaml' }
         'wallpaper' { 'Fetch the wallpaper repository and set the desktop wallpaper' }
+        'system' { 'Admin: machine registry values (UTC clock, Fast Startup off), disable the OpenSSH agent service' }
     }
 }
 
@@ -101,6 +107,7 @@ function Test-StepEnabled([string]$Step) {
     switch ($Step) {
         'fonts' { return (Get-ChezmoiValue '.features.installFonts' 'true') -eq 'true' }
         'shell' { return (Get-ChezmoiValue '.features.setupShell' 'true') -eq 'true' }
+        'desktop' { return (Get-ChezmoiValue '.features.desktop' 'true') -eq 'true' }
         'wallpaper' { return (Get-ChezmoiValue '.features.wallpapers' 'true') -eq 'true' }
         default { return $true }
     }
@@ -146,7 +153,51 @@ function Invoke-Step([string]$Step, [string]$Mode) {
         'fonts' { & (Join-Path $PSScriptRoot 'install-fonts.ps1') -DryRun:$dry }
         'shell' { & (Join-Path $PSScriptRoot 'setup-shell.ps1') -Shell 'pwsh' -DryRun:$dry }
         'apply' { Invoke-ChezmoiApply $Mode }
+        'desktop' { & (Join-Path $PSScriptRoot 'setup-registry.ps1') -Scope user -DryRun:$dry }
         'wallpaper' { & (Join-Path $PSScriptRoot 'setup-wallpaper.ps1') -DryRun:$dry }
+        'system' { Invoke-System -Preview:$dry }
+    }
+}
+
+# The system step previews as the current user; applying it needs admin, so a normal
+# shell opens the same script in an administrator window (UAC) and waits for it.
+function Invoke-System([switch]$Preview) {
+    $systemScript = Join-Path $PSScriptRoot 'setup-system.ps1'
+    if ($Preview) {
+        & $systemScript -DryRun
+        $exitCode = $LASTEXITCODE
+    } elseif ($NonInteractive) {
+        Stop-Tool 'The system step changes machine settings and never runs non-interactively.'
+    } elseif (Test-Elevated) {
+        & $systemScript
+        $exitCode = $LASTEXITCODE
+    } else {
+        Write-Step 'Opening an administrator window for the system step...'
+        $shell = (Get-Process -Id $PID).Path
+        $process = Start-Process -FilePath $shell -Verb RunAs -Wait -PassThru -ArgumentList @(
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$systemScript`"", '-PauseOnExit'
+        )
+        $exitCode = $process.ExitCode
+    }
+    if ($exitCode -ne 0) {
+        Stop-Tool "The system step failed (exit code $exitCode)"
+    }
+}
+
+function Invoke-SystemCommand {
+    if ($DryRun) {
+        Invoke-System -Preview
+        return
+    }
+    if ($NonInteractive) {
+        Stop-Tool 'dots system changes machine settings and never runs non-interactively; use -DryRun to preview.'
+    }
+
+    Invoke-System -Preview
+    if (Confirm-Yes 'Apply these system settings as administrator?') {
+        Invoke-System
+    } else {
+        Write-ToolWarning 'Nothing changed'
     }
 }
 
@@ -178,6 +229,10 @@ function Invoke-Bootstrap {
         }
         if (-not (Test-StepEnabled $step)) {
             Write-ToolWarning "Skipping $step (disabled in .features)"
+            continue
+        }
+        if ($step -eq 'system' -and $NonInteractive -and -not $DryRun) {
+            Write-ToolWarning 'Skipping system (admin; it never runs non-interactively, run dots system later)'
             continue
         }
         if ($DryRun -or $NonInteractive) {
@@ -290,6 +345,8 @@ function Invoke-Doctor {
     Write-Step 'SSH agent'
     if ((Get-ChezmoiValue '.accounts.ssh.agent' 'bitwarden') -ne 'bitwarden') {
         Write-Success 'SSH keys are files on disk (.accounts.ssh.agent = file)'
+    } elseif (Test-WindowsAgentRunning) {
+        Write-ToolWarning 'The Windows OpenSSH Authentication Agent is running and blocks Bitwarden; run: dots system'
     } elseif (Test-SshAgentKey) {
         Write-Success 'Bitwarden SSH agent is running and holds keys'
     } else {
@@ -330,6 +387,7 @@ function Invoke-DotsCommand {
     switch ($Command) {
         'bootstrap' { Invoke-Bootstrap }
         'packages' { Invoke-PackageInstall }
+        'system' { Invoke-SystemCommand }
         'doctor' {
             if ((Invoke-Doctor) -gt 0) {
                 exit 1

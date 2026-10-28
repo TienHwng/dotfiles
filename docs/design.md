@@ -88,13 +88,13 @@ PowerShell 7; options are PowerShell-style: `-DryRun`, `-NonInteractive`, `-Skip
 
 | Command | Behaviour | Status |
 |---|---|---|
-| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps packages, git (also renders `~/.gitconfig`), accounts, fonts, shell, apply (everything except externals), wallpaper (fetches the wallpaper external, sets the wallpaper). The git step renders the gh credential helper so `gh auth login` in accounts does not offer to edit `~/.gitconfig`, and accounts comes before anything that clones a private repository; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
+| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps packages, git (also renders `~/.gitconfig`), accounts, fonts, shell, apply (everything except externals), desktop (KDE keys on Linux, HKCU values on Windows), wallpaper (fetches the wallpaper external, sets the wallpaper), and on Windows system (admin, last; skipped by `-NonInteractive`). The git step renders the gh credential helper so `gh auth login` in accounts does not offer to edit `~/.gitconfig`, and accounts comes before anything that clones a private repository; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
 | `dots sync` | `git pull --ff-only` → `chezmoi diff` → confirm → `chezmoi apply`. Reports manifest changes and offers `dots packages`. | `[Planned: P7]` |
 | `dots sync --check` | Fetch only; report how many commits the machine is behind. Used by the timer. | `[Planned: P7]` |
 | `dots capture` | TUI listing drift (files, KDE keys, registry values, packages outside the manifest); the chosen items are written back to the repository, then commit and push. | `[Planned: P7]` |
 | `dots packages` | Install missing packages from the manifest after showing the list. | `[Implemented]` (Bash) |
 | `dots packages --diff` | List packages installed on the machine but absent from the manifest, and manifest packages not installed; later offer "add to manifest" or "uninstall". | `[Implemented]` (Bash, report only); interactive add/uninstall `[Planned: P7]` |
-| `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Planned: P5/P6]` |
+| `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Implemented]` (Windows): previews `setup-system.ps1 -DryRun` as the user, asks, then runs it in an administrator window (UAC) unless already elevated; also the last `bootstrap` step, skipped by `-NonInteractive` unless `-DryRun`. Linux `[Planned: P6]` |
 | `dots status` | Commits ahead/behind, drift count, whether the sync timer is enabled. | `[Planned: P7]` |
 | `dots doctor` | `chezmoi doctor` plus checks: required tools, Bitwarden agent reachable, sync timer enabled. | `[Implemented]` (Bash): required tools (git, chezmoi), optional tools (gum, gitleaks, fzf), manifest readable, Git hooks, system instance config, `chezmoi doctor` (warnings only). Bitwarden, LFS, and timer checks come with P3/P4/P7 |
 | `dots update` | Upgrade installed packages (`paru -Syu`, `winget upgrade --all`, `scoop update *`) and fonts. | `[Implemented]` (Bash, runs `update.sh`) |
@@ -155,7 +155,7 @@ step; until then `dots` uses plain prompts.
 - **SSH keys live in the Bitwarden vault** and are served by the Bitwarden desktop SSH agent
   (desktop ≥ 2025.1.2). Private keys never touch the disk.
   - Windows: the *OpenSSH Authentication Agent* service must be disabled. The accounts step
-    detects it and prints the administrator command; disabling it automatically belongs to L5.
+    detects it and points to `dots system`, which disables it (L5).
     Windows OpenSSH (`ssh`, `ssh-add` on `PATH`) talks to Bitwarden's pipe; Git's bundled ssh
     is not used because git talks HTTPS.
   - Linux: the Flatpak build does not support the agent. Use the native package (`bitwarden`
@@ -312,7 +312,7 @@ kde:
   so it is not synced. Values that must be fixed per machine go into machine data.
 - Themes, icons, cursors (~11 MB) stay in the repository or come from packages.
 
-#### Windows user registry (HKCU) `[Planned: P5b]`
+#### Windows user registry (HKCU) `[Implemented]`
 
 ```yaml
 # home/.chezmoidata/windows.yaml
@@ -323,12 +323,18 @@ windows:
       - { path: 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced', name: Hidden, type: DWord, value: 1 }
       - { path: 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize', name: AppsUseLightTheme, type: DWord, value: 0 }
     machine:   # HKLM, applied in L5, admin
-      - { path: 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation', name: RealTimeIsUniversal, type: QWord, value: 1 }
+      - { path: 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation', name: RealTimeIsUniversal, type: DWord, value: 1 }
       - { path: 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power', name: HiberbootEnabled, type: DWord, value: 0 }
 ```
 
-The Windows side of the `desktop` step: one idempotent PowerShell script reads current values, prints a diff table, asks, applies
-with `Set-ItemProperty`, and restarts Explorer when needed. Do **not** use the DSC v3
+The Windows side of the `desktop` step is `scripts/windows/setup-registry.ps1 -Scope user`
+(`-Scope machine` serves `dots system`). It reads the list with
+`chezmoi execute-template '{{ .windows.registry.<scope> | toJson }}'` from the checkout,
+prints `path name: current (kind) -> new (kind)` for every value whose data or kind differs,
+then writes each with `New-ItemProperty -Force` (creating the key if needed), so a value
+stored with another kind is replaced. Types: `DWord`, `QWord`, `String`, `ExpandString`.
+Explorer restarts when a key under `\Explorer\` changed. Gate: `features.desktop`. Do
+**not** use the DSC v3
 `Microsoft.Windows/Registry` resource: Microsoft documents it as a proof of concept, not for
 production.
 
@@ -380,7 +386,7 @@ production.
   with regressions on recent kernels).
 - NVIDIA kernel parameters live in the GRUB template behind a `hasNvidia` data flag.
 
-#### Windows: admin step `[Planned: P5b/P5c]`
+#### Windows: admin step `[Implemented: P5b]`, debloat and drivers `[Planned: P5c]`
 
 Order inside `dots system` on Windows:
 
@@ -388,7 +394,15 @@ Order inside `dots system` on Windows:
    - `RealTimeIsUniversal=1`: Windows reads the hardware clock as UTC, like Linux (owner's
      choice; Linux keeps the default UTC clock).
    - Fast Startup off (`HiberbootEnabled=0`): avoids a half-hibernated Windows.
-2. Disable the OpenSSH Authentication Agent service so the Bitwarden agent works (L1).
+   `RealTimeIsUniversal` is a DWord (an earlier draft said QWord; DWord is what Windows 10/11
+   read). Both take effect after a restart.
+2. Disable the OpenSSH Authentication Agent service so the Bitwarden agent works (L1); only
+   when `.accounts.ssh.agent` is `bitwarden`.
+
+Steps 1–2 are `scripts/windows/setup-system.ps1`. `dots system` runs it with `-DryRun` as the
+user (reading HKLM and the service needs no admin), asks, then starts it elevated with
+`Start-Process -Verb RunAs -Wait` (`-PauseOnExit` keeps that window open) unless the shell is
+already elevated. Steps 3–5 are P5c.
 3. Debloat/privacy with [Win11Debloat](https://github.com/Raphire/Win11Debloat), **pinned to a
    release, checksum-verified**, run with an explicit parameter list stored in the repository
    plus `-Silent -CreateRestorePoint`. Never `-RunDefaults` blindly; never `irm | iex`.
@@ -470,7 +484,7 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 ├── home/                           # user chezmoi source        [Implemented]
 │   ├── .chezmoi.toml.tmpl          # identity prompts           [Implemented]
 │   ├── .chezmoidata.yaml           # defaults, features.*       [Implemented]
-│   ├── .chezmoidata/               # packages.yaml [Implemented]; kde.yaml, windows.yaml [Planned]
+│   ├── .chezmoidata/               # packages.yaml, kde.yaml, windows.yaml [Implemented]
 │   ├── .chezmoiexternal.toml.tmpl  # wallpaper repo             [Implemented]
 │   ├── .chezmoiignore              # OS-aware                   [Implemented]
 │   ├── .chezmoiscripts/            # run_onchange_ scripts      [Planned]
@@ -508,10 +522,10 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
    enable the SSH agent.
 3. L2: winget + Scoop: list → confirm → install.
 4. L3: `chezmoi diff` → confirm → `chezmoi apply` (sets `XDG_CONFIG_HOME`, writes the profile stub).
-5. L6: pull wallpapers, install fonts, set the wallpaper.
-6. L4: HKCU values (diff table → confirm).
-7. L5 (admin): HKLM values, Fast Startup off, UTC clock, disable OpenSSH agent service,
-   Win11Debloat, G-Helper, NVIDIA.
+5. L4: HKCU values (diff table → confirm).
+6. L6: pull wallpapers, install fonts, set the wallpaper.
+7. L5 (admin, UAC window): HKLM values, Fast Startup off, UTC clock, disable OpenSSH agent
+   service; later Win11Debloat, G-Helper, NVIDIA (P5c).
 8. L7: register the Scheduled Task.
 9. Print the manual checklist: VS Code Settings Sync, browser, Steam, Discord.
 

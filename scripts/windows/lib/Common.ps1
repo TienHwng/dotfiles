@@ -115,6 +115,15 @@ function Test-Elevated {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+# The Windows OpenSSH Authentication Agent owns the same pipe as Bitwarden's agent
+function Test-WindowsAgentRunning {
+    if (-not (Test-Command 'Get-Service')) {
+        return $false
+    }
+    $service = Get-Service -Name 'ssh-agent' -ErrorAction SilentlyContinue
+    return $null -ne $service -and $service.Status -eq 'Running'
+}
+
 # True when the exact WinGet package id is installed
 function Test-WingetPackage([string]$Id) {
     & winget list --id $Id --exact --source winget --accept-source-agreements --disable-interactivity *> $null
