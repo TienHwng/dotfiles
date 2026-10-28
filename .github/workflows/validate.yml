@@ -113,7 +113,7 @@ jobs:
     steps:
       - name: Install tools and a regular user
         run: |
-          pacman -Syu --noconfirm --needed git chezmoi bats shellcheck shfmt jq openssh diffutils
+          pacman -Syu --noconfirm --needed git chezmoi bats jq openssh diffutils
           useradd --create-home tester
 
       - name: Check out repository
