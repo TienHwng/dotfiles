@@ -49,7 +49,7 @@ Eight layers, all driven by chezmoi data:
 | Layer | Owns |
 |---|---|
 | L0 `dots` | CLI/TUI (gum, plain fallback), orchestration, dry-run; `bootstrap.sh` only installs prerequisites + chezmoi, then runs `dots bootstrap` |
-| L1 Identity | `gh auth`, Bitwarden templates and SSH agent |
+| L1 Identity | `accounts` step (last, after `apply`): `gh auth login` over HTTPS, Bitwarden SSH agent (`.accounts.ssh.agent`: `bitwarden`/`file`), Bitwarden templates |
 | L2 Packages | `home/.chezmoidata/packages.yaml` manifest → paru / winget / Scoop |
 | L3 Dotfiles | user chezmoi instance, source `home/` |
 | L4 Desktop | KDE keys from `kde.yaml` via `kwriteconfig6`; Windows HKCU from `windows.yaml` |
@@ -82,7 +82,7 @@ Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFro
 
 - Every Bash script sources `scripts/unix/lib/common.sh` and supports `--dry-run`. All side effects go through `run_or_print` / `run_root_or_print`, which print `+ cmd` instead of executing under `DRY_RUN=1`. PowerShell scripts use `lib/Common.ps1` and `Invoke-NativeCommand -DryRun`. Dry-run must create/modify nothing — tests assert the isolated `$HOME` is unchanged.
 - Every `dots` step previews (diff or list) and asks before changing anything.
-- `NON_INTERACTIVE=1` must never prompt: `confirm` returns its default, sudo/doas get `-n`, and missing identity data or an absent SSH key is a hard failure (`--allow-unencrypted-key` is the explicit opt-in).
+- `NON_INTERACTIVE=1` must never prompt: `confirm` returns its default, sudo/doas get `-n`, and missing identity data, an unreachable or empty Bitwarden agent, or an absent SSH key (file mode) is a hard failure (`--allow-unencrypted-key` is the explicit opt-in).
 - `bootstrap.sh` ends with an `if [[ "${BASH_SOURCE[0]}" == "$0" ]]` guard around `main` so Bats can `source` it and call/mock individual functions (e.g. override `has`). Add the same guard to a script before unit-testing its functions.
 - `bootstrap.sh` and `bootstrap.ps1` must run downloaded on their own (README quick start): when `lib/` is not next to them they define the few helpers they need before the clone inline. Keep those fallbacks in sync with the library.
 - `DOTFILES_PLATFORM` overrides platform detection; tests use it.

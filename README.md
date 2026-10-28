@@ -15,7 +15,7 @@ that previews every change and asks before applying it.
 
 | Layer | What gets restored | Tooling |
 |---|---|---|
-| Identity & secrets *(planned)* | GitHub login, SSH keys, tokens | `gh`, Bitwarden (vault + SSH agent) |
+| Identity & secrets | GitHub login (HTTPS via `gh`), SSH keys served from the vault; tokens *(when needed)* | `gh`, Bitwarden (vault + SSH agent) |
 | Packages | Apps and CLI tools from one manifest (`home/.chezmoidata/packages.yaml`) | paru (CachyOS), winget for GUI apps + Scoop for CLI tools (Windows) |
 | Dotfiles | Shell, git, Neovim, terminal, prompt, SSH config | chezmoi (`home/`) |
 | Desktop settings *(planned)* | KDE Plasma keys, Windows user registry | `kwriteconfig6`, PowerShell |
@@ -98,8 +98,14 @@ is CachyOS-only for now. `just` / `make` recipes remain available (`make help` l
 
 `home/.chezmoi.toml.tmpl` asks once for Git name, Git email, GitHub username, and SSH email.
 The answers stay in the local, untracked `~/.config/chezmoi/chezmoi.toml`. The repository is
-public and never contains identity, keys, or tokens; secrets are read from Bitwarden when
-templates are rendered *(planned)*.
+public and never contains identity, keys, or tokens.
+
+SSH keys live in the Bitwarden vault and the Bitwarden desktop app serves them as an SSH agent
+(Settings > Enable SSH agent); no private key is written to disk. The last bootstrap step,
+`accounts`, logs in to GitHub with `gh` (git stays on HTTPS), checks that the agent holds a key
+that GitHub accepts, and offers to add it. Headless machines can set
+`accounts.ssh.agent: file` to use a passphrase-protected key file instead. Templates can read
+secrets from Bitwarden through chezmoi's `bitwarden*` functions; none does yet.
 
 `home/dot_gitconfig.tmpl` and `home/dot_ssh/private_config.tmpl` are the only writers of
 `~/.gitconfig` and `~/.ssh/config`.

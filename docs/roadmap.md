@@ -10,7 +10,7 @@ Status tags are defined in [README.md](README.md); designs are in [design.md](de
 | Area | What exists |
 |---|---|
 | Dotfiles | chezmoi source in `home/` (`.chezmoiroot`), templates for `~/.gitconfig` and `~/.ssh/config`, identity prompts in `home/.chezmoi.toml.tmpl` |
-| Bootstrap (CachyOS/Arch) | `scripts/unix/bootstrap.sh` installs prerequisites and chezmoi, then runs `dots bootstrap` (packages via paru, git, accounts, fonts, shell, apply, each previewed and confirmed) |
+| Bootstrap (CachyOS/Arch) | `scripts/unix/bootstrap.sh` installs prerequisites and chezmoi, then runs `dots bootstrap` (packages via paru, git, fonts, shell, apply, accounts, each previewed and confirmed) |
 | Maintenance | `update.sh`, `backup.sh` (repo tarball + local chezmoi config), `cleanup.sh` (caches) |
 | Package data | Manifest `home/.chezmoidata/packages.yaml` read through `scripts/package-list.tmpl`; `install-packages.sh --diff` report |
 | Windows | `scripts/windows/bootstrap.ps1` → `dots.ps1 bootstrap` (winget for GUI apps, Scoop for CLI tools and Nerd Fonts, `XDG_CONFIG_HOME`, profile stub → `~/.config/powershell/profile.ps1` with oh-my-posh); Pester + PSScriptAnalyzer + `windows-latest` CI; not yet run on a real Windows install |
@@ -21,7 +21,7 @@ Status tags are defined in [README.md](README.md); designs are in [design.md](de
 Known gaps in the current state:
 
 - KDE `*rc` files are managed as whole files and always show drift.
-- No secrets-manager integration; SSH keys are created on disk.
+- No template reads a Bitwarden secret yet (none is needed).
 
 ---
 
@@ -35,7 +35,7 @@ Each phase is one pull request and MUST keep `make validate` green. Primary plat
 | **P0 Safety** ✅ | OS-aware `.chezmoiignore` (+ `tests/chezmoiignore.bats`); gitleaks pre-commit hook, `make secrets`, CI history scan; system instance config/state in `~/.config/chezmoi-root/`, `cmr` restores source ownership | Done: the managed set for Windows contains no Linux-only file; gitleaks scans pass |
 | **P1 Manifest + `dots` (CachyOS)** ✅ | **(a) done:** manifest `home/.chezmoidata/packages.yaml` replaces `packages/*.txt`; install and font scripts read it through `scripts/package-list.tmpl`; `install-packages.sh --diff`; Fedora backend removed; `tests/manifest.bats`. **(b) done:** `dots` (Bash, gum with plain fallback) with `bootstrap`, `packages [--diff]`, `doctor`, `update`, `backup`, `cleanup`; `bootstrap.sh` hands its steps to `dots bootstrap`; `~/.local/bin/dots` symlink; `tests/dots.bats`; archlinux container CI job | A fresh CachyOS VM gets every package from the manifest through `dots bootstrap` |
 | **P2 Windows parity** (code done) | **Done:** chezmoi copy mode on Windows, `XDG_CONFIG_HOME`, PowerShell profile stub + shared profile (oh-my-posh, `dots`), winget (GUI) + Scoop (CLI, Nerd Fonts) from the manifest, `dots.ps1` (`bootstrap.ps1` hands over to it), Pester, PSScriptAnalyzer, `windows-latest` CI job. **Left:** the acceptance run on a fresh Windows VM/Sandbox, PoC-4 | A fresh Windows VM/Sandbox completes L2–L3 through `dots.ps1 bootstrap` |
-| **P3 Secrets** | `gh auth login` step, Bitwarden templates, Bitwarden SSH agent, rewrite `setup-accounts` | `ssh -T git@github.com` works with no private key on disk, on both primary OSes |
+| **P3 Secrets** (code done) | **Done:** `accounts` step (after `apply`): `gh auth login` over HTTPS, gh credential helper on every OS, Bitwarden SSH agent check and key upload, `bw` status; `.accounts.ssh.agent` (`bitwarden`/`file`); ssh config and `environment.d` point at the agent; Bitwarden desktop and CLI in the manifest; `[bitwarden] unlock = "auto"`. **Left:** PoC-3 on real CachyOS and Windows installs; secret templates when a secret is needed | `ssh -T git@github.com` works with no private key on disk, on both primary OSes |
 | **P4 Assets** | `TienHwng/wallpapers` (private, LFS), chezmoi external, `[filter "lfs"]` in the git template, set wallpaper on both OSes; tidy `home/Pictures`, `home/Documents` | Same wallpaper shows on Windows and CachyOS after bootstrap |
 | **P5 Desktop + Windows system** | `kde.yaml` replaces whole `*rc` files; `windows.yaml` HKCU/HKLM; dual-boot fixes; Win11Debloat (pinned); G-Helper; NVIDIA; `dots system` on Windows | `git status` stays clean after a day of KDE use; Windows tweaks re-apply idempotently |
 | **P6 Linux system** | Shared machine data for the system instance, drop-ins, GRUB template, Plymouth PKGBUILD, post-apply hooks, `dots system` on Linux; update `tests/ownership.bats` and `CLAUDE.md` for the new policy | `dots system` shows a correct diff and applies it; CI still never touches `root/` |

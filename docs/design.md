@@ -88,7 +88,7 @@ PowerShell 7; options are PowerShell-style: `-DryRun`, `-NonInteractive`, `-Skip
 
 | Command | Behaviour | Status |
 |---|---|---|
-| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps packages, git, accounts, fonts, shell, apply; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
+| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps packages, git, fonts, shell, apply, accounts (accounts last: `gh auth login` needs the rendered gh credential helper and ssh config); previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
 | `dots sync` | `git pull --ff-only` → `chezmoi diff` → confirm → `chezmoi apply`. Reports manifest changes and offers `dots packages`. | `[Planned: P7]` |
 | `dots sync --check` | Fetch only; report how many commits the machine is behind. Used by the timer. | `[Planned: P7]` |
 | `dots capture` | TUI listing drift (files, KDE keys, registry values, packages outside the manifest); the chosen items are written back to the repository, then commit and push. | `[Planned: P7]` |
@@ -129,26 +129,46 @@ step; until then `dots` uses plain prompts.
 | Item | Status |
 |---|---|
 | Git/SSH identity prompts stored in local chezmoi config | `[Implemented]` |
-| Passphrase-protected SSH key creation in `setup-accounts.sh` | `[Implemented]` (to be replaced in P3) |
-| `gh` credential helper rendered by `home/dot_gitconfig.tmpl` (Linux, when `gh` is on `PATH`) | `[Implemented]` |
-| `gh auth login` step in `dots bootstrap` | `[Planned: P3]` |
-| Bitwarden templates and SSH agent | `[Planned: P3]` |
+| `gh` credential helper rendered by `home/dot_gitconfig.tmpl` on every OS when `gh` is on `PATH` | `[Implemented]` |
+| `accounts` step: `gh auth login` (HTTPS), Bitwarden SSH agent check, offer to add the key to GitHub, `bw` status | `[Implemented]` |
+| `.accounts.ssh.agent`: `bitwarden` (default) or `file` (passphrase-protected key on disk, for headless machines) | `[Implemented]` |
+| `~/.ssh/config` and `environment.d` point at the Bitwarden agent (Linux) | `[Implemented]` |
+| Bitwarden CLI installed and `[bitwarden] unlock = "auto"` in the chezmoi config | `[Implemented]` |
+| Templates that read secrets with `bitwarden*` functions | `[Future]`: no secret is needed yet |
+| PoC-3: the agent with git/ssh on a real CachyOS and Windows install | Open |
 
-- **GitHub access:** `gh auth login` (browser device flow). The git template already renders
+- **GitHub access is HTTPS through `gh`** (owner's choice; remotes stay `https://`).
+  `gh auth login --git-protocol https --web` (browser device flow). The git template renders
   `gh auth git-credential` as the credential helper for `https://github.com` and
-  `https://gist.github.com` whenever `gh` is on `PATH` (Linux; Windows uses Git Credential
-  Manager). This lets git clone the private wallpaper repository over HTTPS **before** any SSH
-  key exists, which breaks the "need a key to fetch the key" loop. Do **not** run
-  `gh auth setup-git`: it writes `~/.gitconfig` directly, which the template owns.
-- **Tokens and API keys:** chezmoi templates call `bitwardenFields` / `bitwarden`, with
-  `bitwarden.unlock = "auto"` so chezmoi unlocks only when `BW_SESSION` is not set.
+  `https://gist.github.com` on every OS whenever `gh` is on `PATH` (forward slashes, quoted
+  only when the path has spaces, as gh writes it; Windows keeps Git Credential Manager for
+  other hosts). This lets git clone private repositories **before** any SSH key exists. Do
+  **not** run `gh auth setup-git`: it writes `~/.gitconfig` directly, which the template owns.
+  Because the helper is already gh's, `gh auth login` does not ask to set it up; that is why
+  the `accounts` step runs after `apply`.
+- **Commit signing:** off (owner's choice).
+- **Tokens and API keys:** none are needed yet. When one is, a template calls
+  `bitwardenFields` / `bitwarden` (`bitwarden.unlock = "auto"` already makes chezmoi run
+  `bw unlock` only when `BW_SESSION` is not set). Account: bitwarden.com (US), the `bw`
+  default. Before the first such template lands, the `bw login` check MUST move into a step
+  that runs before `apply`, or apply fails on a fresh machine.
 - **SSH keys live in the Bitwarden vault** and are served by the Bitwarden desktop SSH agent
   (desktop ≥ 2025.1.2). Private keys never touch the disk.
-  - Windows: the *OpenSSH Authentication Agent* service must be disabled (done in L5).
-  - Linux: the Flatpak build does not support the agent. Use the native package on CachyOS.
-  - `home/dot_ssh/private_config.tmpl` sets `IdentityAgent` to the Bitwarden socket on Linux.
-- `setup-accounts.sh/.ps1` change from "create a key" to "verify the agent holds a key".
-  `--allow-unencrypted-key` stays as the explicit escape hatch for headless machines.
+  - Windows: the *OpenSSH Authentication Agent* service must be disabled. The accounts step
+    detects it and prints the administrator command; disabling it automatically belongs to L5.
+    Windows OpenSSH (`ssh`, `ssh-add` on `PATH`) talks to Bitwarden's pipe; Git's bundled ssh
+    is not used because git talks HTTPS.
+  - Linux: the Flatpak build does not support the agent. Use the native package (`bitwarden`
+    in the manifest). Socket: `~/.bitwarden-ssh-agent.sock`.
+  - `home/dot_ssh/private_config.tmpl` sets `IdentityAgent` to that socket on Linux and lists
+    no `IdentityFile`; `home/dot_config/environment.d/ssh-agent.conf.tmpl` sets `SSH_AUTH_SOCK`
+    for `ssh-add` and other agent clients.
+- `setup-accounts.sh/.ps1` (`--ssh-agent`/`-SshAgent` overrides the data): in `bitwarden` mode
+  they check that the agent answers (`ssh-add -L`: 0 keys listed, 1 none, 2 no agent) and holds
+  a key, then run `ssh -T git@github.com`; an unknown single key is offered for upload with
+  `gh ssh-key add` (needs the `admin:public_key` scope). Interactive runs wait and retry;
+  `NON_INTERACTIVE=1` fails when the agent is missing or empty. In `file` mode they keep the old
+  behaviour; `--allow-unencrypted-key` stays as the explicit escape hatch.
 
 ### L2 — Packages
 
@@ -533,7 +553,7 @@ user timer.
 | Manifest tests (`tests/manifest.bats`): unique names, at least one package per mapped entry, rendering, headless filter, `--diff` | `[Implemented]` |
 | Pester (`tests/windows`, `make test-windows`) + PSScriptAnalyzer (`make lint-windows`) for `scripts/windows` | `[Implemented]` |
 | `windows-latest` job: config rendered with fake prompt values, analyzer, Pester, `bootstrap.ps1 -DryRun -NonInteractive` on Windows PowerShell 5.1 and PowerShell 7 | `[Implemented]` |
-| `archlinux` container job, as a regular user: Bats tests, template render, `bootstrap.sh --dry-run --non-interactive` with fake prompt values, HOME unchanged | `[Implemented]` |
+| `archlinux` container job, as a regular user: Bats tests, template render, `bootstrap.sh --dry-run --non-interactive` (every step) with fake prompt values, HOME unchanged | `[Implemented]` |
 | Ownership test update for the system step and for `[filter "lfs"]` in the git template | `[Planned: P4/P6]` |
 
 Tests MUST never provision the real machine.
