@@ -8,8 +8,8 @@ Built on [chezmoi](https://www.chezmoi.io/), with a step-by-step terminal UI (`d
 that previews every change and asks before applying it.
 
 > **Status:** under active development. This README describes the target design.
-> Items marked *(planned)* do not exist yet. Today the entry points are
-> `scripts/unix/bootstrap.sh` and `scripts/windows/bootstrap.ps1`.
+> Items marked *(planned)* do not exist yet. On CachyOS the entry point is `dots`
+> (Bash); on Windows it is still `scripts/windows/bootstrap.ps1` until `dots.ps1` lands.
 > See [docs/roadmap.md](docs/roadmap.md) for what is implemented.
 
 ## What it does
@@ -55,7 +55,7 @@ notepad $env:TEMP\dots-bootstrap.ps1; & $env:TEMP\dots-bootstrap.ps1
 ```
 
 The bootstrap installs `git`, `chezmoi`, `gum`, and `jq`, clones this repository into the
-chezmoi source directory, and starts `dots bootstrap` *(planned)*. Each step shows a preview
+chezmoi source directory, and starts `dots bootstrap` (Windows: *planned*). Each step shows a preview
 and asks before running; you can skip any step. At the end it prints the manual checklist
 (sign in to Bitwarden and to apps with their own sync).
 
@@ -80,8 +80,10 @@ Preview everything without changing the machine:
 | `dots backup` | Tarball of the repository plus the local, untracked chezmoi configs |
 | `dots cleanup` | Clear package-manager and chezmoi caches |
 
-All `dots` commands are *(planned)*. Until they land, use the scripts directly or the
-equivalent `just` / `make` recipes (`make help` lists them).
+On CachyOS, `bootstrap`, `packages`, `doctor`, `update`, `backup`, and `cleanup` work today
+(`~/.local/bin/dots` is a chezmoi-managed symlink to `scripts/unix/dots`); `sync`, `capture`,
+`system`, and `status` are *(planned)*, and so is the Windows `dots.ps1`. `just` / `make`
+recipes remain available (`make help` lists them).
 
 ## Machine-specific values and secrets
 
@@ -101,7 +103,7 @@ templates are rendered *(planned)*.
 ├── docs/                 # vision, design, roadmap (start with docs/README.md)
 ├── home/                 # user-level chezmoi source
 ├── root/                 # system-level chezmoi source (second instance, Linux)
-├── scripts/unix/         # Bash scripts (+ dots, planned)
+├── scripts/unix/         # Bash scripts and the dots CLI
 ├── scripts/windows/      # PowerShell 7 scripts (+ dots.ps1, planned)
 ├── tests/                # Bats tests and template validation
 ├── .github/workflows/    # CI

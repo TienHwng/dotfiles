@@ -31,6 +31,8 @@ make secrets           # gitleaks scan of the full Git history
 make hooks             # enable .githooks/pre-commit (gitleaks on staged changes) for this clone
 make preview           # chezmoi apply --dry-run --verbose
 ./scripts/unix/bootstrap.sh --dry-run   # safe preview of the full bootstrap
+dots help                               # the user-facing CLI (scripts/unix/dots, symlinked to ~/.local/bin/dots)
+dots bootstrap --dry-run --non-interactive
 ```
 
 Run a single test file or test: `bats tests/common.bats`, or `bats tests/bootstrap.bats -f 'package dry-run'`.
@@ -43,7 +45,7 @@ Eight layers, all driven by chezmoi data:
 
 | Layer | Owns |
 |---|---|
-| L0 `dots` | CLI/TUI (gum), orchestration, dry-run |
+| L0 `dots` | CLI/TUI (gum, plain fallback), orchestration, dry-run; `bootstrap.sh` only installs prerequisites + chezmoi, then runs `dots bootstrap` |
 | L1 Identity | `gh auth`, Bitwarden templates and SSH agent |
 | L2 Packages | `home/.chezmoidata/packages.yaml` manifest → paru / winget / Scoop |
 | L3 Dotfiles | user chezmoi instance, source `home/` |

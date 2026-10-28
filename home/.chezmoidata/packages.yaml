@@ -79,6 +79,10 @@ packages:
       gui: true
       arch: wl-clipboard
       apt: wl-clipboard
+    - name: gum
+      arch: gum
+      brew: gum
+      winget: charmbracelet.gum
     - name: wezterm
       gui: true
       brewCask: wezterm

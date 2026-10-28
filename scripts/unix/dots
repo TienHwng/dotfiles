@@ -1,0 +1,317 @@
+#!/usr/bin/env bash
+# dots: the single entry point for setting up and maintaining this machine.
+# Every step previews what it will change and asks before running it.
+set -Eeuo pipefail
+
+# Resolve symlinks so ~/.local/bin/dots finds the repository
+SCRIPT_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=scripts/unix/lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+
+ROOT_DIR="$(repo_root)"
+STEPS=(packages git accounts fonts shell apply)
+DRY_RUN="${DRY_RUN:-0}"
+NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
+
+usage() {
+  cat <<'EOF'
+Usage: dots <command> [options]
+
+Commands:
+  bootstrap [--dry-run] [--non-interactive] [--skip STEP]...
+                  Set up this machine step by step: packages, git, accounts,
+                  fonts, shell, apply. Each step shows a preview and asks
+                  run / skip / quit before changing anything.
+  packages [--diff | --dry-run]
+                  Install missing packages from the manifest (preview, then
+                  ask), or report packages installed outside the manifest.
+  doctor          Check required tools, Git hooks, the manifest, and chezmoi.
+  update [...]    Update packages and fonts (scripts/unix/update.sh).
+  backup [...]    Back up the repository and the local chezmoi configs.
+  cleanup [...]   Remove package-manager and chezmoi caches.
+  help            Show this help.
+
+Prompts use gum when it is installed; set DOTS_NO_GUM=1 for plain prompts.
+EOF
+}
+
+use_gum() {
+  [[ -z "${DOTS_NO_GUM:-}" && -t 0 && -t 1 ]] && has gum
+}
+
+contains() {
+  local needle="$1" item
+  shift
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
+# Prints run, skip, or quit
+ask_step() {
+  local step="$1" answer=''
+
+  if use_gum; then
+    answer="$(gum choose --header "Step: $step" Run Skip Quit)" || answer='Quit'
+  else
+    read -r -p "Run step '$step'? [Y]es / [s]kip / [q]uit: " answer || answer='q'
+  fi
+
+  case "${answer,,}" in
+    '' | y | yes | run) printf 'run\n' ;;
+    s | skip) printf 'skip\n' ;;
+    *) printf 'quit\n' ;;
+  esac
+}
+
+ask_yes() {
+  if use_gum; then
+    gum confirm "$1"
+  else
+    confirm "$1" yes
+  fi
+}
+
+login_shell() {
+  chezmoi_value '.shell.name' 'zsh'
+}
+
+step_description() {
+  case "$1" in
+    packages) printf 'Install packages from home/.chezmoidata/packages.yaml' ;;
+    git) printf 'Check the Git identity used by the git template' ;;
+    accounts) printf 'Check the SSH key and GitHub CLI login' ;;
+    fonts) printf 'Install Nerd Fonts from the manifest' ;;
+    shell) printf 'Make %s the login shell' "$(login_shell)" ;;
+    apply) printf 'Apply dotfiles from home/ with chezmoi' ;;
+  esac
+}
+
+step_enabled() {
+  case "$1" in
+    fonts) [[ "$(chezmoi_value '.features.installFonts' 'true')" == 'true' ]] ;;
+    shell) [[ "$(chezmoi_value '.features.setupShell' 'true')" == 'true' ]] ;;
+    *) return 0 ;;
+  esac
+}
+
+# Run step $1 for real ("run") or only show what it would change ("preview").
+# Previews never prompt, so setup scripts get --non-interactive there.
+run_step() {
+  local step="$1" mode="$2"
+  local -a dry=() quiet=()
+
+  [[ "$mode" == 'preview' || "$DRY_RUN" == '1' ]] && dry=(--dry-run)
+  [[ "$mode" == 'preview' || "$NON_INTERACTIVE" == '1' ]] && quiet=(--non-interactive)
+
+  case "$step" in
+    packages) "$SCRIPT_DIR/install-packages.sh" "${dry[@]}" ;;
+    git) "$SCRIPT_DIR/setup-git.sh" "${dry[@]}" "${quiet[@]}" ;;
+    accounts) "$SCRIPT_DIR/setup-accounts.sh" "${dry[@]}" "${quiet[@]}" ;;
+    fonts) "$SCRIPT_DIR/install-fonts.sh" "${dry[@]}" ;;
+    shell) "$SCRIPT_DIR/setup-shell.sh" "$(login_shell)" "${dry[@]}" "${quiet[@]}" ;;
+    apply) apply_dotfiles "$mode" ;;
+  esac
+}
+
+apply_dotfiles() {
+  local mode="$1"
+  local -a chezmoi_args=(--source "$ROOT_DIR/home")
+
+  [[ "$NON_INTERACTIVE" == '1' ]] && chezmoi_args+=(--no-tty)
+
+  # Previews use diff: apply --dry-run still stops to ask about files changed outside chezmoi
+  if ! has chezmoi; then
+    [[ "$DRY_RUN" == '1' ]] || die 'chezmoi is required before applying dotfiles.'
+    print_command chezmoi "${chezmoi_args[@]}" diff --no-pager
+    log_warn 'chezmoi diff was not executed because chezmoi is unavailable.'
+  elif [[ "$DRY_RUN" == '1' || "$mode" == 'preview' ]]; then
+    chezmoi "${chezmoi_args[@]}" diff --no-pager
+  else
+    chezmoi "${chezmoi_args[@]}" apply --verbose
+  fi
+}
+
+print_manual_checklist() {
+  log_step 'Manual steps that cannot be automated:'
+  printf '  %s\n' \
+    'Sign in to Bitwarden and enable its SSH agent' \
+    'Sign in to VS Code Settings Sync, the browser, Discord, and Steam' \
+    'Enable the secret-scanning Git hook once per clone: make hooks'
+}
+
+cmd_bootstrap() {
+  local -a skip=()
+  local step choice
+
+  while (($#)); do
+    case "$1" in
+      --dry-run)
+        DRY_RUN=1
+        shift
+        ;;
+      --non-interactive)
+        NON_INTERACTIVE=1
+        shift
+        ;;
+      --skip)
+        [[ $# -ge 2 ]] || die '--skip requires a step name'
+        contains "$2" "${STEPS[@]}" || die "Unknown step: $2 (steps: ${STEPS[*]})"
+        skip+=("$2")
+        shift 2
+        ;;
+      -h | --help)
+        usage
+        return 0
+        ;;
+      *) die "Unknown bootstrap option: $1" ;;
+    esac
+  done
+  export DRY_RUN NON_INTERACTIVE
+
+  for step in "${STEPS[@]}"; do
+    log_step "[$step] $(step_description "$step")"
+
+    if contains "$step" "${skip[@]}"; then
+      log_warn "Skipping $step"
+      continue
+    fi
+    if ! step_enabled "$step"; then
+      log_warn "Skipping $step (disabled in .features)"
+      continue
+    fi
+    if [[ "$DRY_RUN" == '1' || "$NON_INTERACTIVE" == '1' ]]; then
+      run_step "$step" run
+      continue
+    fi
+
+    run_step "$step" preview || log_warn "The $step preview reported a problem; review it before running."
+    choice="$(ask_step "$step")"
+    case "$choice" in
+      run) run_step "$step" run ;;
+      skip) log_warn "Skipped $step" ;;
+      quit)
+        log_warn "Stopped before $step; run dots bootstrap again to continue."
+        return 0
+        ;;
+    esac
+  done
+
+  if [[ "$DRY_RUN" == '0' ]] && has chezmoi; then
+    log_step 'Running chezmoi doctor...'
+    chezmoi doctor || log_warn 'chezmoi doctor reported warnings'
+  fi
+
+  log_success 'Bootstrap complete'
+  print_manual_checklist
+}
+
+cmd_packages() {
+  case "${1:-}" in
+    --diff | --dry-run)
+      "$SCRIPT_DIR/install-packages.sh" "$@"
+      ;;
+    '')
+      if [[ "$NON_INTERACTIVE" == '1' ]]; then
+        "$SCRIPT_DIR/install-packages.sh"
+        return
+      fi
+      "$SCRIPT_DIR/install-packages.sh" --dry-run
+      if ask_yes 'Install these packages?'; then
+        "$SCRIPT_DIR/install-packages.sh"
+      else
+        log_warn 'Nothing installed'
+      fi
+      ;;
+    *) die "Unknown packages option: $1" ;;
+  esac
+}
+
+cmd_doctor() {
+  local failures=0 platform count hooks_path tool
+
+  log_step 'Required tools'
+  for tool in git chezmoi; do
+    if has "$tool"; then
+      log_success "$tool: $(command -v "$tool")"
+    else
+      log_error "$tool is missing"
+      failures=$((failures + 1))
+    fi
+  done
+
+  log_step 'Optional tools'
+  for tool in gum gitleaks fzf; do
+    if has "$tool"; then
+      log_success "$tool: $(command -v "$tool")"
+    else
+      log_warn "$tool is missing (install it from the manifest)"
+    fi
+  done
+
+  log_step 'Package manifest'
+  platform="$(detect_platform)"
+  if [[ "$platform" != 'unknown' ]] && has chezmoi; then
+    if count="$(manifest_list "$platform" | grep -c .)"; then
+      log_success "$count package(s) listed for $platform"
+    else
+      log_error "The $platform list in the package manifest is empty or unreadable"
+      failures=$((failures + 1))
+    fi
+  else
+    log_warn "No package list for platform: $platform"
+  fi
+
+  log_step 'Git hooks'
+  hooks_path="$(git -C "$ROOT_DIR" config --get core.hooksPath || true)"
+  if [[ "$hooks_path" == '.githooks' ]]; then
+    log_success 'Secret-scanning pre-commit hook is enabled'
+  else
+    log_warn 'Git hooks are off for this clone; run: make hooks'
+  fi
+
+  if [[ "$(uname -s)" == 'Linux' ]]; then
+    log_step 'System instance'
+    if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/chezmoi-root/chezmoi.toml" ]]; then
+      log_success 'System instance config found'
+    else
+      log_warn 'System instance config missing; run chezmoi apply to render it'
+    fi
+  fi
+
+  if has chezmoi; then
+    log_step 'chezmoi doctor'
+    # Its errors include environment quirks (e.g. no hardlinks into a tmpfs /tmp)
+    chezmoi doctor || log_warn 'chezmoi doctor reported problems; review its output above'
+  fi
+
+  if ((failures)); then
+    log_error "$failures check(s) failed"
+    return 1
+  fi
+  log_success 'All required checks passed'
+}
+
+main() {
+  local command="${1:-help}"
+  (($#)) && shift
+
+  case "$command" in
+    bootstrap) cmd_bootstrap "$@" ;;
+    packages) cmd_packages "$@" ;;
+    doctor) cmd_doctor ;;
+    update) "$SCRIPT_DIR/update.sh" "$@" ;;
+    backup) "$SCRIPT_DIR/backup.sh" "$@" ;;
+    cleanup) "$SCRIPT_DIR/cleanup.sh" "$@" ;;
+    help | -h | --help) usage ;;
+    *)
+      usage >&2
+      die "Unknown command: $command"
+      ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

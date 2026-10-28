@@ -49,13 +49,14 @@ doctor: ## Run chezmoi diagnostics and verification
 
 syntax: ## Check Bash script syntax
 	find scripts/unix tests -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+	bash -n scripts/unix/dots
 
 test: ## Run isolated Bats tests
 	$(BATS) tests
 
 lint: ## Run ShellCheck and verify shfmt formatting
 	find scripts/unix tests -type f \( -name '*.sh' -o -name '*.bash' -o -name '*.bats' \) -print0 | xargs -0 $(SHELLCHECK)
-	$(SHELLCHECK) .githooks/*
+	$(SHELLCHECK) -x scripts/unix/dots .githooks/*
 	$(SHFMT) -d -i 2 -ci -bn scripts/unix tests .githooks
 
 templates: ## Validate chezmoi templates in an isolated environment

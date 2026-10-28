@@ -39,7 +39,7 @@ test:
 
 lint:
     find scripts/unix tests -type f \( -name '*.sh' -o -name '*.bash' -o -name '*.bats' \) -print0 | xargs -0 shellcheck
-    shellcheck .githooks/*
+    shellcheck -x scripts/unix/dots .githooks/*
     shfmt -d -i 2 -ci -bn scripts/unix tests .githooks
 
 templates:

@@ -18,6 +18,11 @@
 .local/share/plasma
 {{- end }}
 
+{{- /* Unix-only targets */}}
+{{- if eq .chezmoi.os "windows" }}
+.local/bin/dots
+{{- end }}
+
 {{- /* Windows-only targets */}}
 {{- if ne .chezmoi.os "windows" }}
 AppData

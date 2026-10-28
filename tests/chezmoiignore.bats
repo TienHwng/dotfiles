@@ -21,7 +21,7 @@ managed_for_os() {
 
   local linux_only
   for linux_only in .zshrc .oh-my-zsh .config/kitty .config/hypr .config/kwinrc \
-    .config/kdeglobals .config/chezmoi-root .local/share/plasma; do
+    .config/kdeglobals .config/chezmoi-root .local/share/plasma .local/bin/dots; do
     if [[ "$output" == *"$linux_only"* ]]; then
       echo "Linux-only target managed on Windows: $linux_only"
       return 1
@@ -38,4 +38,5 @@ managed_for_os() {
   [[ "$output" == *'.config/kwinrc'* ]]
   [[ "$output" == *'.config/chezmoi-root/chezmoi.toml'* ]]
   [[ "$output" == *'.config/nvim/init.lua'* ]]
+  [[ "$output" == *'.local/bin/dots'* ]]
 }

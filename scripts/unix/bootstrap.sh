@@ -23,6 +23,10 @@ usage() {
 Usage:
   ./scripts/unix/bootstrap.sh [options]
 
+Installs the prerequisites and chezmoi, initializes this repository as the
+chezmoi source, then runs `dots bootstrap`, which previews each step and asks
+before running it (unless --non-interactive).
+
 Options:
   --repo VALUE
   --branch NAME
@@ -270,76 +274,17 @@ main() {
 
   log_step "Platform: $platform"
 
-  common_args=()
-  [[ "$DRY_RUN" == '1' ]] && common_args+=(--dry-run)
-
-  if [[ "$SKIP_PACKAGES" == '0' ]]; then
-    "$active_script_dir/install-packages.sh" "${common_args[@]}"
-  else
-    log_warn 'Skipping package installation'
-  fi
-
-  if [[ "$SKIP_GIT" == '0' ]]; then
-    git_args=("${common_args[@]}")
-    [[ "$NON_INTERACTIVE" == '1' ]] && git_args+=(--non-interactive)
-    "$active_script_dir/setup-git.sh" "${git_args[@]}"
-  else
-    log_warn 'Skipping Git setup'
-  fi
-
-  if [[ "$SKIP_ACCOUNTS" == '0' ]]; then
-    account_args=("${common_args[@]}")
-    [[ "$NON_INTERACTIVE" == '1' ]] && account_args+=(--non-interactive)
-    "$active_script_dir/setup-accounts.sh" "${account_args[@]}"
-  else
-    log_warn 'Skipping account onboarding'
-  fi
-
-  install_fonts="$(chezmoi_value '.features.installFonts' 'true')"
-  if [[ "$SKIP_FONTS" == '0' && "$install_fonts" == 'true' ]]; then
-    "$active_script_dir/install-fonts.sh" "${common_args[@]}"
-  else
-    log_warn 'Skipping font installation'
-  fi
-
-  setup_shell="$(chezmoi_value '.features.setupShell' 'true')"
-  if [[ "$SKIP_SHELL" == '0' && "$setup_shell" == 'true' ]]; then
-    shell_name="$(chezmoi_value '.shell.name' 'zsh')"
-    shell_args=("$shell_name" "${common_args[@]}")
-    [[ "$NON_INTERACTIVE" == '1' ]] && shell_args+=(--non-interactive)
-    "$active_script_dir/setup-shell.sh" "${shell_args[@]}"
-  else
-    log_warn 'Skipping shell setup'
-  fi
-
-  if [[ "$SKIP_APPLY" == '0' ]]; then
-    if ! has chezmoi && [[ "$DRY_RUN" != '1' ]]; then
-      die 'chezmoi is required before applying dotfiles.'
-    fi
-    log_step 'Applying dotfiles...'
-    if [[ "$DRY_RUN" == '1' ]]; then
-      if has chezmoi; then
-        preview_args=(--source "$repo_root/home" apply --dry-run --verbose)
-        [[ "$NON_INTERACTIVE" == '1' ]] && preview_args+=(--no-tty)
-        chezmoi "${preview_args[@]}"
-      else
-        print_command chezmoi --source "$repo_root/home" apply --dry-run --verbose
-        log_warn 'chezmoi apply preview was not executed because chezmoi is unavailable.'
-      fi
-    else
-      apply_args=(--source "$repo_root/home" apply --verbose)
-      [[ "$NON_INTERACTIVE" == '1' ]] && apply_args+=(--no-tty)
-      chezmoi "${apply_args[@]}"
-    fi
-    log_success 'Dotfiles applied'
-  else
-    log_warn 'Skipping chezmoi apply'
-  fi
-
-  if has chezmoi && [[ "$DRY_RUN" == '0' ]]; then
-    log_step 'Running chezmoi doctor...'
-    chezmoi doctor || log_warn 'chezmoi doctor reported warnings'
-  fi
+  # The steps themselves (packages, git, accounts, fonts, shell, apply) live in dots
+  dots_args=(bootstrap)
+  [[ "$DRY_RUN" == '1' ]] && dots_args+=(--dry-run)
+  [[ "$NON_INTERACTIVE" == '1' ]] && dots_args+=(--non-interactive)
+  [[ "$SKIP_PACKAGES" == '1' ]] && dots_args+=(--skip packages)
+  [[ "$SKIP_GIT" == '1' ]] && dots_args+=(--skip git)
+  [[ "$SKIP_ACCOUNTS" == '1' ]] && dots_args+=(--skip accounts)
+  [[ "$SKIP_FONTS" == '1' ]] && dots_args+=(--skip fonts)
+  [[ "$SKIP_SHELL" == '1' ]] && dots_args+=(--skip shell)
+  [[ "$SKIP_APPLY" == '1' ]] && dots_args+=(--skip apply)
+  "$active_script_dir/dots" "${dots_args[@]}"
 
   log_success 'Unix bootstrap complete'
 }

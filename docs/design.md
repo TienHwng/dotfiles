@@ -72,8 +72,10 @@ This replaces the earlier service/provider architecture. Do not create
 
 | Item | Status |
 |---|---|
-| `scripts/unix/bootstrap.sh`, `scripts/windows/bootstrap.ps1` (current orchestrators) | `[Implemented]` |
-| `dots` command with gum TUI | `[Planned: P1]` (Bash), `[Planned: P2]` (PowerShell) |
+| `scripts/unix/bootstrap.sh`: prerequisites, chezmoi, repository init, then `dots bootstrap` | `[Implemented]` |
+| `scripts/unix/dots` (Bash) with gum prompts and a plain-prompt fallback (`DOTS_NO_GUM=1`); `~/.local/bin/dots` symlink from `home/dot_local/bin/symlink_dots.tmpl` | `[Implemented]` |
+| `scripts/windows/bootstrap.ps1` orchestrates the Windows steps directly | `[Implemented]` |
+| `scripts/windows/dots.ps1` | `[Planned: P2]` |
 
 `dots` exists twice with the same interface: `scripts/unix/dots` (Bash) and
 `scripts/windows/dots.ps1` (PowerShell 7). The TUI uses
@@ -83,18 +85,18 @@ This replaces the earlier service/provider architecture. Do not create
 
 | Command | Behaviour | Status |
 |---|---|---|
-| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Planned: P1]` |
+| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash): steps packages, git, accounts, fonts, shell, apply; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
 | `dots sync` | `git pull --ff-only` → `chezmoi diff` → confirm → `chezmoi apply`. Reports manifest changes and offers `dots packages`. | `[Planned: P7]` |
 | `dots sync --check` | Fetch only; report how many commits the machine is behind. Used by the timer. | `[Planned: P7]` |
 | `dots capture` | TUI listing drift (files, KDE keys, registry values, packages outside the manifest); the chosen items are written back to the repository, then commit and push. | `[Planned: P7]` |
-| `dots packages` | Install missing packages from the manifest after showing the list. | `[Planned: P1]` |
-| `dots packages --diff` | List packages installed on the machine but absent from the manifest, and manifest packages not installed; later offer "add to manifest" or "uninstall". | `[Planned: P1]` (report available now: `install-packages.sh --diff`) |
+| `dots packages` | Install missing packages from the manifest after showing the list. | `[Implemented]` (Bash) |
+| `dots packages --diff` | List packages installed on the machine but absent from the manifest, and manifest packages not installed; later offer "add to manifest" or "uninstall". | `[Implemented]` (Bash, report only); interactive add/uninstall `[Planned: P7]` |
 | `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Planned: P5/P6]` |
 | `dots status` | Commits ahead/behind, drift count, whether the sync timer is enabled. | `[Planned: P7]` |
-| `dots doctor` | `chezmoi doctor` plus checks: required tools, Bitwarden agent reachable, Git LFS configured, sync timer enabled. | `[Planned: P1]` (current: `just doctor`) |
-| `dots update` | Upgrade installed packages (`paru -Syu`, `winget upgrade --all`, `scoop update *`) and fonts. | `[Planned: P1]` (current: `update.sh`, `update.ps1`) |
-| `dots backup` | Tarball of the repository working tree (including uncommitted work) plus the user and system local chezmoi configs, to a chosen directory. The destination MUST survive the reinstall: an external drive or a cloud folder. Do not rely on the other OS's disk (the Windows disk is BitLocker-encrypted). `dots backup` warns when the destination is on the same disk as the running OS. Run it before wiping a machine. | `[Planned: P1]` (current: `backup.sh`, `backup.ps1`) |
-| `dots cleanup` | Remove package-manager and chezmoi caches. | `[Planned: P1]` (current: `cleanup.sh`, `cleanup.ps1`) |
+| `dots doctor` | `chezmoi doctor` plus checks: required tools, Bitwarden agent reachable, Git LFS configured, sync timer enabled. | `[Implemented]` (Bash): required tools (git, chezmoi), optional tools (gum, gitleaks, fzf), manifest readable, Git hooks, system instance config, `chezmoi doctor` (warnings only). Bitwarden, LFS, and timer checks come with P3/P4/P7 |
+| `dots update` | Upgrade installed packages (`paru -Syu`, `winget upgrade --all`, `scoop update *`) and fonts. | `[Implemented]` (Bash, runs `update.sh`) |
+| `dots backup` | Tarball of the repository working tree (including uncommitted work) plus the user and system local chezmoi configs, to a chosen directory. The destination MUST survive the reinstall: an external drive or a cloud folder. Do not rely on the other OS's disk (the Windows disk is BitLocker-encrypted). `dots backup` warns when the destination is on the same disk as the running OS. Run it before wiping a machine. | `[Implemented]` (Bash, runs `backup.sh`; the system config is saved as `chezmoi-system.toml`) |
+| `dots cleanup` | Remove package-manager and chezmoi caches. | `[Implemented]` (Bash, runs `cleanup.sh`) |
 
 Every mutating command MUST accept `--dry-run` (Bash) / `-DryRun` (PowerShell).
 
@@ -114,9 +116,10 @@ irm https://raw.githubusercontent.com/TienHwng/dotfiles/main/scripts/windows/boo
 notepad $env:TEMP\dots-bootstrap.ps1; & $env:TEMP\dots-bootstrap.ps1
 ```
 
-The bootstrap script installs only `git`, `chezmoi`, `gum`, `jq` (plus `pwsh` on Windows),
-runs `chezmoi init TienHwng/dotfiles` (public, no auth needed), then hands over to
-`dots bootstrap`.
+The Unix bootstrap script installs the prerequisites and chezmoi, runs `chezmoi init
+TienHwng/dotfiles` (public, no auth needed), then hands over to `dots bootstrap`, passing
+`--dry-run`, `--non-interactive`, and `--skip-*` through. gum arrives with the packages
+step; until then `dots` uses plain prompts.
 
 ### L1 — Identity and secrets
 
@@ -449,7 +452,7 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 │   ├── package-list.tmpl           # renders one manifest list [Implemented]
 │   ├── unix/                       # bootstrap.sh, install-*.sh, setup-*.sh, update.sh,
 │   │                               # backup.sh, cleanup.sh, lib/common.sh  [Implemented]
-│   │                               # dots, system.sh, capture.sh           [Planned]
+│   │                               # dots [Implemented]; system.sh, capture.sh [Planned]
 │   └── windows/                    # *.ps1 counterparts, lib/Common.ps1    [Implemented, parse-checked]
 │                                   # dots.ps1, system.ps1, capture.ps1     [Planned]
 ├── tests/                          # bats, template validation  [Implemented]; Pester [Planned: P2]

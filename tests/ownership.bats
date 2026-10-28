@@ -20,7 +20,9 @@ setup() {
 }
 
 @test "bootstrap automation does not apply protected root source state" {
-  run grep -rnE 'root\.toml|sourceDir.*root|chezmoi-root' \
+  # Scripts may name the system config file (backup copies it, doctor checks it exists)
+  # but must never run chezmoi against the system instance or the root/ source.
+  run grep -rnE 'root\.toml|sourceDir.*root|--(config|source)[= ][^[:space:]]*(chezmoi-root|/root([^[:alnum:]_]|$))|(^|[^[:alnum:]_-])cmr([^[:alnum:]_]|$)' \
     "$PROJECT_ROOT/scripts" "$PROJECT_ROOT/.github/workflows"
 
   [ "$status" -eq 1 ]
