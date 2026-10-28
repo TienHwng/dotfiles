@@ -16,7 +16,29 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'lib\Common.ps1')
+
+$commonLibrary = Join-Path $PSScriptRoot 'lib\Common.ps1'
+if (Test-Path -LiteralPath $commonLibrary) {
+    . $commonLibrary
+} else {
+    # Downloaded on its own to a fresh machine: the few helpers needed before the clone.
+    # The steps after the clone run from the repository's own scripts.
+    function Write-Step([string]$Message) { Write-Host "-> $Message" -ForegroundColor Cyan }
+    function Write-Success([string]$Message) { Write-Host "OK $Message" -ForegroundColor Green }
+    function Write-ToolWarning([string]$Message) { Write-Warning $Message }
+    function Test-Command([string]$Name) { return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue) }
+    function Invoke-NativeCommand([string]$FilePath, [string[]]$ArgumentList = @(), [switch]$DryRun) {
+        if ($DryRun) {
+            Write-Host "+ $FilePath $($ArgumentList -join ' ')"
+            return 0
+        }
+        & $FilePath @ArgumentList | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "$FilePath failed with exit code $LASTEXITCODE"
+        }
+        return 0
+    }
+}
 
 function Resolve-DotfilesRepo([string]$Value) {
     if ($Value -match '^(https?|ssh|file)://' -or
@@ -59,7 +81,7 @@ function Add-UserPath([string]$Directory) {
 }
 
 function Find-RepoRoot([string]$StartPath) {
-    $current = [System.IO.DirectoryInfo](Resolve-Path -LiteralPath $StartPath)
+    $current = [System.IO.DirectoryInfo]::new((Resolve-Path -LiteralPath $StartPath).Path)
 
     for ($depth = 0; $depth -lt 8 -and $null -ne $current; $depth++) {
         $windowsBootstrapFile = Join-Path $current.FullName 'scripts\windows\bootstrap.ps1'
@@ -80,30 +102,32 @@ function Resolve-SourceRepoRoot {
     }
 
     $sourcePath = (& chezmoi source-path 2>$null | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($sourcePath)) {
+    if ($LASTEXITCODE -ne 0 -or
+        [string]::IsNullOrWhiteSpace($sourcePath) -or
+        -not (Test-Path -LiteralPath $sourcePath)) {
         return $null
     }
 
     return Find-RepoRoot $sourcePath
 }
 
-function Ensure-Chezmoi {
+function Install-Chezmoi([string]$BinDir) {
     if (Test-Command 'chezmoi') {
         Write-Success "chezmoi is already installed: $((Get-Command chezmoi).Source)"
         return
     }
 
-    Write-Step "Installing chezmoi into $ChezmoiBinDir..."
+    Write-Step "Installing chezmoi into $BinDir..."
 
     if ($DryRun) {
-        Write-Host "+ New-Item -ItemType Directory -Force -Path `"$ChezmoiBinDir`""
-        Write-Host "+ download and run the official chezmoi installer into `"$ChezmoiBinDir`""
+        Write-Host "+ New-Item -ItemType Directory -Force -Path `"$BinDir`""
+        Write-Host "+ download and run the official chezmoi installer into `"$BinDir`""
         Write-ToolWarning 'chezmoi is unavailable; template rendering and apply cannot be validated in this dry-run.'
         return
     }
 
-    New-Item -ItemType Directory -Force -Path $ChezmoiBinDir | Out-Null
-    Add-UserPath $ChezmoiBinDir
+    New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+    Add-UserPath $BinDir
 
     if ($PSVersionTable.PSVersion.Major -le 5) {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -111,10 +135,10 @@ function Ensure-Chezmoi {
 
     $installerText = Invoke-RestMethod -Uri 'https://get.chezmoi.io/ps1'
     $installer = [ScriptBlock]::Create($installerText)
-    & $installer -b $ChezmoiBinDir
+    & $installer -b $BinDir
 
     if (-not (Get-Command chezmoi -ErrorAction SilentlyContinue)) {
-        throw "chezmoi was installed but is not available in PATH: $ChezmoiBinDir"
+        throw "chezmoi was installed but is not available in PATH: $BinDir"
     }
     Write-Success 'chezmoi installed'
 }
@@ -127,7 +151,7 @@ if ($PromptPersonal -and $NonInteractive) {
     throw '-PromptPersonal cannot be used with -NonInteractive.'
 }
 
-Ensure-Chezmoi
+Install-Chezmoi $ChezmoiBinDir
 
 $repoRoot = Resolve-SourceRepoRoot
 $shouldInit = [string]::IsNullOrWhiteSpace($repoRoot) -or
@@ -153,7 +177,7 @@ if ($shouldInit) {
     }
     $initArgs += $Repo
 
-    Invoke-NativeCommand -FilePath 'chezmoi' -ArgumentList $initArgs -DryRun:$DryRun
+    Invoke-NativeCommand -FilePath 'chezmoi' -ArgumentList $initArgs -DryRun:$DryRun | Out-Null
     if ($DryRun) {
         $repoRoot = Find-RepoRoot (Join-Path $PSScriptRoot '..\..')
         if ([string]::IsNullOrWhiteSpace($repoRoot)) {
@@ -183,75 +207,21 @@ if (-not (Test-Path -LiteralPath $activeScriptRoot)) {
     throw "Bootstrap script directory not found: $activeScriptRoot"
 }
 
-Write-Step 'Platform: Windows PowerShell'
+# The steps themselves (packages, git, accounts, fonts, shell, apply) live in dots.ps1
+$skip = @()
+if ($SkipPackages) { $skip += 'packages' }
+if ($SkipGit) { $skip += 'git' }
+if ($SkipAccounts) { $skip += 'accounts' }
+if ($SkipFonts) { $skip += 'fonts' }
+if ($SkipShell) { $skip += 'shell' }
+if ($SkipApply) { $skip += 'apply' }
 
-if (-not $SkipPackages) {
-    & (Join-Path $activeScriptRoot 'install-packages.ps1') -DryRun:$DryRun
-    Update-ProcessPath
-} else {
-    Write-ToolWarning 'Skipping package installation'
+$dotsArguments = @{
+    Command = 'bootstrap'
+    DryRun = [bool]$DryRun
+    NonInteractive = [bool]$NonInteractive
+    Skip = $skip
 }
-
-if (-not $SkipGit) {
-    & (Join-Path $activeScriptRoot 'setup-git.ps1') `
-        -NonInteractive:$NonInteractive `
-        -DryRun:$DryRun
-} else {
-    Write-ToolWarning 'Skipping Git setup'
-}
-
-if (-not $SkipAccounts) {
-    & (Join-Path $activeScriptRoot 'setup-accounts.ps1') `
-        -NonInteractive:$NonInteractive `
-        -DryRun:$DryRun
-} else {
-    Write-ToolWarning 'Skipping account onboarding'
-}
-
-$installFonts = Get-ChezmoiValue '.features.installFonts' 'true'
-if (-not $SkipFonts -and $installFonts -eq 'true') {
-    & (Join-Path $activeScriptRoot 'install-fonts.ps1') -DryRun:$DryRun
-} else {
-    Write-ToolWarning 'Skipping font installation'
-}
-
-$setupShell = Get-ChezmoiValue '.features.setupShell' 'true'
-if (-not $SkipShell -and $setupShell -eq 'true') {
-    $shellName = Get-ChezmoiValue '.shell.name' 'pwsh'
-    & (Join-Path $activeScriptRoot 'setup-shell.ps1') `
-        -Shell $shellName `
-        -CreateProfile `
-        -DryRun:$DryRun
-} else {
-    Write-ToolWarning 'Skipping PowerShell setup'
-}
-
-if (-not $SkipApply) {
-    if (-not (Test-Command 'chezmoi') -and -not $DryRun) {
-        Stop-Tool 'chezmoi is required before applying dotfiles.'
-    }
-
-    Write-Step 'Applying dotfiles...'
-    $arguments = @('apply', '--verbose')
-    if ($DryRun) {
-        $arguments += '--dry-run'
-    }
-    if ($NonInteractive) {
-        $arguments += '--no-tty'
-    }
-    $simulateApply = $DryRun -and -not (Test-Command 'chezmoi')
-    Invoke-NativeCommand `
-        -FilePath 'chezmoi' `
-        -ArgumentList $arguments `
-        -DryRun:$simulateApply
-    Write-Success 'Dotfiles applied'
-} else {
-    Write-ToolWarning 'Skipping chezmoi apply'
-}
-
-if ((Test-Command 'chezmoi') -and -not $DryRun) {
-    Write-Step 'Running chezmoi doctor...'
-    Invoke-NativeCommand -FilePath 'chezmoi' -ArgumentList @('doctor') -IgnoreExitCode | Out-Null
-}
+& (Join-Path $activeScriptRoot 'dots.ps1') @dotsArguments
 
 Write-Success 'Windows bootstrap complete'

@@ -1,12 +1,21 @@
 Set-StrictMode -Version Latest
 $script:DotfilesCommonRoot = $PSScriptRoot
 
+# Symbols as char codes: Windows PowerShell 5.1 reads BOM-less scripts as ANSI
+$script:ArrowSymbol = [char]0x2192
+$script:CheckSymbol = [char]0x2714
+$script:CrossSymbol = [char]0x2718
+
 function Write-Step([string]$Message) {
-    Write-Host "→ $Message" -ForegroundColor Cyan
+    Write-Host "$script:ArrowSymbol $Message" -ForegroundColor Cyan
 }
 
 function Write-Success([string]$Message) {
-    Write-Host "✔ $Message" -ForegroundColor Green
+    Write-Host "$script:CheckSymbol $Message" -ForegroundColor Green
+}
+
+function Write-Failure([string]$Message) {
+    Write-Host "$script:CrossSymbol $Message" -ForegroundColor Red
 }
 
 function Write-ToolWarning([string]$Message) {
@@ -124,7 +133,11 @@ function Test-ScoopApp([string]$Name) {
 }
 
 # Scoop installs per user and refuses an elevated shell
-function Install-Scoop([switch]$DryRun) {
+function Install-Scoop {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingInvokeExpression', '', Justification = 'The official Scoop installer is a script.')]
+    [CmdletBinding()]
+    param([switch]$DryRun)
+
     if (Test-Command 'scoop') {
         return
     }

@@ -20,11 +20,11 @@ if (-not (Test-Command 'chezmoi')) {
     Stop-Tool 'chezmoi is required to read the package manifest (home/.chezmoidata/packages.yaml).'
 }
 
-function Invoke-PackageCommand([string]$Package, [scriptblock]$Command) {
+function Invoke-PackageCommand([string]$Package, [scriptblock]$Command, [bool]$KeepGoing) {
     try {
         & $Command
     } catch {
-        if ($ContinueOnError) {
+        if ($KeepGoing) {
             Write-ToolWarning "Could not process ${Package}: $($_.Exception.Message)"
         } else {
             throw
@@ -56,7 +56,7 @@ if ($wingetPackages.Count -gt 0) {
             $verb, '--id', $package, '--exact', '--source', 'winget', '--silent',
             '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity'
         )
-        Invoke-PackageCommand $package {
+        Invoke-PackageCommand $package -KeepGoing $ContinueOnError -Command {
             $code = Invoke-NativeCommand -FilePath 'winget' -ArgumentList $arguments -DryRun:$DryRun -IgnoreExitCode
             if ($code -ne 0 -and -not ($verb -eq 'upgrade' -and $code -eq $WingetNoApplicableUpdate)) {
                 throw "winget $verb $package failed with exit code $code"
@@ -96,7 +96,7 @@ if ($scoopPackages.Count -gt 0) {
         }
 
         $arguments = if ($installed) { @('update', ($package -split '/')[-1]) } else { @('install', $package) }
-        Invoke-PackageCommand $package {
+        Invoke-PackageCommand $package -KeepGoing $ContinueOnError -Command {
             Invoke-NativeCommand -FilePath 'scoop' -ArgumentList $arguments -DryRun:$DryRun | Out-Null
         }
     }

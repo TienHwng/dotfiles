@@ -20,14 +20,14 @@ if (-not (Test-Command 'tar.exe')) {
 
 $sourcePath = (& chezmoi source-path).Trim()
 $configFile = (& chezmoi execute-template '{{ .chezmoi.configFile }}').Trim()
-$repoDirectory = [System.IO.DirectoryInfo](Resolve-Path -LiteralPath $sourcePath)
+$repoDirectory = [System.IO.DirectoryInfo]::new((Resolve-Path -LiteralPath $sourcePath).Path)
 
 while ($null -ne $repoDirectory -and
        -not (Test-Path -LiteralPath (Join-Path $repoDirectory.FullName '.git'))) {
     $repoDirectory = $repoDirectory.Parent
 }
 if ($null -eq $repoDirectory) {
-    $repoDirectory = [System.IO.DirectoryInfo](Resolve-Path -LiteralPath $sourcePath)
+    $repoDirectory = [System.IO.DirectoryInfo]::new((Resolve-Path -LiteralPath $sourcePath).Path)
 }
 
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
