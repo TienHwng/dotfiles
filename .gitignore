@@ -39,3 +39,5 @@ Desktop.ini
 # Temp folder
 temp/
 misc/
+# Pester -CI output
+testResults.xml

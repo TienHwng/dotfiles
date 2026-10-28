@@ -11,7 +11,7 @@ GITLEAKS ?= gitleaks
 
 .PHONY: help bootstrap-unix bootstrap-unix-dry packages-unix update-unix \
 	packages-unix-diff bootstrap-windows packages-windows update-windows preview doctor syntax \
-	test lint templates secrets hooks validate
+	test lint templates secrets hooks validate test-windows lint-windows
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "; printf "Available targets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-22s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -34,7 +34,7 @@ update-unix: ## Update the Unix dotfiles environment
 bootstrap-windows: ## Provision the Windows user environment
 	$(PWSH) -NoProfile -File ./scripts/windows/bootstrap.ps1
 
-packages-windows: ## Install winget packages from the manifest
+packages-windows: ## Install WinGet and Scoop packages from the manifest
 	$(PWSH) -NoProfile -File ./scripts/windows/install-packages.ps1
 
 update-windows: ## Update the Windows dotfiles environment
@@ -58,6 +58,12 @@ lint: ## Run ShellCheck and verify shfmt formatting
 	find scripts/unix tests -type f \( -name '*.sh' -o -name '*.bash' -o -name '*.bats' \) -print0 | xargs -0 $(SHELLCHECK)
 	$(SHELLCHECK) -x scripts/unix/dots .githooks/*
 	$(SHFMT) -d -i 2 -ci -bn scripts/unix tests .githooks
+
+test-windows: ## Run the Pester tests for scripts/windows (needs pwsh + Pester 5)
+	$(PWSH) -NoProfile -Command 'Invoke-Pester -Path tests/windows -CI -Output Detailed'
+
+lint-windows: ## Run PSScriptAnalyzer on scripts/windows and tests/windows (needs pwsh)
+	$(PWSH) -NoProfile -Command '$$r = @("scripts/windows", "tests/windows" | ForEach-Object { Invoke-ScriptAnalyzer -Path $$_ -Recurse -Settings ./PSScriptAnalyzerSettings.psd1 }); $$r | Format-Table -AutoSize -Wrap | Out-String -Width 220 | Write-Host; exit $$r.Count'
 
 templates: ## Validate chezmoi templates in an isolated environment
 	./tests/validate-templates.sh

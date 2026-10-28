@@ -42,6 +42,12 @@ lint:
     shellcheck -x scripts/unix/dots .githooks/*
     shfmt -d -i 2 -ci -bn scripts/unix tests .githooks
 
+test-windows:
+    pwsh -NoProfile -Command 'Invoke-Pester -Path tests/windows -CI -Output Detailed'
+
+lint-windows:
+    pwsh -NoProfile -Command '$r = @("scripts/windows", "tests/windows" | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Recurse -Settings ./PSScriptAnalyzerSettings.psd1 }); $r | Format-Table -AutoSize -Wrap | Out-String -Width 220 | Write-Host; exit $r.Count'
+
 templates:
     ./tests/validate-templates.sh
 
