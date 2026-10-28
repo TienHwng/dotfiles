@@ -23,6 +23,15 @@ Known gaps in the current state:
 - KDE `*rc` files are managed as whole files and always show drift.
 - No template reads a Bitwarden secret yet (none is needed).
 
+Deferred owner tasks (the owner postponed these; ask before closing the related phase):
+
+| Since | Task | Closes |
+|---|---|---|
+| 2026-10-28 | Run `dots.ps1 bootstrap` on a fresh Windows VM/Sandbox; check PoC-4 (OneDrive moving `Documents`) | P2 |
+| 2026-10-28 | PoC-3: install Bitwarden desktop + `bw`, enable the SSH agent, `chezmoi apply`, run the accounts step, `ssh -T git@github.com` (CachyOS and Windows) | P3 |
+| 2026-10-28 | On Windows, check that the `wallpaper` step clones `TienHwng/wallpapers` and sets `space2.jpg` | P4 |
+| 2026-10-28 | Delete the old upstream clone `~/Pictures/wallpaper.upstream` (about 1.5 GB) on CachyOS once the new clone is trusted | P4 cleanup |
+
 ---
 
 ## 2. Phases
