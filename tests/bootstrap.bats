@@ -159,3 +159,15 @@ setup() {
   [ "$before" = "$(sha256sum "$key_path")" ]
   [ ! -e "$HOME/.ssh/config" ]
 }
+
+@test "bootstrap.sh downloaded on its own runs until the clone" {
+  standalone="$BATS_TEST_TMPDIR/dots-bootstrap.sh"
+  cp "$PROJECT_ROOT/scripts/unix/bootstrap.sh" "$standalone"
+
+  run env DOTFILES_PLATFORM=arch bash "$standalone" --dry-run --non-interactive --repo TienHwng
+
+  [ "$status" -ne 0 ]
+  [[ "$output" != *'No such file'* ]]
+  [[ "$output" == *'+ chezmoi init --promptDefaults https://github.com/TienHwng/dotfiles.git'* ]]
+  [[ "$output" == *'Dry-run requires an existing local repository checkout'* ]]
+}

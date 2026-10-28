@@ -84,9 +84,10 @@ Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFro
 - Every `dots` step previews (diff or list) and asks before changing anything.
 - `NON_INTERACTIVE=1` must never prompt: `confirm` returns its default, sudo/doas get `-n`, and missing identity data or an absent SSH key is a hard failure (`--allow-unencrypted-key` is the explicit opt-in).
 - `bootstrap.sh` ends with an `if [[ "${BASH_SOURCE[0]}" == "$0" ]]` guard around `main` so Bats can `source` it and call/mock individual functions (e.g. override `has`). Add the same guard to a script before unit-testing its functions.
+- `bootstrap.sh` and `bootstrap.ps1` must run downloaded on their own (README quick start): when `lib/` is not next to them they define the few helpers they need before the clone inline. Keep those fallbacks in sync with the library.
 - `DOTFILES_PLATFORM` overrides platform detection; tests use it.
 - Tests use `setup_isolated_home` from `tests/test_helper.bash` and mock binaries on `PATH`; they must never provision the real machine.
 - Logging: Bash `log_step`/`log_success`/`log_warn`/`log_error`/`die`; PowerShell `Write-Step`/`Write-Success`/`Write-Failure`/`Write-ToolWarning`/`Stop-Tool`.
-- PowerShell must run on Windows PowerShell 5.1 (a fresh Windows has only that) and PowerShell 7: no `??`, `?:`, `&&`; keep sources ASCII (5.1 reads BOM-less files as ANSI). `bootstrap.ps1` must also run downloaded on its own, before the clone. Pester tests live in `tests/windows`; mock with `Mock`, never touch the real profile or environment.
+- PowerShell must run on Windows PowerShell 5.1 (a fresh Windows has only that) and PowerShell 7: no `??`, `?:`, `&&`; keep sources ASCII (5.1 reads BOM-less files as ANSI). Pester tests live in `tests/windows`; mock with `Mock`, never touch the real profile or environment.
 - Style: Bash, 2-space indent, `shfmt -ci -bn`, must pass ShellCheck. PowerShell uses 4 spaces.
 - Never install/reinstall an OS, partition disks, or build `[Future]` items unless asked.

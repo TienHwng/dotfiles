@@ -2,8 +2,51 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-# shellcheck source=scripts/unix/lib/common.sh
-source "$SCRIPT_DIR/lib/common.sh"
+if [[ -f "$SCRIPT_DIR/lib/common.sh" ]]; then
+  # shellcheck source=scripts/unix/lib/common.sh
+  source "$SCRIPT_DIR/lib/common.sh"
+else
+  # Downloaded on its own to a fresh machine: the few helpers needed before the
+  # clone. The steps after the clone run from the repository's own scripts.
+  log_step() { printf '→ %s\n' "$*"; }
+  log_success() { printf '✔ %s\n' "$*"; }
+  log_warn() { printf '! %s\n' "$*" >&2; }
+  die() {
+    printf '✘ %s\n' "$*" >&2
+    exit 1
+  }
+  has() { command -v "$1" >/dev/null 2>&1; }
+  require_command() { has "$1" || die "${2:-$1 is required.}"; }
+  print_command() {
+    printf '+'
+    printf ' %q' "$@"
+    printf '\n'
+  }
+  run_root_or_print() {
+    if [[ "${DRY_RUN:-0}" == '1' ]]; then
+      print_command sudo "$@"
+    elif [[ "$(id -u)" -eq 0 ]]; then
+      "$@"
+    elif [[ "${NON_INTERACTIVE:-0}" == '1' ]]; then
+      sudo -n "$@"
+    else
+      sudo "$@"
+    fi
+  }
+  detect_platform() {
+    if [[ -n "${DOTFILES_PLATFORM:-}" ]]; then
+      printf '%s\n' "$DOTFILES_PLATFORM"
+    elif [[ "$(uname -s)" == 'Darwin' ]]; then
+      printf 'brew\n'
+    elif [[ -f /etc/arch-release ]] || has pacman; then
+      printf 'arch\n'
+    elif has apt-get; then
+      printf 'apt\n'
+    else
+      printf 'unknown\n'
+    fi
+  }
+fi
 
 DOTFILES_REPO="${DOTFILES_REPO:-}"
 DOTFILES_BRANCH="${DOTFILES_BRANCH:-}"
