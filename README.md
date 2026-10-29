@@ -82,6 +82,7 @@ Preview everything without changing the machine:
 | `dots packages [--diff]` | Install missing packages / list packages not in the manifest |
 | `dots system` | Review and apply system-level settings (sudo/admin) |
 | `dots status` | Behind/ahead, drift count, sync timer state |
+| `dots <step>` | Run one bootstrap step on its own, e.g. `dots desktop` (also repairs the Kuro splash) |
 | `dots doctor` | Health checks |
 | `dots update` | Upgrade installed packages and fonts |
 | `dots backup` | Tarball of the repository plus the local, untracked chezmoi configs |

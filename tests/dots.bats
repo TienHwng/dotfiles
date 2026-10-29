@@ -114,3 +114,33 @@ mock_package_tools() {
     [[ "$output" != *'same disk as the running OS'* ]]
   fi
 }
+
+@test "dots runs a single step by name and rejects options it does not know" {
+  run env DOTS_NO_GUM=1 "$DOTS" fonts --bogus
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'Unknown fonts option'* ]]
+
+  run env DOTS_NO_GUM=1 DOTFILES_PLATFORM=arch "$DOTS" fonts --dry-run --non-interactive
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'[fonts]'* ]]
+}
+
+@test "doctor warns about Plasma packages with symlinks and a splash that is not installed" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+  mock_bin="$BATS_TEST_TMPDIR/plasma-bin"
+  mkdir -p "$mock_bin"
+  printf '#!/usr/bin/env bash\necho Missing.theme\n' >"$mock_bin/kreadconfig6"
+  printf '#!/usr/bin/env bash\necho "Path traversal attempt detected: x is not inside y"\n' >"$mock_bin/journalctl"
+  chmod +x "$mock_bin"/*
+  installed="$XDG_DATA_HOME/plasma/look-and-feel/a2n.kuro"
+  mkdir -p "$(dirname "$installed")"
+  cp -r "$PROJECT_ROOT/kde/plasma/look-and-feel/a2n.kuro" "$installed"
+  ln -sf "$PROJECT_ROOT/kde/plasma/look-and-feel/a2n.kuro/metadata.json" "$installed/metadata.json"
+
+  run env PATH="$mock_bin:$PATH" bash -c 'source "$1"; doctor_plasma_packages' _ "$DOTS"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'a2n.kuro contains symlinks, which Plasma refuses; run: dots desktop'* ]]
+  [[ "$output" == *'The splash screen Missing.theme is not installed anywhere'* ]]
+  [[ "$output" == *'Plasma refused 1 package file(s)'* ]]
+}

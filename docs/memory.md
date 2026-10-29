@@ -121,6 +121,12 @@ General:
   reinstall it with *Get New*. Manage such things per key (`kde.yaml`) or as packages copied
   as real files from `kde/`, never as linked files. `kpackagetool6 --upgrade` fails for Kuro
   (its `KPackageStructure` is `Plasma/LookAndFeel/Splash`), so the desktop step copies.
+- Guards against the splash breaking again: chezmoi ignores `.local/share/plasma`
+  (`tests/chezmoiignore.bats`), the desktop step reinstalls a package that is missing,
+  differs or contains symlinks (`tests/desktop.bats`), and `dots doctor` checks the packages,
+  the splash in `ksplashrc`, and the journal for "Path traversal" refusals. If it breaks
+  anyway: `dots doctor`, then `dots desktop`; if the owner reinstalls it with *Get New*,
+  `dots capture` keeps that copy.
 - When the owner reports something broken, look in the journal first
   (`journalctl --user -o cat | grep -a -i <name>`); the cause is usually logged.
 - `chezmoi diff` never clones `git-repo` externals; the apply step excludes externals (the

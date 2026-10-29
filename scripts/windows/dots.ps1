@@ -51,6 +51,9 @@ Commands:
                   fetches and reports how far behind this machine is; -Notify adds a
                   toast with a Sync now button (the dots-sync Scheduled Task uses it).
   status          Branch, commits behind/ahead, local changes, chezmoi drift, task.
+  <step> [-DryRun]
+                  Run one bootstrap step on its own (git, accounts, fonts, shell, apply,
+                  desktop, wallpaper, sync), previewed and confirmed.
   capture [-DryRun]
                   Pick what changed on this machine (repository files, dotfiles
                   chezmoi copied, registry values, packages), write it back, review the diff,
@@ -551,6 +554,10 @@ function Invoke-DotsCommand {
         }
         'cleanup' { & (Join-Path $PSScriptRoot 'cleanup.ps1') -Yes:$Yes -DryRun:$DryRun }
         { $_ -in @('help', '-h', '--help') } { Show-Usage }
+        { $_ -in $script:Steps } {
+            # dots <step>: one bootstrap step on its own, previewed and confirmed
+            Invoke-StepList @($Command)
+        }
         default {
             Show-Usage
             Stop-Tool "Unknown command: $Command"

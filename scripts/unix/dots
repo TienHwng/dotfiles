@@ -34,6 +34,10 @@ Commands:
                   fetches and reports how far behind this machine is; --notify adds a
                   desktop notification (the dots-sync timer uses it).
   status          Branch, commits behind/ahead, local changes, chezmoi drift, timer.
+  <step> [--dry-run] [--non-interactive]
+                  Run one bootstrap step on its own (git, accounts, fonts, shell, apply,
+                  desktop, wallpaper, sync), previewed and confirmed. dots desktop also
+                  repairs the Plasma packages (the Kuro splash).
   capture [--dry-run]
                   Pick what changed on this machine (repository files, dotfiles
                   chezmoi copied, KDE keys, packages outside the manifest), write it
@@ -387,6 +391,22 @@ cmd_status() {
   fi
 }
 
+# dots <step> [--dry-run]: one bootstrap step on its own, previewed and confirmed
+cmd_step() {
+  local step="$1"
+  shift
+  while (($#)); do
+    case "$1" in
+      --dry-run) DRY_RUN=1 ;;
+      --non-interactive) NON_INTERACTIVE=1 ;;
+      *) die "Unknown $step option: $1" ;;
+    esac
+    shift
+  done
+  export DRY_RUN NON_INTERACTIVE
+  run_steps "$step" || true
+}
+
 cmd_system() {
   case "${1:-}" in
     --dry-run) "$SCRIPT_DIR/setup-system.sh" --dry-run ;;
@@ -402,6 +422,47 @@ cmd_system() {
       ;;
     *) die "Unknown system option: $1" ;;
   esac
+}
+
+# Plasma packages from kde.packages: installed, real files, same as kde/. Plasma refuses
+# package files that are symlinks out of the package, which once made the splash vanish.
+doctor_plasma_packages() {
+  local path id target splash refused since=0 stamp
+  if ! has kreadconfig6 || ! has chezmoi; then
+    log_warn 'KDE Plasma 6 or chezmoi is missing; Plasma packages not checked'
+    return 0
+  fi
+  while IFS=$'\t' read -r path id; do
+    [[ -n "$path" ]] || continue
+    target="${XDG_DATA_HOME:-$HOME/.local/share}/$path/$id"
+    if [[ ! -d "$target" ]]; then
+      log_warn "$id is not installed; run: dots desktop"
+    elif [[ -L "$target" || -n "$(find "$target" -type l -print -quit)" ]]; then
+      log_warn "$id contains symlinks, which Plasma refuses; run: dots desktop"
+    elif ! diff -rq "$ROOT_DIR/kde/$path/$id" "$target" >/dev/null 2>&1; then
+      log_warn "$id differs from kde/$path/$id; keep it with dots capture, or restore it with dots desktop"
+    else
+      log_success "$id is installed as real files and matches the repository"
+    fi
+    stamp="$(stat -c %Y "$target" 2>/dev/null || printf 0)"
+    ((stamp > since)) && since="$stamp"
+  done < <(chezmoi --source "$ROOT_DIR/home" execute-template \
+    '{{ range .kde.packages }}{{ .path }}{{ "\t" }}{{ .id }}{{ "\n" }}{{ end }}')
+
+  splash="$(kreadconfig6 --file ksplashrc --group KSplash --key Theme)"
+  if [[ -n "$splash" && "$splash" != 'None' ]] \
+    && [[ ! -d "${XDG_DATA_HOME:-$HOME/.local/share}/plasma/look-and-feel/$splash" ]] \
+    && [[ ! -d "/usr/share/plasma/look-and-feel/$splash" ]]; then
+    log_warn "The splash screen $splash is not installed anywhere; run: dots desktop"
+  fi
+  if has journalctl; then
+    # Only refusals after the packages were last installed count
+    refused="$(journalctl --user -b -o cat --since "@$since" 2>/dev/null \
+      | grep -a -c 'Path traversal attempt detected' || true)"
+    if ((refused > 0)); then
+      log_warn "Plasma refused $refused package file(s) (journalctl --user -b | grep 'Path traversal'); run: dots desktop"
+    fi
+  fi
 }
 
 cmd_doctor() {
@@ -447,6 +508,9 @@ cmd_doctor() {
   else
     log_warn 'Bitwarden SSH agent is not running or holds no keys; see the accounts step: dots bootstrap'
   fi
+
+  log_step 'Plasma packages'
+  doctor_plasma_packages
 
   log_step 'Sync timer'
   if has systemctl && systemctl --user show-environment >/dev/null 2>&1; then
@@ -506,6 +570,10 @@ main() {
     cleanup) "$SCRIPT_DIR/cleanup.sh" "$@" ;;
     help | -h | --help) usage ;;
     *)
+      if contains "$command" "${STEPS[@]}"; then
+        cmd_step "$command" "$@"
+        return
+      fi
       usage >&2
       die "Unknown command: $command"
       ;;

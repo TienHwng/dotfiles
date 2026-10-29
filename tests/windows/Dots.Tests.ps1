@@ -33,6 +33,19 @@ Describe 'dots.ps1 commands' {
     }
 }
 
+Describe 'Single steps' {
+    It 'runs one step by its name' {
+        . $Dots
+        $script:Ran = [System.Collections.Generic.List[string]]::new()
+        Mock Invoke-StepList { $script:Ran.Add($StepList -join ',') }
+        Set-Variable -Name Command -Value 'desktop'
+
+        Invoke-DotsCommand
+
+        $script:Ran | Should -Be @('desktop')
+    }
+}
+
 Describe 'System step policy' {
     BeforeEach {
         . $Dots
