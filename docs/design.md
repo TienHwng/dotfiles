@@ -91,7 +91,7 @@ PowerShell 7; options are PowerShell-style: `-DryRun`, `-NonInteractive`, `-Skip
 | `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps packages, git (also renders `~/.gitconfig`), accounts, fonts, shell, apply (everything except externals), desktop (KDE keys on Linux, HKCU values on Windows), wallpaper (fetches the wallpaper external, sets the wallpaper), and on Windows system (admin, last; skipped by `-NonInteractive`). The git step renders the gh credential helper so `gh auth login` in accounts does not offer to edit `~/.gitconfig`, and accounts comes before anything that clones a private repository; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
 | `dots sync` | Refuses local changes (Linux dotfiles are symlinks into the repository: commit them with `dots capture` first), fetches, shows `git log` and `git diff --stat` of the new commits, asks, `git merge --ff-only`, then runs the steps whose files changed (`packages.yaml` → packages + fonts, `kde.yaml` → desktop, `windows.yaml` → desktop + system on Windows, `.chezmoidata.yaml`/externals → apply + wallpaper, other `home/` files → apply, `root/`/`pkgbuilds/` → system on Linux), each with its preview and question. Never non-interactive. | `[Implemented]` (Bash and PowerShell) |
 | `dots sync --check [--notify]` | Fetch only (no prompts, 60 s timeout); print `behind N, ahead M`. `--notify`: one notification per upstream commit (stamp in `~/.local/state/dots/notified` or `%LOCALAPPDATA%\dots\notified`) with a *Sync now* button. Used by the timer and the Scheduled Task. | `[Implemented]` (`sync.sh`, `sync.ps1`) |
-| `dots capture` | TUI listing drift (files, KDE keys, registry values, packages outside the manifest); the chosen items are written back to the repository, then commit and push. | `[Planned: P7b]` |
+| `dots capture` | One picker (`gum filter --no-limit`, numbered fallback) over what differs from the repository; the chosen items are written back, then `git diff`, a message, commit to `main` and push. Refuses non-interactive runs, other branches, and an already staged index. `--dry-run` only lists. | `[Implemented]` (`capture.sh`: files, re-add, KDE keys, packages; `capture.ps1`: files, re-add, registry values) |
 | `dots packages` | Install missing packages from the manifest after showing the list. | `[Implemented]` (Bash) |
 | `dots packages --diff` | List packages installed on the machine but absent from the manifest, and manifest packages not installed; later offer "add to manifest" or "uninstall". | `[Implemented]` (Bash, report only); interactive add/uninstall `[Planned: P7b]` |
 | `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Implemented]` (Linux: `setup-system.sh`, boot theme packages then the `root/` instance with sudo; Windows): previews `setup-system.ps1 -DryRun` as the user, asks, then runs it in an administrator window (UAC) unless already elevated; also the last `bootstrap` step, skipped by `-NonInteractive` unless `-DryRun`. |
@@ -180,7 +180,8 @@ step; until then `dots` uses plain prompts.
 | `install-packages.sh --diff` report (arch, apt, brew) | `[Implemented]` |
 | Fonts (`nerdFonts` list) read from the manifest | `[Implemented]` |
 | Fedora backend | Removed |
-| Windows `--diff`, interactive "add to manifest / uninstall" | `[Planned: P7b]` |
+| Interactive "add to manifest" (`dots capture`, Linux) | `[Implemented]` |
+| Windows `--diff`, "uninstall" from the picker | `[Planned]` |
 
 Manifest format (`home/.chezmoidata/packages.yaml`):
 
@@ -332,8 +333,9 @@ kde:
   chezmoi symlinked before P5a): `kwriteconfig6` writes nothing through them yet exits 0.
   The owner chose a dots step over a `run_onchange_` script so every change is previewed and
   confirmed. Gate: `features.desktop`.
-- `dots capture kde` compares managed keys (`kreadconfig6`) with the YAML.
-  `dots capture kde --discover` diffs snapshots of `~/.config/*rc` taken before and after a
+- `dots capture` compares managed keys (`kreadconfig6`) with the YAML and writes a chosen
+  current value back into the entry that applies on this host (`kde.machines.<host>` before
+  the shared list). `[Planned]`: `dots capture kde --discover` diffs snapshots of `~/.config/*rc` taken before and after a
   change in System Settings, so new keys can be picked.
 - Panel/widget layout (`plasma-org.kde.plasma.desktop-appletsrc`) is screen-specific and stays
   manual. Scripted layouts are `[Future]`.
@@ -514,7 +516,7 @@ already elevated. Step 4 is planned; step 5 belongs to the packages step.
   handled. The SDDM login background and the lock screen are part of L5.
 - Fonts: Scoop bucket `nerd-fonts` on Windows (per-user, no admin); packages on Arch.
 
-### L7 — Sync `[Implemented: P7a]` and capture `[Planned: P7b]`
+### L7 — Sync `[Implemented: P7a]` and capture `[Implemented: P7b]`
 
 **Repository → machine:**
 
@@ -534,18 +536,23 @@ already elevated. Step 4 is planned; step 5 belongs to the packages step.
 - Neither applies anything. On the dual-boot machine the other OS learns about changes at its
   next login.
 
-**Machine → repository (`dots capture`):** one `gum choose --no-limit` screen with four sources.
+**Machine → repository (`dots capture`):** one picker over every source. Packages would
+swamp it (CachyOS lists 200+ distribution packages outside the manifest), so they are one
+item that opens a second picker.
 
 | Source | Detected by | Action when chosen |
 |---|---|---|
-| Managed files | `chezmoi status` / `chezmoi diff` | `chezmoi re-add <file>` |
-| KDE keys | `kreadconfig6` vs `kde.yaml` | Update the YAML value |
-| Windows registry | `Get-ItemProperty` vs `windows.yaml` | Update the YAML value |
-| Packages | `dots packages --diff` | Add to manifest, or uninstall |
+| Repository files | `git status --porcelain` (on Linux dotfiles are symlinks into the repository, so edits land here) | `git add` |
+| Copied dotfiles | `chezmoi status`, first column `M` (edited since chezmoi wrote them: Windows copy mode, templates and private files on Linux) | `chezmoi re-add`, then `git add` the source; templates are listed for a manual edit |
+| KDE keys (Linux) | `kreadconfig6` vs `scripts/kde-settings.tmpl` | Rewrite `value:` of that one-line entry in `kde.yaml` (the host's machine entry first) |
+| Registry (Windows) | `Get-RegistryCurrent` vs `windows.yaml` (same kind only) | Rewrite `value:` of that entry in `windows.yaml` |
+| Packages (Arch, apt) | `install-packages.sh --extra` | Append the chosen names to the platform's list in `packages.yaml` |
 
-Then show `git diff`, ask for a commit message, commit to `main`, and push (owner's choice:
-captures are small changes, which go straight to `main`). This replaces the `chezmoi push`
-wrapper function in `home/dot_zshrc`.
+Only the chosen items are staged; the rest stays in the working tree. Then show `git diff`,
+ask for a commit message, commit to `main`, and push (owner's choice: captures are small
+changes, which go straight to `main`). Answering no unstages everything. `[Planned]`:
+uninstalling a package from the picker, Windows packages (no Windows `--diff` yet). It replaced the `chezmoi push` wrapper in `home/dot_zshrc`, which now points to
+`dots capture`.
 
 ---
 
@@ -578,9 +585,9 @@ wrapper function in `home/dot_zshrc`.
 │   ├── package-list.tmpl           # renders one manifest list [Implemented]
 │   ├── unix/                       # bootstrap.sh, install-*.sh, setup-*.sh, update.sh,
 │   │                               # backup.sh, cleanup.sh, lib/common.sh  [Implemented]
-│   │                               # dots [Implemented]; system.sh, capture.sh [Planned]
+│   │                               # dots, sync.sh, capture.sh, setup-system.sh [Implemented]
 │   └── windows/                    # dots.ps1, *.ps1 steps, lib/Common.ps1 [Implemented]
-│                                   # system.ps1, capture.ps1               [Planned]
+│                                   # sync.ps1, capture.ps1, setup-system.ps1 [Implemented]
 ├── tests/                          # bats, template validation, windows/*.Tests.ps1 (Pester) [Implemented]
 ├── PSScriptAnalyzerSettings.psd1   # analyzer rules for scripts/windows [Implemented]
 ├── Justfile, Makefile              # identical recipes          [Implemented]

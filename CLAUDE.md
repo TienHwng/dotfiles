@@ -55,7 +55,7 @@ Eight layers, all driven by chezmoi data:
 | L4 Desktop | `desktop` step: KDE keys from `kde.yaml` via `kwriteconfig6` (whole `*rc` files are ignored, never add them); Windows HKCU from `windows.yaml` (`setup-registry.ps1 -Scope user`) |
 | L5 System | system chezmoi instance, source `root/` (Linux); Windows `dots system` (`setup-system.ps1`: HKLM from `windows.yaml`, OpenSSH agent service off, NVIDIA App from a pinned, hash- and signature-checked download; admin, interactive only); debloat (planned) |
 | L6 Assets | private wallpaper repo (plain Git, no LFS) via `.chezmoiexternal`, fetched and set by the `wallpaper` step (the `apply` step excludes externals); fonts |
-| L7 Sync | `dots sync` (fast-forward after showing the commits, then the steps whose files changed), `dots sync --check --notify` from the systemd user timer `dots-sync.timer` / Scheduled Task `\dots\dots-sync` (notify only, *Sync now* button), `dots status`; `dots capture` (planned) |
+| L7 Sync | `dots sync` (fast-forward after showing the commits, then the steps whose files changed), `dots sync --check --notify` from the systemd user timer `dots-sync.timer` / Scheduled Task `\dots\dots-sync` (notify only, *Sync now* button), `dots status`; `dots capture` (`capture.sh`/`capture.ps1`: pick drift, write it back into the repository or the YAML, commit to `main`, push) |
 
 Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFrom-Json`
 (PowerShell). Do **not** create service/provider directories (`scripts/<service>/<os>.sh`).

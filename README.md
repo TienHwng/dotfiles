@@ -21,7 +21,7 @@ that previews every change and asks before applying it.
 | Desktop settings | KDE Plasma keys (shortcuts, KWin, theme, splash); Windows user registry (HKCU) | `kwriteconfig6`, PowerShell |
 | System settings | GRUB, SDDM, Plymouth, pacman options (drop-in), boot theme packages; Windows machine registry (UTC clock, Fast Startup off), OpenSSH agent service off, NVIDIA App; debloat *(planned)* | second chezmoi instance (`root/`), PowerShell |
 | Assets | Wallpapers (private Git repo, set on KDE and Windows), Nerd Fonts | chezmoi external, `plasma-apply-wallpaperimage` / `SystemParametersInfo`, Scoop/paru |
-| Sync & capture | "Repository changed" notifications with a *Sync now* button, `dots sync`; pick local changes to commit back *(planned)* | systemd user timer + `notify-send`, Scheduled Task + Windows toast, `dots capture` |
+| Sync & capture | "Repository changed" notifications with a *Sync now* button, `dots sync`; `dots capture` picks local changes and commits them to `main` | systemd user timer + `notify-send`, Scheduled Task + Windows toast, `dots capture` |
 
 It does **not** install the OS, back up personal data, or replace app-native sync
 (VS Code Settings Sync, browser sync, Steam Cloud, Discord).
@@ -78,7 +78,7 @@ Preview everything without changing the machine:
 |---|---|
 | `dots bootstrap` | Set up a fresh machine, or re-run safely on a configured one |
 | `dots sync` | Pull repository changes, review the diff, apply |
-| `dots capture` | Pick local changes (files, KDE keys, registry values, packages) and commit them |
+| `dots capture` | Pick local changes (files, KDE keys, registry values, packages), review the diff, commit to `main` and push |
 | `dots packages [--diff]` | Install missing packages / list packages not in the manifest |
 | `dots system` | Review and apply system-level settings (sudo/admin) |
 | `dots status` | Behind/ahead, drift count, sync timer state |
@@ -87,9 +87,9 @@ Preview everything without changing the machine:
 | `dots backup` | Tarball of the repository plus the local, untracked chezmoi configs |
 | `dots cleanup` | Clear package-manager and chezmoi caches |
 
-`bootstrap`, `packages`, `sync`, `status`, `doctor`, `update`, `backup`, and `cleanup` work
+`bootstrap`, `packages`, `sync`, `status`, `capture`, `doctor`, `update`, `backup`, and `cleanup` work
 today on both OSes; `system` previews as you, then applies with sudo (Linux) or in an
-administrator window (Windows); `capture` is *(planned)*. At login and every 6 hours a timer
+administrator window (Windows). At login and every 6 hours a timer
 (Linux) or Scheduled Task (Windows) runs `dots sync --check --notify`: it only fetches, and
 notifies with a *Sync now* button when new commits arrived. On CachyOS `~/.local/bin/dots` is a
 chezmoi-managed symlink to `scripts/unix/dots`. On Windows, `dots` is a function in the shared

@@ -12,7 +12,7 @@ AUR_HELPER="${AUR_HELPER:-paru}"
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/unix/install-packages.sh [--dry-run | --diff]
+  ./scripts/unix/install-packages.sh [--dry-run | --diff | --extra]
 
 Packages come from the manifest home/.chezmoidata/packages.yaml:
   arch  -> paru (Arch Linux, CachyOS)
@@ -23,6 +23,8 @@ Options:
   --dry-run  print the install commands without running them
   --diff     list installed packages missing from the manifest, and
              manifest packages that are not installed (changes nothing)
+  --extra    print only the explicitly installed packages missing from the
+             manifest, one per line (dots capture reads it)
 
 Set DOTFILES_HEADLESS=1 to skip GUI entries (WSL, servers).
 EOF
@@ -36,6 +38,10 @@ while (($#)); do
       ;;
     --diff)
       SHOW_DIFF=1
+      shift
+      ;;
+    --extra)
+      SHOW_DIFF=extra
       shift
       ;;
     -h | --help)
@@ -157,6 +163,10 @@ show_package_diff() {
 
   manifest="$(printf '%s\n' "${PACKAGES[@]}" "${FORMULAE[@]}" "${CASKS[@]}" | sed '/^$/d' | sort -u)"
   extra="$(comm -13 <(printf '%s\n' "$manifest") <(sort -u <<<"$explicit") | sed '/^$/d')"
+  if [[ "$SHOW_DIFF" == 'extra' ]]; then
+    [[ -z "$extra" ]] || printf '%s\n' "$extra"
+    return 0
+  fi
   missing="$(comm -23 <(printf '%s\n' "$manifest") <(sort -u <<<"$all") | sed '/^$/d')"
 
   log_step "Explicitly installed but not in the manifest ($(grep -c . <<<"$extra" || true)):"
@@ -173,7 +183,7 @@ case "$PLATFORM" in
     ;;
 esac
 
-if [[ "$SHOW_DIFF" == '1' ]]; then
+if [[ "$SHOW_DIFF" != '0' ]]; then
   show_package_diff
   exit 0
 fi

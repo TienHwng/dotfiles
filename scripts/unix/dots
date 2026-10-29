@@ -34,6 +34,10 @@ Commands:
                   fetches and reports how far behind this machine is; --notify adds a
                   desktop notification (the dots-sync timer uses it).
   status          Branch, commits behind/ahead, local changes, chezmoi drift, timer.
+  capture [--dry-run]
+                  Pick what changed on this machine (repository files, dotfiles
+                  chezmoi copied, KDE keys, packages outside the manifest), write it
+                  back, review the diff, then commit to main and push.
   system [--dry-run]
                   Boot theme packages and the system chezmoi instance (root/ -> /):
                   preview, then ask and apply with sudo. Never non-interactive.
@@ -489,6 +493,7 @@ main() {
     system) cmd_system "$@" ;;
     sync) cmd_sync "$@" ;;
     status) cmd_status ;;
+    capture) "$SCRIPT_DIR/capture.sh" "$@" ;;
     doctor) cmd_doctor ;;
     update) "$SCRIPT_DIR/update.sh" "$@" ;;
     backup) "$SCRIPT_DIR/backup.sh" "$@" ;;

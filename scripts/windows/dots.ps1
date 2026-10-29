@@ -49,6 +49,10 @@ Commands:
                   fetches and reports how far behind this machine is; -Notify adds a
                   toast with a Sync now button (the dots-sync Scheduled Task uses it).
   status          Branch, commits behind/ahead, local changes, chezmoi drift, task.
+  capture [-DryRun]
+                  Pick what changed on this machine (repository files, dotfiles
+                  chezmoi copied, registry values), write it back, review the diff,
+                  then commit to main and push.
   system [-DryRun]
                   Machine registry values, the OpenSSH agent service and the NVIDIA
                   App: preview, then ask and apply in an administrator window. Never
@@ -523,6 +527,7 @@ function Invoke-DotsCommand {
         'system' { Invoke-SystemCommand }
         'sync' { Invoke-SyncCommand }
         'status' { Invoke-Status }
+        'capture' { & (Join-Path $PSScriptRoot 'capture.ps1') -DryRun:$DryRun -NonInteractive:$NonInteractive }
         'doctor' {
             if ((Invoke-Doctor) -gt 0) {
                 exit 1
