@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'dots.ps1 commands' {
     It 'lists every command in help' {
         $output = & $Dots help 6>&1 | Out-String
-        foreach ($name in @('bootstrap', 'packages', 'system', 'doctor', 'update', 'backup', 'cleanup')) {
+        foreach ($name in @('bootstrap', 'packages', 'sync', 'status', 'system', 'doctor', 'update', 'backup', 'cleanup')) {
             $output | Should -Match $name
         }
     }
@@ -20,14 +20,14 @@ Describe 'dots.ps1 commands' {
     }
 
     It 'completes a dry run with every step skipped' {
-        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip packages, git, accounts, fonts, shell, apply, desktop, wallpaper, system *>&1 | Out-String
+        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip packages, git, accounts, fonts, shell, apply, desktop, wallpaper, sync, system *>&1 | Out-String
         $output | Should -Match 'Skipping packages'
         $output | Should -Match 'Skipping apply'
         $output | Should -Match 'Bootstrap complete'
     }
 
     It 'accepts -Skip as one comma-separated string, as pwsh -File passes it' {
-        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip 'packages,git,accounts,fonts,shell,apply,desktop,wallpaper,system' *>&1 | Out-String
+        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip 'packages,git,accounts,fonts,shell,apply,desktop,wallpaper,sync,system' *>&1 | Out-String
         $output | Should -Match 'Skipping fonts'
         $output | Should -Match 'Bootstrap complete'
     }

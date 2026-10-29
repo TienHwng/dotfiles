@@ -89,13 +89,13 @@ PowerShell 7; options are PowerShell-style: `-DryRun`, `-NonInteractive`, `-Skip
 | Command | Behaviour | Status |
 |---|---|---|
 | `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps packages, git (also renders `~/.gitconfig`), accounts, fonts, shell, apply (everything except externals), desktop (KDE keys on Linux, HKCU values on Windows), wallpaper (fetches the wallpaper external, sets the wallpaper), and on Windows system (admin, last; skipped by `-NonInteractive`). The git step renders the gh credential helper so `gh auth login` in accounts does not offer to edit `~/.gitconfig`, and accounts comes before anything that clones a private repository; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
-| `dots sync` | `git pull --ff-only` → `chezmoi diff` → confirm → `chezmoi apply`. Reports manifest changes and offers `dots packages`. | `[Planned: P7]` |
-| `dots sync --check` | Fetch only; report how many commits the machine is behind. Used by the timer. | `[Planned: P7]` |
-| `dots capture` | TUI listing drift (files, KDE keys, registry values, packages outside the manifest); the chosen items are written back to the repository, then commit and push. | `[Planned: P7]` |
+| `dots sync` | Refuses local changes (Linux dotfiles are symlinks into the repository: commit them with `dots capture` first), fetches, shows `git log` and `git diff --stat` of the new commits, asks, `git merge --ff-only`, then runs the steps whose files changed (`packages.yaml` → packages + fonts, `kde.yaml` → desktop, `windows.yaml` → desktop + system on Windows, `.chezmoidata.yaml`/externals → apply + wallpaper, other `home/` files → apply, `root/`/`pkgbuilds/` → system on Linux), each with its preview and question. Never non-interactive. | `[Implemented]` (Bash and PowerShell) |
+| `dots sync --check [--notify]` | Fetch only (no prompts, 60 s timeout); print `behind N, ahead M`. `--notify`: one notification per upstream commit (stamp in `~/.local/state/dots/notified` or `%LOCALAPPDATA%\dots\notified`) with a *Sync now* button. Used by the timer and the Scheduled Task. | `[Implemented]` (`sync.sh`, `sync.ps1`) |
+| `dots capture` | TUI listing drift (files, KDE keys, registry values, packages outside the manifest); the chosen items are written back to the repository, then commit and push. | `[Planned: P7b]` |
 | `dots packages` | Install missing packages from the manifest after showing the list. | `[Implemented]` (Bash) |
-| `dots packages --diff` | List packages installed on the machine but absent from the manifest, and manifest packages not installed; later offer "add to manifest" or "uninstall". | `[Implemented]` (Bash, report only); interactive add/uninstall `[Planned: P7]` |
+| `dots packages --diff` | List packages installed on the machine but absent from the manifest, and manifest packages not installed; later offer "add to manifest" or "uninstall". | `[Implemented]` (Bash, report only); interactive add/uninstall `[Planned: P7b]` |
 | `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Implemented]` (Linux: `setup-system.sh`, boot theme packages then the `root/` instance with sudo; Windows): previews `setup-system.ps1 -DryRun` as the user, asks, then runs it in an administrator window (UAC) unless already elevated; also the last `bootstrap` step, skipped by `-NonInteractive` unless `-DryRun`. |
-| `dots status` | Commits ahead/behind, drift count, whether the sync timer is enabled. | `[Planned: P7]` |
+| `dots status` | Branch, commits behind/ahead (after a quick fetch), files changed in the repository, chezmoi drift, timer or task state. | `[Implemented]` (Bash and PowerShell) |
 | `dots doctor` | `chezmoi doctor` plus checks: required tools, Bitwarden agent reachable, sync timer enabled. | `[Implemented]` (Bash): required tools (git, chezmoi), optional tools (gum, gitleaks, fzf), manifest readable, Git hooks, system instance config, `chezmoi doctor` (warnings only). Bitwarden, LFS, and timer checks come with P3/P4/P7 |
 | `dots update` | Upgrade installed packages (`paru -Syu`, `winget upgrade --all`, `scoop update *`) and fonts. | `[Implemented]` (Bash, runs `update.sh`) |
 | `dots backup` | Tarball of the repository working tree (including uncommitted work) plus the user and system local chezmoi configs, to a chosen directory. The destination MUST survive the reinstall: an external drive or a cloud folder. Do not rely on the other OS's disk (the Windows disk is BitLocker-encrypted). `dots backup` warns when the destination is on the same disk as the running OS. Run it before wiping a machine. | `[Implemented]` (Bash, runs `backup.sh`; the system config is saved as `chezmoi-system.toml`) |
@@ -180,7 +180,7 @@ step; until then `dots` uses plain prompts.
 | `install-packages.sh --diff` report (arch, apt, brew) | `[Implemented]` |
 | Fonts (`nerdFonts` list) read from the manifest | `[Implemented]` |
 | Fedora backend | Removed |
-| Windows `--diff`, interactive "add to manifest / uninstall" | `[Planned: P7]` |
+| Windows `--diff`, interactive "add to manifest / uninstall" | `[Planned: P7b]` |
 
 Manifest format (`home/.chezmoidata/packages.yaml`):
 
@@ -514,15 +514,23 @@ already elevated. Step 4 is planned; step 5 belongs to the packages step.
   handled. The SDDM login background and the lock screen are part of L5.
 - Fonts: Scoop bucket `nerd-fonts` on Windows (per-user, no admin); packages on Arch.
 
-### L7 — Sync and capture `[Planned: P7]`
+### L7 — Sync `[Implemented: P7a]` and capture `[Planned: P7b]`
 
 **Repository → machine:**
 
-- Linux: a systemd **user** timer `dots-sync.timer` (every 6 h and at login) runs
-  `dots sync --check` and sends `notify-send` when the repository has new commits.
-  Unit files live in `home/dot_config/systemd/user/`.
-- Windows: a Scheduled Task (at logon and periodically) runs `dots.ps1 sync -Check` and shows a
-  toast via the BurntToast module.
+- Linux: the systemd **user** timer `dots-sync.timer` (2 minutes after the user manager starts,
+  i.e. at login, then every 6 hours) runs `dots-sync.service`:
+  `dots sync --check --notify`. `notify-send --action=sync='Sync now'` waits for a click;
+  *Sync now* opens `$TERMINAL`, kitty or konsole (`--hold`) running `dots sync`. Unit files
+  live in `home/dot_config/systemd/user/` (Linux-only in `.chezmoiignore`); the `sync` step
+  (`setup-sync.sh`) enables the timer.
+- Windows: the Scheduled Task `\dots\dots-sync` (at logon after 2 minutes, then every 6
+  hours) runs `conhost.exe --headless powershell.exe -File sync.ps1 -Check -Notify`, so no
+  console flashes. The toast uses Windows' own WinRT API from Windows PowerShell 5.1 (the
+  owner chose it over the BurntToast module; PowerShell 7 has no WinRT projection, so
+  `sync.ps1` re-runs itself under `powershell.exe` for the toast). Its *Sync now* button
+  opens the `dots-sync:` URL protocol (HKCU\Software\Classes), which starts Windows Terminal
+  with PowerShell 7 running `dots sync`. The `sync` step (`setup-sync.ps1`) registers both.
 - Neither applies anything. On the dual-boot machine the other OS learns about changes at its
   next login.
 
@@ -535,8 +543,9 @@ already elevated. Step 4 is planned; step 5 belongs to the packages step.
 | Windows registry | `Get-ItemProperty` vs `windows.yaml` | Update the YAML value |
 | Packages | `dots packages --diff` | Add to manifest, or uninstall |
 
-Then show `git diff`, ask for a commit message, commit, and push. This replaces the
-`chezmoi push` wrapper function in `home/dot_zshrc`.
+Then show `git diff`, ask for a commit message, commit to `main`, and push (owner's choice:
+captures are small changes, which go straight to `main`). This replaces the `chezmoi push`
+wrapper function in `home/dot_zshrc`.
 
 ---
 
@@ -559,7 +568,7 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 │   ├── .chezmoiscripts/            # run_onchange_ scripts      [Planned]
 │   ├── dot_config/                 # nvim, kitty, wezterm, ...  [Implemented]
 │   │   ├── chezmoi-root/           # system instance config     [Implemented]
-│   │   └── systemd/user/           # dots-sync timer            [Planned: P7]
+│   │   └── systemd/user/           # dots-sync timer + service  [Implemented]
 │   ├── dot_config/powershell/      # shared pwsh profile (Windows) [Implemented]
 │   ├── AppData/                    # Windows-only configs       [Planned, when one is managed]
 │   └── dot_wslconfig               # Windows-only               [Planned: platform]
@@ -595,7 +604,7 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 6. L6: pull wallpapers, install fonts, set the wallpaper.
 7. L5 (admin, UAC window): HKLM values, Fast Startup off, UTC clock, disable OpenSSH agent
    service, NVIDIA App; later Win11Debloat (P5c). Armoury Crate comes with L2 on ASUS hardware.
-8. L7: register the Scheduled Task.
+8. L7: register the Scheduled Task and the `dots-sync:` protocol (the `sync` step).
 9. Print the manual checklist: VS Code Settings Sync, browser, Steam, Discord.
 
 ### 5.2 Freshly installed CachyOS

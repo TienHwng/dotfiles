@@ -9,6 +9,7 @@
 .config/fastfetch
 .config/hypr
 .config/kitty
+.config/systemd
 .config/tmux
 .local/share/plasma
 {{- end }}

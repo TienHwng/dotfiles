@@ -14,6 +14,7 @@ param(
     [switch]$SkipApply,
     [switch]$SkipDesktop,
     [switch]$SkipWallpaper,
+    [switch]$SkipSync,
     [switch]$SkipSystem
 )
 
@@ -213,7 +214,7 @@ if (-not (Test-Path -LiteralPath $activeScriptRoot)) {
 }
 
 # The steps themselves (packages, git, accounts, fonts, shell, apply, desktop, wallpaper,
-# system) live in dots.ps1
+# sync, system) live in dots.ps1
 $skip = @()
 if ($SkipPackages) { $skip += 'packages' }
 if ($SkipGit) { $skip += 'git' }
@@ -223,6 +224,7 @@ if ($SkipShell) { $skip += 'shell' }
 if ($SkipApply) { $skip += 'apply' }
 if ($SkipDesktop) { $skip += 'desktop' }
 if ($SkipWallpaper) { $skip += 'wallpaper' }
+if ($SkipSync) { $skip += 'sync' }
 if ($SkipSystem) { $skip += 'system' }
 
 $dotsArguments = @{
