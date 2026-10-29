@@ -19,15 +19,9 @@ function Test-RegistryAvailable {
     return Test-Path -LiteralPath 'HKCU:\'
 }
 
-# Read from this checkout: on a fresh machine's dry-run chezmoi has no source directory yet
 function Get-RegistryEntry([string]$Scope) {
-    $sourceDir = Join-Path (Get-RepoRoot) 'home'
-    $json = & chezmoi --source $sourceDir execute-template "{{ .windows.registry.$Scope | toJson }}"
-    if ($LASTEXITCODE -ne 0) {
-        Stop-Tool "Could not read windows.registry.$Scope from home/.chezmoidata/windows.yaml."
-    }
-    # Parentheses enumerate the array: Windows PowerShell 5.1 emits it as one object
-    return @(($json | ConvertFrom-Json) | ForEach-Object { $_ })
+    # Windows PowerShell 5.1 emits a JSON array as one object; ForEach-Object enumerates it
+    return @((Get-RepoData ".windows.registry.$Scope") | ForEach-Object { $_ })
 }
 
 # Kind and value of one registry value, or $null when the key or the value is missing

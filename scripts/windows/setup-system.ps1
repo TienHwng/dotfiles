@@ -7,7 +7,8 @@ param(
 
 # The Windows system step (L5, admin): machine registry values from
 # windows.registry.machine (UTC hardware clock, Fast Startup off), then the OpenSSH
-# Authentication Agent service disabled so the Bitwarden SSH agent owns the pipe.
+# Authentication Agent service disabled so the Bitwarden SSH agent owns the pipe, and the
+# NVIDIA App on machines with an NVIDIA GPU.
 # With -DryRun it only reads and prints.
 
 Set-StrictMode -Version Latest
@@ -61,6 +62,9 @@ function Invoke-SystemStep([switch]$DryRun) {
 
     Write-Step 'OpenSSH Authentication Agent service'
     Invoke-AgentServiceStep -DryRun:$DryRun
+
+    Write-Step 'NVIDIA App'
+    & (Join-Path $PSScriptRoot 'install-nvidia-app.ps1') -DryRun:$DryRun
 
     Write-Success 'System step complete'
 }

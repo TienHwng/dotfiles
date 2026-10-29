@@ -19,7 +19,7 @@ that previews every change and asks before applying it.
 | Packages | Apps and CLI tools from one manifest (`home/.chezmoidata/packages.yaml`) | paru (CachyOS), winget for GUI apps + Scoop for CLI tools (Windows) |
 | Dotfiles | Shell, git, Neovim, terminal, prompt, SSH config | chezmoi (`home/`) |
 | Desktop settings | KDE Plasma keys (shortcuts, KWin, theme, splash); Windows user registry (HKCU) | `kwriteconfig6`, PowerShell |
-| System settings | `/etc`, GRUB, SDDM, Plymouth *(Linux planned)*; Windows machine registry (UTC clock, Fast Startup off), OpenSSH agent service off; debloat, drivers *(planned)* | second chezmoi instance (`root/`), PowerShell |
+| System settings | `/etc`, GRUB, SDDM, Plymouth *(Linux planned)*; Windows machine registry (UTC clock, Fast Startup off), OpenSSH agent service off, NVIDIA App; debloat, ASUS tools *(planned)* | second chezmoi instance (`root/`), PowerShell |
 | Assets | Wallpapers (private Git repo, set on KDE and Windows), Nerd Fonts | chezmoi external, `plasma-apply-wallpaperimage` / `SystemParametersInfo`, Scoop/paru |
 | Sync & capture *(planned)* | "Repository changed" notifications; pick local changes to commit back | systemd timer, Scheduled Task, `dots capture` |
 
@@ -106,7 +106,7 @@ comment at the top of each file documents its fields.
 | `home/.chezmoidata.yaml` | `features.*` switches (`installFonts`, `setupShell`, `desktop`, `wallpapers`: `false` skips that step), the wallpaper repository and current image, the SSH agent mode (`accounts.ssh`) | `dots bootstrap`; the `wallpaper` and `accounts` steps |
 | `home/.chezmoidata/packages.yaml` | Packages per manager (`mapped` entries name the package for paru, apt, brew, winget, Scoop; plus per-manager lists) and Nerd Fonts | `dots packages`, the `fonts` step |
 | `home/.chezmoidata/kde.yaml` | KDE Plasma: global theme, one entry per key (`file`, `group`, `key`, `value`: shortcuts, KWin, splash, power, default browser), fcitx5 input methods, and per-machine keys under `machines.<hostname>` (touchpad, mouse) | the `desktop` step (`scripts/unix/setup-desktop.sh`) |
-| `home/.chezmoidata/windows.yaml` | Registry values: `user` (HKCU) and `machine` (HKLM) | the `desktop` step on Windows; `dots system` (admin) |
+| `home/.chezmoidata/windows.yaml` | Registry values: `user` (HKCU) and `machine` (HKLM); `nvidia.app`: the pinned NVIDIA App installer (version, URL, SHA-256) | the `desktop` step on Windows; `dots system` (admin) |
 
 For example, to keep Night Color on, add one line to `kde.yaml`:
 

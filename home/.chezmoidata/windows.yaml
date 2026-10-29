@@ -2,6 +2,17 @@
 # Read by scripts/windows/setup-registry.ps1. type is a RegistryValueKind name:
 # DWord, QWord, String or ExpandString.
 windows:
+  # NVIDIA App, installed by dots system on machines with an NVIDIA GPU
+  # (scripts/windows/install-nvidia-app.ps1). It is not in the official winget repository,
+  # so the installer comes from NVIDIA, pinned here and checked against sha256 and its
+  # Authenticode signature. Once installed, the app updates itself and the driver; bump
+  # this pin only for fresh machines (take version and URL from nvidia.com/software/nvidia-app,
+  # then the SHA-256 of the downloaded file).
+  nvidia:
+    app:
+      version: 11.0.9.565
+      url: https://us.download.nvidia.com/nvapp/client/11.0.9.565/NVIDIA_app_v11.0.9.565.exe
+      sha256: d70cc78e9f4d89326dd106bdaeaa01c190b9354afa3136f6543c64743139576a
   registry:
     # HKCU: the desktop step, no admin. Explorer restarts when an Explorer key changes.
     user:

@@ -409,7 +409,7 @@ production.
   with regressions on recent kernels).
 - NVIDIA kernel parameters live in the GRUB template behind a `hasNvidia` data flag.
 
-#### Windows: admin step `[Implemented: P5b]`, debloat and drivers `[Planned: P5c]`
+#### Windows: admin step `[Implemented: P5b]`, NVIDIA App `[Implemented: P5c]`, debloat and ASUS tools `[Planned: P5c]`
 
 Order inside `dots system` on Windows:
 
@@ -422,17 +422,30 @@ Order inside `dots system` on Windows:
 2. Disable the OpenSSH Authentication Agent service so the Bitwarden agent works (L1); only
    when `.accounts.ssh.agent` is `bitwarden`.
 
-Steps 1–2 are `scripts/windows/setup-system.ps1`. `dots system` runs it with `-DryRun` as the
+3. NVIDIA App, only when a GPU with PCI vendor `10DE` is present and no NVIDIA App is
+   installed (uninstall entry `NVIDIA app`). Microsoft's winget repository does not carry it
+   (its validation runs in Windows Sandbox, which has no NVIDIA GPU), and the owner rejected
+   the third-party `winget-extras` source. So `windows.nvidia.app` in `windows.yaml` pins
+   version, URL (`us.download.nvidia.com`) and SHA-256; `install-nvidia-app.ps1` downloads,
+   checks the hash and a valid `NVIDIA Corporation` Authenticode signature, then runs the
+   installer with its own window. The app then updates itself and the driver, so the pin
+   only matters for fresh machines.
+
+Steps 1–3 are `scripts/windows/setup-system.ps1`. `dots system` runs it with `-DryRun` as the
 user (reading HKLM and the service needs no admin), asks, then starts it elevated with
 `Start-Process -Verb RunAs -Wait` (`-PauseOnExit` keeps that window open) unless the shell is
-already elevated. Steps 3–5 are P5c.
-3. Debloat/privacy with [Win11Debloat](https://github.com/Raphire/Win11Debloat), **pinned to a
+already elevated. Steps 4–6 are planned.
+
+4. Debloat/privacy with [Win11Debloat](https://github.com/Raphire/Win11Debloat), **pinned to a
    release, checksum-verified**, run with an explicit parameter list stored in the repository
-   plus `-Silent -CreateRestorePoint`. Never `-RunDefaults` blindly; never `irm | iex`.
-4. Drivers and ASUS tools: NVIDIA via winget (NVIDIA App) or Windows Update; replace Armoury
-   Crate with G-Helper (`seerge.g-helper`; needs .NET 8 and the ASUS System Control Interface
-   driver) and stop Armoury Crate services if present.
-5. WSL `[Planned: platform]`: `wsl --install -d Ubuntu`, then run the Unix bootstrap inside;
+   plus `-Silent -CreateRestorePoint`. Never `-RunDefaults` blindly; never `irm | iex`. The
+   release has no asset besides `Get.ps1`, so the pin is the tag's source archive
+   (`archive/refs/tags/<tag>.zip`) and its SHA-256. The owner picks the switches after looking
+   at the Windows machine; the two they named (hidden files, file extensions) are already HKCU
+   values in `windows.yaml`.
+5. ASUS tools: G-Helper instead of Armoury Crate is being weighed by the owner (G-Helper:
+   `seerge.g-helper`; needs .NET 8 and the ASUS System Control Interface driver).
+6. WSL `[Planned: platform]`: `wsl --install -d Ubuntu`, then run the Unix bootstrap inside;
    `home/dot_wslconfig` is applied on Windows only.
 
 ### L6 — Assets
@@ -548,7 +561,7 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 5. L4: HKCU values (diff table → confirm).
 6. L6: pull wallpapers, install fonts, set the wallpaper.
 7. L5 (admin, UAC window): HKLM values, Fast Startup off, UTC clock, disable OpenSSH agent
-   service; later Win11Debloat, G-Helper, NVIDIA (P5c).
+   service, NVIDIA App; later Win11Debloat and the ASUS tools (P5c).
 8. L7: register the Scheduled Task.
 9. Print the manual checklist: VS Code Settings Sync, browser, Steam, Discord.
 

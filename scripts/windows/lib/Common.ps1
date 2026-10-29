@@ -73,6 +73,17 @@ function Get-ChezmoiValue([string]$Expression, [string]$Fallback = '') {
     return $Fallback
 }
 
+# Chezmoi data from this checkout, parsed from JSON ($null when unset). Reads the checkout
+# because on a fresh machine's dry-run chezmoi has no source directory yet.
+function Get-RepoData([string]$Expression) {
+    $sourceDir = Join-Path (Get-RepoRoot) 'home'
+    $json = & chezmoi --source $sourceDir execute-template "{{ $Expression | toJson }}"
+    if ($LASTEXITCODE -ne 0) {
+        Stop-Tool "Could not read $Expression from home/.chezmoidata."
+    }
+    return ($json | ConvertFrom-Json)
+}
+
 function Format-NativeCommand([string]$FilePath, [string[]]$ArgumentList) {
     $parts = @($FilePath) + @($ArgumentList | ForEach-Object {
         if ($_ -match '[\s"]') {
