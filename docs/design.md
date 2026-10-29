@@ -197,6 +197,9 @@ packages:
       gui: true                 # skipped when DOTFILES_HEADLESS=1 (WSL, servers)
       brewCask: wezterm
       winget: wez.wezterm
+    - name: armoury-crate
+      vendor: ASUS              # only where the machine's manufacturer contains "ASUS"
+      winget: Asus.ArmouryCrate
   # Packages for one manager only
   arch: [paru, kitty, plymouth]
   apt: [build-essential]
@@ -215,6 +218,10 @@ How a list is read:
   parser, and PowerShell needs no JSON quoting. Bash wraps it in `manifest_list` (dedupes),
   PowerShell in `Get-ManifestList`.
 - An unknown list name renders nothing; an unset `DOTFILES_PACKAGE_LIST` fails.
+- `vendor` entries are hardware-specific: they render only when `DOTFILES_VENDOR` contains
+  the value, ignoring case. `manifest_list` fills it from `/sys/class/dmi/id/sys_vendor` and
+  `Get-ManifestList` from `Win32_ComputerSystem.Manufacturer` (e.g. `ASUSTeK COMPUTER INC.`),
+  unless it is already set; so VMs and CI runners skip them.
 - In a dry run without chezmoi (fresh machine), the install scripts warn and stop instead of failing.
 
 Rules:
@@ -233,7 +240,7 @@ Rules:
   `brew leaves` + casks; "in the manifest but not installed" compares with every installed
   package (`pacman -Qq`, `dpkg-query`, `brew list`), so dependencies count as installed.
 - `tests/manifest.bats` checks that every mapped entry has a unique name and at least one
-  package, rendering, the headless filter, `--diff`, and the font list.
+  package, rendering, the headless and vendor filters, `--diff`, and the font list.
 
 ### L3 — Dotfiles (user instance, `home/`)
 
@@ -409,7 +416,7 @@ production.
   with regressions on recent kernels).
 - NVIDIA kernel parameters live in the GRUB template behind a `hasNvidia` data flag.
 
-#### Windows: admin step `[Implemented: P5b]`, NVIDIA App `[Implemented: P5c]`, debloat and ASUS tools `[Planned: P5c]`
+#### Windows: admin step `[Implemented: P5b]`, NVIDIA App and ASUS tools `[Implemented: P5c]`, debloat `[Planned: P5c]`
 
 Order inside `dots system` on Windows:
 
@@ -434,7 +441,7 @@ Order inside `dots system` on Windows:
 Steps 1–3 are `scripts/windows/setup-system.ps1`. `dots system` runs it with `-DryRun` as the
 user (reading HKLM and the service needs no admin), asks, then starts it elevated with
 `Start-Process -Verb RunAs -Wait` (`-PauseOnExit` keeps that window open) unless the shell is
-already elevated. Steps 4–6 are planned.
+already elevated. Step 4 is planned; step 5 belongs to the packages step.
 
 4. Debloat/privacy with [Win11Debloat](https://github.com/Raphire/Win11Debloat), **pinned to a
    release, checksum-verified**, run with an explicit parameter list stored in the repository
@@ -443,8 +450,9 @@ already elevated. Steps 4–6 are planned.
    (`archive/refs/tags/<tag>.zip`) and its SHA-256. The owner picks the switches after looking
    at the Windows machine; the two they named (hidden files, file extensions) are already HKCU
    values in `windows.yaml`.
-5. ASUS tools: G-Helper instead of Armoury Crate is being weighed by the owner (G-Helper:
-   `seerge.g-helper`; needs .NET 8 and the ASUS System Control Interface driver).
+5. ASUS tools: the owner keeps Armoury Crate over G-Helper (2026-10-29). It is the
+   `Asus.ArmouryCrate` winget entry in the manifest with `vendor: ASUS`, so the packages step
+   installs it only on ASUS hardware (L2), not in `dots system`.
 6. WSL `[Planned: platform]`: `wsl --install -d Ubuntu`, then run the Unix bootstrap inside;
    `home/dot_wslconfig` is applied on Windows only.
 
@@ -561,7 +569,7 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 5. L4: HKCU values (diff table → confirm).
 6. L6: pull wallpapers, install fonts, set the wallpaper.
 7. L5 (admin, UAC window): HKLM values, Fast Startup off, UTC clock, disable OpenSSH agent
-   service, NVIDIA App; later Win11Debloat and the ASUS tools (P5c).
+   service, NVIDIA App; later Win11Debloat (P5c). Armoury Crate comes with L2 on ASUS hardware.
 8. L7: register the Scheduled Task.
 9. Print the manual checklist: VS Code Settings Sync, browser, Steam, Discord.
 
@@ -606,7 +614,7 @@ user timer.
 | PowerShell parse check | `[Implemented]` |
 | Ownership tests (`tests/ownership.bats`) | `[Implemented]` |
 | gitleaks (pre-commit hook, `make secrets`, CI history scan) | `[Implemented]` |
-| Manifest tests (`tests/manifest.bats`): unique names, at least one package per mapped entry, rendering, headless filter, `--diff` | `[Implemented]` |
+| Manifest tests (`tests/manifest.bats`): unique names, at least one package per mapped entry, rendering, headless and vendor filters, `--diff` | `[Implemented]` |
 | Pester (`tests/windows`, `make test-windows`) + PSScriptAnalyzer (`make lint-windows`) for `scripts/windows` | `[Implemented]` |
 | `windows-latest` job: config rendered with fake prompt values, analyzer, Pester, `bootstrap.ps1 -DryRun -NonInteractive` on Windows PowerShell 5.1 and PowerShell 7 | `[Implemented]` |
 | `archlinux` container job, as a regular user: Bats tests, template render, `bootstrap.sh --dry-run --non-interactive` (every step) with fake prompt values, HOME unchanged | `[Implemented]` |
