@@ -1,3 +1,8 @@
+# Every text file is LF in the working tree on every OS. Git for Windows ships
+# core.autocrlf=true, so a fresh Windows clone (made before home/dot_gitconfig.tmpl
+# renders ~/.gitconfig with autocrlf=false) would otherwise get CRLF files that
+# then show as modified, and dots sync refuses a dirty tree.
+* text=auto eol=lf
 *.sh text eol=lf
 *.bash text eol=lf
 *.ps1 text eol=lf

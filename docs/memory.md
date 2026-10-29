@@ -208,6 +208,15 @@ PowerShell:
   wrap prompts in a small function and mock that.
 - Step functions may write to the pipeline: never use their output as a return value.
 - Windows paths ignore case: `Pictures\wallpaper` is the owner's existing `Pictures\WALLPAPER`.
+- Git for Windows sets `core.autocrlf=true` system-wide, so the bootstrap clone got CRLF files;
+  once the `git` step rendered `~/.gitconfig` (`autocrlf=false`), 28 files showed as modified
+  and `dots sync` refused to run (2026-10-29). Fixed with `* text=auto eol=lf` in
+  `.gitattributes`; keep it.
+- On a fresh Windows, the owner's first bootstrap stopped early: the `shell` step never ran,
+  so `dots` was undefined in pwsh. `dots doctor` shows it ("Profile stub"); `dots shell`
+  fixes it.
+- `dots` asks `[Y]es / [s]kip / [q]uit` and Enter means yes. The owner wants to understand each
+  step before accepting: run the dry-run first and explain what it changes on this machine.
 - A child `pwsh` on Windows takes `$HOME` from the profile folder, not `$env:HOME`: tests
   that run a script in a child process are not isolated from the real profile there.
 - WinRT toasts work only in Windows PowerShell 5.1; PowerShell 7 has no WinRT projection.
