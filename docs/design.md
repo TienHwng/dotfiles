@@ -93,7 +93,7 @@ PowerShell 7; options are PowerShell-style: `-DryRun`, `-NonInteractive`, `-Skip
 | `dots sync --check [--notify]` | Fetch only (no prompts, 60 s timeout); print `behind N, ahead M`. `--notify`: one notification per upstream commit (stamp in `~/.local/state/dots/notified` or `%LOCALAPPDATA%\dots\notified`) with a *Sync now* button. Used by the timer and the Scheduled Task. | `[Implemented]` (`sync.sh`, `sync.ps1`) |
 | `dots capture` | One picker (`gum filter --no-limit`, numbered fallback) over what differs from the repository; the chosen items are written back, then `git diff`, a message, commit to `main` and push. Refuses non-interactive runs, other branches, and an already staged index. `--dry-run` only lists. | `[Implemented]` (`capture.sh`: files, re-add, KDE keys, packages; `capture.ps1`: files, re-add, registry values) |
 | `dots packages` | Install missing packages from the manifest after showing the list. | `[Implemented]` (Bash) |
-| `dots packages --diff` | List packages installed on the machine but absent from the manifest, and manifest packages not installed; later offer "add to manifest" or "uninstall". | `[Implemented]` (Bash, report only); interactive add/uninstall `[Planned: P7b]` |
+| `dots packages --diff` | List packages installed on the machine but absent from the manifest (packages built from `pkgbuilds/` count as known), and manifest packages not installed. `dots capture` offers adding the extras to the manifest or uninstalling them. | `[Implemented]` (Bash `--diff`/`--extra`; PowerShell `dots packages -Diff` through `package-diff.ps1`: `winget export` and Scoop's `apps` folder) |
 | `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Implemented]` (Linux: `setup-system.sh`, boot theme packages then the `root/` instance with sudo; Windows): previews `setup-system.ps1 -DryRun` as the user, asks, then runs it in an administrator window (UAC) unless already elevated; also the last `bootstrap` step, skipped by `-NonInteractive` unless `-DryRun`. |
 | `dots status` | Branch, commits behind/ahead (after a quick fetch), files changed in the repository, chezmoi drift, timer or task state. | `[Implemented]` (Bash and PowerShell) |
 | `dots doctor` | `chezmoi doctor` plus checks: required tools, Bitwarden agent reachable, sync timer enabled. | `[Implemented]` (Bash): required tools (git, chezmoi), optional tools (gum, gitleaks, fzf), manifest readable, Git hooks, system instance config, `chezmoi doctor` (warnings only). Bitwarden, LFS, and timer checks come with P3/P4/P7 |
@@ -180,8 +180,7 @@ step; until then `dots` uses plain prompts.
 | `install-packages.sh --diff` report (arch, apt, brew) | `[Implemented]` |
 | Fonts (`nerdFonts` list) read from the manifest | `[Implemented]` |
 | Fedora backend | Removed |
-| Interactive "add to manifest" (`dots capture`, Linux) | `[Implemented]` |
-| Windows `--diff`, "uninstall" from the picker | `[Planned]` |
+| Add to the manifest or uninstall from the `dots capture` package picker (Linux and Windows), Windows `-Diff` | `[Implemented]` |
 
 Manifest format (`home/.chezmoidata/packages.yaml`):
 
@@ -274,10 +273,16 @@ Rules:
 - Windows-only app configs, when one is managed, live under `home/AppData/…`.
 - Apps with their own sync are not configured here. `dots bootstrap` ends by printing
   "sign in to sync" reminders for them.
-- zsh plugins: `.zshrc` enables `zsh-autosuggestions`, `zsh-syntax-highlighting` (both in
-  `home/dot_oh-my-zsh/custom/plugins`), and `zsh-history-substring-search`, `auto-notify`
-  (MichaelAquilina/zsh-auto-notify), `you-should-use` (MichaelAquilina/zsh-you-should-use),
-  which the repository does not provide yet. Open gap: add them (e.g. as chezmoi externals).
+- zsh plugins: `.zshrc` enables `zsh-autosuggestions` and `zsh-syntax-highlighting` through
+  shims in `home/dot_oh-my-zsh/custom/plugins` that source the Arch packages, and
+  `zsh-history-substring-search`, `auto-notify` (MichaelAquilina/zsh-auto-notify) and
+  `you-should-use` (MichaelAquilina/zsh-you-should-use) as `git-repo` externals in
+  `.chezmoiexternal.toml.tmpl` (Linux only; the AUR packages are unmaintained or unvoted).
+  The `apply` step applies `~/.oh-my-zsh/custom/plugins` as a second target, because its
+  main apply excludes externals for the private wallpaper repository. `oh-my-zsh-git`, the two
+  plugin packages and `zsh-theme-powerlevel10k` are in the manifest. `.zshrc` pins
+  `ZSH_CUSTOM` to `~/.oh-my-zsh/custom`, so the plugins load when Oh My Zsh itself comes from
+  `/usr/share`.
 
 ### L4 — Desktop settings, user scope
 
@@ -335,8 +340,13 @@ kde:
   confirmed. Gate: `features.desktop`.
 - `dots capture` compares managed keys (`kreadconfig6`) with the YAML and writes a chosen
   current value back into the entry that applies on this host (`kde.machines.<host>` before
-  the shared list). `[Planned]`: `dots capture kde --discover` diffs snapshots of `~/.config/*rc` taken before and after a
-  change in System Settings, so new keys can be picked.
+  the shared list).
+- `dots capture kde --discover` `[Implemented]` flattens `~/.config/*rc`, `kdeglobals` and
+  `mimeapps.list` (minus the globs in `kde.discover.ignore`: applets, panels, activities,
+  `*staterc`), waits while the owner changes settings in System Settings, flattens them
+  again, and offers every new or changed key (values decoded with `kreadconfig6`; localized
+  keys and deletions are left out). Chosen keys are appended to `kde.settings` or to
+  `kde.machines.<host>.settings` (created when missing), then committed like any capture.
 - Panel/widget layout (`plasma-org.kde.plasma.desktop-appletsrc`) is screen-specific and stays
   manual. Scripted layouts are `[Future]`.
 - Display layout (KScreen: arrangement, refresh rate, scale) is per machine and per monitor,
@@ -546,12 +556,11 @@ item that opens a second picker.
 | Copied dotfiles | `chezmoi status`, first column `M` (edited since chezmoi wrote them: Windows copy mode, templates and private files on Linux) | `chezmoi re-add`, then `git add` the source; templates are listed for a manual edit |
 | KDE keys (Linux) | `kreadconfig6` vs `scripts/kde-settings.tmpl` | Rewrite `value:` of that one-line entry in `kde.yaml` (the host's machine entry first) |
 | Registry (Windows) | `Get-RegistryCurrent` vs `windows.yaml` (same kind only) | Rewrite `value:` of that entry in `windows.yaml` |
-| Packages (Arch, apt) | `install-packages.sh --extra` | Append the chosen names to the platform's list in `packages.yaml` |
+| Packages | `install-packages.sh --extra` (Arch, apt; packages from `pkgbuilds/` count as known) / `package-diff.ps1` (`winget export`, Scoop apps; fonts as `<font>-NF`) | Add to the manifest (appended to the platform, `winget` or `scoop` list; an empty `[]` becomes a block list), or uninstall (`paru -Rns` / `apt-get remove` / `winget uninstall` / `scoop uninstall`) |
 
 Only the chosen items are staged; the rest stays in the working tree. Then show `git diff`,
 ask for a commit message, commit to `main`, and push (owner's choice: captures are small
-changes, which go straight to `main`). Answering no unstages everything. `[Planned]`:
-uninstalling a package from the picker, Windows packages (no Windows `--diff` yet). It replaced the `chezmoi push` wrapper in `home/dot_zshrc`, which now points to
+changes, which go straight to `main`). Answering no unstages everything. It replaced the `chezmoi push` wrapper in `home/dot_zshrc`, which now points to
 `dots capture`.
 
 ---

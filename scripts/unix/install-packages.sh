@@ -132,8 +132,22 @@ install_paru() {
   has paru || die 'paru was installed but is not available in PATH.'
 }
 
-# Extra = explicitly installed but not in the manifest; missing = in the manifest
-# but not installed at all (dependencies count as installed).
+# Packages built from pkgbuilds/ (dots system installs them); they count as known
+local_pkgbuild_packages() {
+  local pkgbuild
+  for pkgbuild in "$(repo_root)"/pkgbuilds/*/PKGBUILD; do
+    [[ -f "$pkgbuild" ]] || continue
+    # shellcheck disable=SC2154 # pkgname comes from the PKGBUILD
+    (
+      # shellcheck source=/dev/null
+      source "$pkgbuild"
+      printf '%s\n' "${pkgname[@]}"
+    )
+  done
+}
+
+# Extra = explicitly installed but not in the manifest (nor in pkgbuilds/); missing = in
+# the manifest but not installed at all (dependencies count as installed).
 show_package_diff() {
   local explicit all manifest extra missing
 
@@ -162,7 +176,8 @@ show_package_diff() {
   esac
 
   manifest="$(printf '%s\n' "${PACKAGES[@]}" "${FORMULAE[@]}" "${CASKS[@]}" | sed '/^$/d' | sort -u)"
-  extra="$(comm -13 <(printf '%s\n' "$manifest") <(sort -u <<<"$explicit") | sed '/^$/d')"
+  extra="$(comm -13 <(printf '%s\n' "$manifest" "$(local_pkgbuild_packages)" | sed '/^$/d' | sort -u) \
+    <(sort -u <<<"$explicit") | sed '/^$/d')"
   if [[ "$SHOW_DIFF" == 'extra' ]]; then
     [[ -z "$extra" ]] || printf '%s\n' "$extra"
     return 0

@@ -95,7 +95,7 @@ notifies with a *Sync now* button when new commits arrived. On CachyOS `~/.local
 chezmoi-managed symlink to `scripts/unix/dots`. On Windows, `dots` is a function in the shared
 PowerShell profile (`~/.config/powershell/profile.ps1`) that runs `scripts/windows/dots.ps1`,
 with PowerShell-style options (`dots bootstrap -DryRun`, `dots packages`). `dots packages --diff`
-is CachyOS-only for now. `just` / `make` recipes remain available (`make help` lists them).
+(`dots packages -Diff` on Windows) lists packages installed outside the manifest. `just` / `make` recipes remain available (`make help` lists them).
 
 ## Configuration
 

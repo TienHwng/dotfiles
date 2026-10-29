@@ -12,6 +12,8 @@ param(
     # sync
     [switch]$Check,
     [switch]$Notify,
+    # packages
+    [switch]$Diff,
     # update
     [switch]$Packages,
     [switch]$Fonts,
@@ -40,9 +42,9 @@ Commands:
                   fonts, shell, apply, desktop, wallpaper, sync, system. Each step
                   shows a preview and asks run / skip / quit before changing anything.
                   -NonInteractive skips system unless -DryRun is set.
-  packages [-DryRun]
+  packages [-DryRun | -Diff]
                   Install missing WinGet and Scoop packages from the manifest
-                  (preview, then ask).
+                  (preview, then ask), or list packages installed outside it.
   sync [-Check [-Notify]]
                   Pull new commits (fast-forward only, after showing them), then run
                   the steps whose files changed, each with a preview. -Check only
@@ -51,7 +53,7 @@ Commands:
   status          Branch, commits behind/ahead, local changes, chezmoi drift, task.
   capture [-DryRun]
                   Pick what changed on this machine (repository files, dotfiles
-                  chezmoi copied, registry values), write it back, review the diff,
+                  chezmoi copied, registry values, packages), write it back, review the diff,
                   then commit to main and push.
   system [-DryRun]
                   Machine registry values, the OpenSSH agent service and the NVIDIA
@@ -393,6 +395,10 @@ function Invoke-Bootstrap {
 }
 
 function Invoke-PackageInstall {
+    if ($Diff) {
+        & (Join-Path $PSScriptRoot 'package-diff.ps1')
+        return
+    }
     $installer = Join-Path $PSScriptRoot 'install-packages.ps1'
     if ($DryRun -or $NonInteractive) {
         & $installer -DryRun:$DryRun -Upgrade:$Upgrade

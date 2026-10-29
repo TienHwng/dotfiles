@@ -13,6 +13,7 @@ usage() {
   cat <<'EOF'
 Usage:
   ./scripts/unix/capture.sh [--dry-run]
+  ./scripts/unix/capture.sh kde --discover
 
 Lists what changed on this machine but not in the repository, lets you pick items, writes
 them back into the repository, then shows the diff, asks for a message, commits to main
@@ -23,6 +24,10 @@ and pushes:
   packages  installed packages that are not in the manifest (a second picker)
 
 --dry-run lists the items and changes nothing.
+
+kde --discover snapshots the KDE config files, waits while you change settings in System
+Settings, then offers the keys that changed; the chosen ones are added to kde.yaml for every
+machine or only this one (files in kde.discover.ignore are skipped).
 EOF
 }
 
@@ -196,6 +201,187 @@ add_packages() {
   mv "$PACKAGES_YAML.new" "$PACKAGES_YAML"
 }
 
+# Prints add, uninstall, or skip for the $1 chosen packages
+choose_package_action() {
+  local answer
+  if use_gum; then
+    answer="$(gum choose --header "$1 package(s)" 'Add to the manifest' 'Uninstall' 'Skip')" || answer='Skip'
+  else
+    read -r -p "$1 package(s): [a]dd to the manifest / [u]ninstall / [s]kip: " answer <&3 || answer=''
+  fi
+  case "${answer,,}" in
+    a | add*) printf 'add\n' ;;
+    u | uninstall) printf 'uninstall\n' ;;
+    *) printf 'skip\n' ;;
+  esac
+}
+
+# Removes the packages (on Arch with the dependencies nothing else needs); the package
+# manager asks before removing anything
+uninstall_packages() {
+  case "$(detect_platform)" in
+    apt) run_root apt-get remove "$@" ;;
+    *)
+      if has paru; then
+        paru -Rns "$@"
+      else
+        run_root pacman -Rns "$@"
+      fi
+      ;;
+  esac
+}
+
+# A YAML flow scalar: plain when safe, else double-quoted
+yaml_scalar() {
+  local text="$1"
+  if [[ "$text" =~ ^[A-Za-z_][A-Za-z0-9_.+\ -]*$ && "$text" != *' ' ]]; then
+    printf '%s' "$text"
+  else
+    text="${text//\\/\\\\}"
+    printf '"%s"' "${text//\"/\\\"}"
+  fi
+}
+
+# One kde.yaml entry line (without indentation) for file, groups (SEP-joined), key, value
+kde_entry() {
+  local file="$1" groups="$2" key="$3" value="$4" group joined=''
+  local -a list
+  IFS="$SEP" read -r -a list <<<"$groups"
+  for group in "${list[@]}"; do
+    joined+="${joined:+, }$(yaml_scalar "$group")"
+  done
+  value="${value//\\/\\\\}"
+  printf -- '- { file: %s, group: [%s], key: %s, value: "%s" }' \
+    "$file" "$joined" "$(yaml_scalar "$key")" "${value//\"/\\\"}"
+}
+
+# Appends an entry line to kde.settings (HOST empty) or to kde.machines.HOST.settings,
+# creating the machine section when it is missing
+append_kde_entry() {
+  local host="$1" entry="$2"
+  HOST="$host" ENTRY="$entry" awk '
+    BEGIN { host = ENVIRON["HOST"]; entry = ENVIRON["ENTRY"] }
+    { lines[NR] = $0 }
+    /^  settings:/ { shared = 1; next }
+    /^  machines:/ { shared = 0; machines = NR; mine = 0; next }
+    /^  [A-Za-z]/ { shared = 0 }
+    shared && /^    - / { last_shared = NR }
+    machines && /^    [A-Za-z0-9_.-]+:[ \t]*$/ { mine = ($0 ~ "^    " host ":") }
+    machines && mine && /^        - / { last_mine = NR }
+    END {
+      if (host == "") at = last_shared
+      else at = last_mine
+      for (i = 1; i <= NR; i++) {
+        print lines[i]
+        if (i == at) print (host == "" ? "    " : "        ") entry
+      }
+      if (host != "" && !at) {
+        if (!machines) print "  machines:"
+        print "    " host ":"
+        print "      settings:"
+        print "        " entry
+      }
+    }
+  ' "$KDE_YAML" >"$KDE_YAML.new"
+  mv "$KDE_YAML.new" "$KDE_YAML"
+}
+
+# Flat file<TAB>groups<TAB>key<TAB>raw value lines of the KDE config files, minus the files
+# kde.discover.ignore names; keys outside a group and localized keys (Name[vi]) are left out
+kde_snapshot() {
+  local dir="${XDG_CONFIG_HOME:-$HOME/.config}" file name pattern skip
+  local -a ignore
+  mapfile -t ignore < <(chezmoi --source "$ROOT_DIR/home" execute-template \
+    '{{ range .kde.discover.ignore }}{{ . }}{{ "\n" }}{{ end }}')
+  for file in "$dir"/*rc "$dir"/kdeglobals "$dir"/mimeapps.list; do
+    [[ -f "$file" ]] || continue
+    name="${file##*/}"
+    skip=0
+    for pattern in "${ignore[@]}"; do
+      # shellcheck disable=SC2053 # the ignore entries are globs
+      [[ -n "$pattern" && "$name" == $pattern ]] && skip=1
+    done
+    ((skip)) && continue
+    SEP="$SEP" awk -v F="$name" '
+      BEGIN { sep = ENVIRON["SEP"] }
+      /^[ \t]*(#|$)/ { next }
+      /^\[/ { group = $0; sub(/^\[/, "", group); sub(/\][ \t]*$/, "", group); gsub(/\]\[/, sep, group); next }
+      {
+        i = index($0, "=")
+        if (!i || group == "") next
+        key = substr($0, 1, i - 1)
+        if (key ~ /\[/) next
+        print F "\t" group "\t" key "\t" substr($0, i + 1)
+      }
+    ' "$file"
+  done | LC_ALL=C sort
+}
+
+# Snapshot, let the person change settings, snapshot again; offer the new or changed keys
+discover_kde() {
+  local before after host scope line file groups key value old label
+  local -a changed labels chosen entries=()
+  local -a group_args list
+
+  if ! has kreadconfig6 || ! has chezmoi; then
+    die 'Discovering KDE keys needs KDE Plasma 6 (kreadconfig6) and chezmoi.'
+  fi
+  before="$(mktemp)"
+  after="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$before' '$after'" RETURN
+
+  kde_snapshot >"$before"
+  log_step 'Change the settings you want to keep in System Settings now, then press Enter here.'
+  read -r _ <&3 || true
+  kde_snapshot >"$after"
+
+  mapfile -t changed < <(LC_ALL=C comm -13 "$before" "$after")
+  for line in "${changed[@]}"; do
+    IFS=$'\t' read -r file groups key _ <<<"$line"
+    group_args=()
+    IFS="$SEP" read -r -a list <<<"$groups"
+    for group in "${list[@]}"; do
+      group_args+=(--group "$group")
+    done
+    # kreadconfig6 decodes KConfig escapes that the raw file keeps
+    value="$(kreadconfig6 --file "$file" "${group_args[@]}" --key "$key")"
+    old="$(awk -F'\t' -v f="$file" -v g="$groups" -v k="$key" '$1 == f && $2 == g && $3 == k { print $4; exit }' "$before")"
+    label="$file [${groups//$SEP/][}] $key: ${old:-<unset>} -> $value"
+    labels+=("$label")
+    entries+=("$label"$'\t'"$(kde_entry "$file" "$groups" "$key" "$value")")
+  done
+
+  if ((${#labels[@]} == 0)); then
+    log_success 'No KDE key changed'
+    return 0
+  fi
+  mapfile -t chosen < <(printf '%s\n' "${labels[@]}" | pick_lines 'KDE keys to keep in kde.yaml')
+  ((${#chosen[@]})) || return 0
+
+  host="$(chezmoi --source "$ROOT_DIR/home" execute-template '{{ .chezmoi.hostname }}')"
+  if use_gum; then
+    scope="$(gum choose --header 'Keep these keys for' 'Every machine' "Only $host")" || scope=''
+  else
+    read -r -p "Keep these keys for [e]very machine or [o]nly $host? " scope <&3 || scope=''
+  fi
+  case "${scope,,}" in
+    e | every*) host='' ;;
+    o | only*) ;;
+    *)
+      log_warn 'Nothing written'
+      return 0
+      ;;
+  esac
+
+  for label in "${chosen[@]}"; do
+    for line in "${entries[@]}"; do
+      [[ "${line%%$'\t'*}" == "$label" ]] && append_kde_entry "$host" "${line#*$'\t'}"
+    done
+  done
+  repo_git add -- "$KDE_YAML"
+}
+
 capture_item() {
   local kind="$1" payload="$2" source
   local -a parts
@@ -218,10 +404,16 @@ capture_item() {
       ;;
     packages)
       local -a chosen
-      mapfile -t chosen < <("$SCRIPT_DIR/install-packages.sh" --extra | pick_lines 'Packages to add to the manifest')
+      mapfile -t chosen < <("$SCRIPT_DIR/install-packages.sh" --extra | pick_lines 'Packages outside the manifest')
       ((${#chosen[@]})) || return 0
-      add_packages "${chosen[@]}"
-      repo_git add -- "$PACKAGES_YAML"
+      case "$(choose_package_action "${#chosen[@]}")" in
+        add)
+          add_packages "${chosen[@]}"
+          repo_git add -- "$PACKAGES_YAML"
+          ;;
+        uninstall) uninstall_packages "${chosen[@]}" ;;
+        *) log_warn 'Packages left alone' ;;
+      esac
       ;;
   esac
 }
@@ -252,15 +444,27 @@ commit_and_push() {
   log_success "Committed and pushed to origin/$BRANCH: $message"
 }
 
+check_repo_ready() {
+  [[ "$(repo_git branch --show-current)" == "$BRANCH" ]] \
+    || die "Captures commit to $BRANCH; switch the repository to it first (git -C $ROOT_DIR switch $BRANCH)."
+  repo_git diff --cached --quiet || die 'The repository already has staged changes; commit or unstage them first.'
+}
+
 main() {
   local label item kind payload
   local -a chosen
 
+  local discover=0
   while (($#)); do
     case "$1" in
       --dry-run)
         DRY_RUN=1
         shift
+        ;;
+      kde)
+        [[ "${2:-}" == '--discover' ]] || die 'Usage: dots capture kde --discover'
+        discover=1
+        shift 2
         ;;
       -h | --help)
         usage
@@ -269,6 +473,15 @@ main() {
       *) die "Unknown option: $1" ;;
     esac
   done
+
+  if ((discover)); then
+    [[ "$NON_INTERACTIVE" == '1' ]] && die 'dots capture asks what to keep; it never runs non-interactively.'
+    check_repo_ready
+    exec 3<"${DOTS_TTY:-/dev/tty}"
+    discover_kde
+    commit_and_push
+    return 0
+  fi
 
   collect_repo_files
   collect_chezmoi_drift
@@ -290,9 +503,7 @@ main() {
     exit 0
   fi
   [[ "$NON_INTERACTIVE" == '1' ]] && die 'dots capture asks what to keep; it never runs non-interactively.'
-  [[ "$(repo_git branch --show-current)" == "$BRANCH" ]] \
-    || die "Captures commit to $BRANCH; switch the repository to it first (git -C $ROOT_DIR switch $BRANCH)."
-  repo_git diff --cached --quiet || die 'The repository already has staged changes; commit or unstage them first.'
+  check_repo_ready
   # Answers come from the terminal: stdin carries the lists to the pickers (DOTS_TTY for tests)
   exec 3<"${DOTS_TTY:-/dev/tty}"
 

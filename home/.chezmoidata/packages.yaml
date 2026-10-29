@@ -196,6 +196,13 @@ packages:
     - poppler
     - resvg
     - bats
+    # zsh: Oh My Zsh (falls back to /usr/share/oh-my-zsh), plugins that the shims in
+    # home/dot_oh-my-zsh/custom/plugins source, Powerlevel10k for PROMPT_ENGINE=p10k.
+    # auto-notify, you-should-use and history-substring-search are externals instead.
+    - oh-my-zsh-git
+    - zsh-autosuggestions
+    - zsh-syntax-highlighting
+    - zsh-theme-powerlevel10k
     # Fun
     - cava
     - cbonsai

@@ -9,9 +9,17 @@
 #              such as one laptop's touchpad. They come after the shared settings; an entry with
 #              the same file, group and key replaces the shared one on that machine.
 # Screen-specific state (panels, tiling, display layout) stays manual.
+# discover:    files `dots capture kde --discover` skips (shell globs): screen, panel and
+#              session state that Plasma rewrites on its own.
 
 kde:
   lookAndFeel: org.kde.breezetwilight.desktop
+  discover:
+    ignore:
+      - plasma-org.kde.plasma.desktop-appletsrc
+      - plasmashellrc
+      - kactivitymanagerd*
+      - "*staterc"
   # fcitx5 input methods (the "Default" group): first the keyboard layout, then the input
   # methods in switching order; default is the one the trigger key activates. fcitx5 rewrites its
   # profile from memory, so a running fcitx5 gets the list over D-Bus, not through the file.

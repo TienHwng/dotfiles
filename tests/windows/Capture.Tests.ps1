@@ -18,6 +18,7 @@ Describe 'capture.ps1' {
         Mock Invoke-RepoGit { @() }
         Mock Get-ChezmoiDrift { @() }
         Mock Test-RegistryAvailable { $false }
+        Mock Get-ExtraPackage { @() }
     }
 
     It 'offers repository files, copied dotfiles, and lists templates apart' {
@@ -94,5 +95,77 @@ Describe 'capture.ps1' {
         Should -Invoke Invoke-RepoGit -ParameterFilter { $Arguments[0] -eq 'add' -and $Arguments[-1] -eq 'docs/a.md' } -Times 0
         $script:Native[0] | Should -Match 'commit --quiet -m Capture local changes from'
         $script:Native[1] | Should -Match 'push --quiet origin main$'
+    }
+}
+
+Describe 'package-diff.ps1' {
+    BeforeEach {
+        . (Join-Path $RepoRoot 'scripts\windows\package-diff.ps1')
+        $script:PackagesYaml = Join-Path $TestDrive 'packages.yaml'
+        Set-Content -LiteralPath $script:PackagesYaml -Encoding ASCII -Value @(
+            'packages:',
+            '  winget:',
+            '    - Microsoft.PowerShell',
+            '',
+            '  scoop: []',
+            '',
+            '  nerdFonts:',
+            '    - JetBrainsMono'
+        )
+        Mock Get-ManifestList { @('Microsoft.PowerShell') } -ParameterFilter { $List -eq 'winget' }
+        Mock Get-ManifestList { @('extras/vlc', 'ripgrep') } -ParameterFilter { $List -eq 'scoop' }
+        Mock Get-ManifestList { @('JetBrainsMono') } -ParameterFilter { $List -eq 'nerdFonts' }
+        Mock Get-InstalledWingetId { @('Microsoft.PowerShell', 'Valve.Steam') }
+        Mock Get-InstalledScoopApp { @('vlc', 'JetBrainsMono-NF', '7zip') }
+    }
+
+    It 'lists installed packages outside the manifest, bucket and font names included' {
+        $extra = @(Get-ExtraPackage | ForEach-Object { "$($_.Manager):$($_.Name)" })
+
+        $extra | Should -Be @('winget:Valve.Steam', 'scoop:7zip')
+        @(Get-MissingPackage | ForEach-Object { "$($_.Manager):$($_.Name)" }) | Should -Be @('scoop:ripgrep')
+    }
+
+    It 'appends to a block list and turns an empty list into one' {
+        Add-ManifestPackage 'winget' @('Valve.Steam')
+        Add-ManifestPackage 'scoop' @('7zip', 'fd')
+
+        $lines = Get-Content -LiteralPath $script:PackagesYaml
+        $lines[2..3] | Should -Be @('    - Microsoft.PowerShell', '    - Valve.Steam')
+        $lines[5..7] | Should -Be @('  scoop:', '    - 7zip', '    - fd')
+        $lines[-1] | Should -Be '    - JetBrainsMono'
+    }
+}
+
+Describe 'capture.ps1 packages' {
+    BeforeEach {
+        . $Capture
+        $script:Extra = @(
+            [pscustomobject]@{ Manager = 'winget'; Name = 'Valve.Steam' },
+            [pscustomobject]@{ Manager = 'scoop'; Name = '7zip' }
+        )
+        Mock Add-ManifestPackage { }
+        Mock Uninstall-ExtraPackage { }
+        Mock Invoke-RepoGit { @() }
+        Mock Select-CaptureLabel { @('winget  Valve.Steam') }
+    }
+
+    It 'adds the chosen packages to the manifest' {
+        Mock Read-CaptureAnswer { 'a' }
+
+        Invoke-PackageCapture $script:Extra
+
+        Should -Invoke Add-ManifestPackage -Times 1 -ParameterFilter { $Manager -eq 'winget' -and $Name -eq 'Valve.Steam' }
+        Should -Invoke Add-ManifestPackage -Times 0 -ParameterFilter { $Manager -eq 'scoop' }
+        Should -Invoke Uninstall-ExtraPackage -Times 0
+    }
+
+    It 'uninstalls the chosen packages instead when asked' {
+        Mock Read-CaptureAnswer { 'u' }
+
+        Invoke-PackageCapture $script:Extra
+
+        Should -Invoke Uninstall-ExtraPackage -Times 1 -ParameterFilter { $Manager -eq 'winget' -and $Name -eq 'Valve.Steam' }
+        Should -Invoke Add-ManifestPackage -Times 0
     }
 }

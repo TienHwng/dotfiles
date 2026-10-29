@@ -59,5 +59,18 @@ setup() {
   run chezmoi --source "$PROJECT_ROOT/home" --override-data '{"features":{"wallpapers":false}}' \
     execute-template <"$PROJECT_ROOT/home/.chezmoiexternal.toml.tmpl"
   [ "$status" -eq 0 ]
-  [ -z "$output" ]
+  [[ "$output" != *'Pictures/wallpaper'* ]]
+}
+
+@test "the zsh plugins without a maintained package are Linux-only externals" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+
+  run chezmoi --source "$PROJECT_ROOT/home" execute-template <"$PROJECT_ROOT/home/.chezmoiexternal.toml.tmpl"
+  [ "$status" -eq 0 ]
+  for plugin in auto-notify you-should-use zsh-history-substring-search; do
+    [[ "$output" == *"[\".oh-my-zsh/custom/plugins/$plugin\"]"* ]]
+  done
+  grep -qx '.oh-my-zsh' "$PROJECT_ROOT/home/.chezmoiignore"
+  # shellcheck disable=SC2016 # the literal zshrc line
+  grep -qF 'ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"' "$PROJECT_ROOT/home/dot_zshrc"
 }

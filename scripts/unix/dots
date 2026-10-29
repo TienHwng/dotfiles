@@ -100,7 +100,7 @@ step_description() {
     accounts) printf 'Log in to GitHub with gh and check the SSH key in the Bitwarden agent' ;;
     fonts) printf 'Install Nerd Fonts from the manifest' ;;
     shell) printf 'Make %s the login shell' "$(login_shell)" ;;
-    apply) printf 'Apply dotfiles from home/ with chezmoi (externals come later)' ;;
+    apply) printf 'Apply dotfiles from home/ with chezmoi, then the zsh plugin externals (wallpapers come later)' ;;
     desktop) printf 'Apply KDE Plasma settings from home/.chezmoidata/kde.yaml' ;;
     wallpaper) printf 'Fetch the wallpaper repository and set the desktop wallpaper' ;;
     sync) printf 'Enable the dots-sync timer: check the repository at login and every 6 hours' ;;
@@ -136,7 +136,13 @@ run_step() {
     accounts) "$SCRIPT_DIR/setup-accounts.sh" "${dry[@]}" "${quiet[@]}" ;;
     fonts) "$SCRIPT_DIR/install-fonts.sh" "${dry[@]}" ;;
     shell) "$SCRIPT_DIR/setup-shell.sh" "$(login_shell)" "${dry[@]}" "${quiet[@]}" ;;
-    apply) apply_dotfiles "$mode" ;;
+    apply)
+      apply_dotfiles "$mode"
+      # zsh plugin externals (public); the wallpaper external waits for the wallpaper step
+      if [[ "$(uname -s)" == 'Linux' ]]; then
+        apply_dotfiles "$mode" "$HOME/.oh-my-zsh/custom/plugins"
+      fi
+      ;;
     desktop) "$SCRIPT_DIR/setup-desktop.sh" "${dry[@]}" ;;
     wallpaper) "$SCRIPT_DIR/setup-wallpaper.sh" "${dry[@]}" ;;
     sync) "$SCRIPT_DIR/setup-sync.sh" "${dry[@]}" ;;

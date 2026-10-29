@@ -4,6 +4,7 @@ Read this file first. It tells you which document answers which question.
 
 | If you need to… | Read |
 |---|---|
+| Pick up the work on another machine (current state, decisions, next steps on Windows) | [handoff.md](handoff.md) |
 | Understand what the project is for, its principles, and what it will never do | [vision.md](vision.md) |
 | Implement or change anything (architecture, data model, `dots` commands, file layout, rules) | [design.md](design.md) |
 | Know what exists today, what to build next, open questions, and risks | [roadmap.md](roadmap.md) |

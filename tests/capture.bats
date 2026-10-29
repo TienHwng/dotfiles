@@ -141,3 +141,77 @@ EOF
   [ "$(sed -n 5,7p "$yaml")" = $'    - paru\n    - htop\n    - btop' ]
   [ "$(tail -2 "$yaml")" = $'  apt:\n    - build-essential' ]
 }
+
+@test "picked packages are added to the manifest or uninstalled" {
+  printf '#!/usr/bin/env bash\nprintf "paru %%s\\n" "$*" >>%q\n' "$BATS_TEST_TMPDIR/calls" >"$mock_bin/paru"
+  chmod +x "$mock_bin/paru"
+  printf 'u\na\nnope\n' >"$answers"
+
+  run env PATH="$mock_bin:$PATH" DOTS_NO_GUM=1 DOTFILES_PLATFORM=arch bash -c '
+    source "$1/scripts/unix/capture.sh"
+    exec 3<"$2"
+    for n in 2 1 1; do choose_package_action "$n"; done
+    uninstall_packages htop btop
+  ' _ "$PROJECT_ROOT" "$answers"
+
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = uninstall ]
+  [ "${lines[1]}" = add ]
+  [ "${lines[2]}" = skip ]
+  grep -qx 'paru -Rns htop btop' "$BATS_TEST_TMPDIR/calls"
+}
+
+@test "kde_snapshot flattens KDE config files and skips ignored ones" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+  config="$HOME/.config"
+  mkdir -p "$config"
+  printf '[Plugins]\nblurEnabled=true\n\n[Effect-Blur][Sub]\nStrength=5\nName[vi]=x\n' >"$config/kwinrc"
+  printf '[Containments][1]\nplugin=x\n' >"$config/plasma-org.kde.plasma.desktop-appletsrc"
+  printf '[State]\nwidth=1\n' >"$config/dolphinstaterc"
+
+  run bash -c 'source "$1/scripts/unix/capture.sh"; kde_snapshot' _ "$PROJECT_ROOT"
+
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = $'kwinrc\tEffect-Blur\x1fSub\tStrength\t5' ]
+  [ "${lines[1]}" = $'kwinrc\tPlugins\tblurEnabled\ttrue' ]
+  [ "${#lines[@]}" -eq 2 ]
+}
+
+@test "discovered KDE keys are formatted and appended to the shared or the host list" {
+  yaml="$BATS_TEST_TMPDIR/kde.yaml"
+  cat >"$yaml" <<'EOF2'
+kde:
+  settings:
+    - { file: kwinrc, group: [NightColor], key: Active, value: "true" }
+  machines:
+    HwngPC:
+      settings:
+        - { file: kcminputrc, group: [Mouse], key: X, value: "2" }
+EOF2
+  run bash -c '
+    source "$1/scripts/unix/capture.sh"
+    KDE_YAML="$2"
+    append_kde_entry "" "$(kde_entry kwinrc Plugins blurEnabled true)"
+    append_kde_entry HwngPC "$(kde_entry kcminputrc "Libinput${SEP}1267${SEP}ELAN:Touchpad" Natural "a \"b\"")"
+    append_kde_entry Laptop "$(kde_entry kdeglobals KDE "Shut Down" x)"
+  ' _ "$PROJECT_ROOT" "$yaml"
+
+  [ "$status" -eq 0 ]
+  expected='kde:
+  settings:
+    - { file: kwinrc, group: [NightColor], key: Active, value: "true" }
+    - { file: kwinrc, group: [Plugins], key: blurEnabled, value: "true" }
+  machines:
+    HwngPC:
+      settings:
+        - { file: kcminputrc, group: [Mouse], key: X, value: "2" }
+        - { file: kcminputrc, group: [Libinput, "1267", "ELAN:Touchpad"], key: Natural, value: "a \"b\"" }
+    Laptop:
+      settings:
+        - { file: kdeglobals, group: [KDE], key: Shut Down, value: "x" }'
+  [ "$(cat "$yaml")" = "$expected" ]
+
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+  run chezmoi --source "$BATS_TEST_TMPDIR" execute-template '{{ (index (fromYaml (include "kde.yaml")).kde.machines.HwngPC.settings 1).value }}'
+  [ "$output" = 'a "b"' ]
+}

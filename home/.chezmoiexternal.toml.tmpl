@@ -10,3 +10,19 @@
     [{{ .wallpapers.dir | quote }}.pull]
         args = ["--ff-only"]
 {{- end }}
+
+{{- /* zsh plugins with no maintained package (L3), Linux only (.oh-my-zsh is ignored elsewhere).
+       Public repositories; the apply step fetches them as a separate target. */ -}}
+{{- if eq .chezmoi.os "linux" }}
+{{- range $name, $repo := dict "auto-notify" "https://github.com/MichaelAquilina/zsh-auto-notify.git" "you-should-use" "https://github.com/MichaelAquilina/zsh-you-should-use.git" "zsh-history-substring-search" "https://github.com/zsh-users/zsh-history-substring-search.git" }}
+{{ $dir := printf ".oh-my-zsh/custom/plugins/%s" $name }}
+[{{ $dir | quote }}]
+    type = "git-repo"
+    url = {{ $repo | quote }}
+    refreshPeriod = "168h"
+    [{{ $dir | quote }}.clone]
+        args = ["--depth", "1"]
+    [{{ $dir | quote }}.pull]
+        args = ["--ff-only"]
+{{- end }}
+{{- end }}

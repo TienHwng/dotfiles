@@ -127,6 +127,20 @@ EOF
   [[ "$missing_section" != *'  fzf'* ]]
 }
 
+@test "package extras leave out packages built from pkgbuilds/" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+  mock_bin="$BATS_TEST_TMPDIR/extra-bin"
+  mkdir -p "$mock_bin"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" git grub-theme-blackice plymouth-theme-arch-mac-style leftover-app\n' >"$mock_bin/pacman"
+  chmod +x "$mock_bin/pacman"
+
+  run env PATH="$mock_bin:$PATH" DOTFILES_PLATFORM=arch \
+    "$PROJECT_ROOT/scripts/unix/install-packages.sh" --extra
+
+  [ "$status" -eq 0 ]
+  [ "$output" = 'leftover-app' ]
+}
+
 @test "font dry-run reads Nerd Fonts from the manifest" {
   command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
 

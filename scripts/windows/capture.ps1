@@ -9,6 +9,8 @@ param(
 #   file      a file changed in the repository
 #   re-add    a dotfile chezmoi copied here and you edited (templates are listed instead)
 #   registry  a registry value that differs from home/.chezmoidata/windows.yaml
+#   packages  WinGet/Scoop packages that are not in the manifest (a second picker:
+#             add them to the manifest or uninstall them)
 # -DryRun lists the items and changes nothing.
 
 Set-StrictMode -Version Latest
@@ -18,6 +20,7 @@ $ErrorActionPreference = 'Stop'
 $script:CaptureDryRun = [bool]$DryRun
 $script:CaptureNonInteractive = [bool]$NonInteractive
 . (Join-Path $PSScriptRoot 'setup-registry.ps1')
+. (Join-Path $PSScriptRoot 'package-diff.ps1')
 
 $script:Branch = 'main'
 $script:WindowsYaml = Join-Path (Get-RepoRoot) 'home\.chezmoidata\windows.yaml'
@@ -87,6 +90,12 @@ function Get-CaptureItem {
             }
         }
     }
+    if (Test-Command 'chezmoi') {
+        $extra = @(Get-ExtraPackage)
+        if ($extra.Count -gt 0) {
+            $items.Add((New-CaptureItem 'packages' $extra "packages  pick from $($extra.Count) installed package(s) not in the manifest"))
+        }
+    }
     return $items
 }
 
@@ -130,11 +139,11 @@ function Read-CaptureAnswer([string]$Prompt) {
 }
 
 # The chosen labels
-function Select-CaptureLabel([string[]]$Label) {
+function Select-CaptureLabel([string[]]$Label, [string]$Header = 'Changes to keep in the repository') {
     if (Test-UseGum) {
-        return @($Label | & gum filter --no-limit --header 'Changes to keep in the repository')
+        return @($Label | & gum filter --no-limit --header $Header)
     }
-    Write-Host 'Changes to keep in the repository'
+    Write-Host $Header
     for ($i = 0; $i -lt $Label.Count; $i++) {
         Write-Host ('  {0,3}  {1}' -f ($i + 1), $Label[$i])
     }
@@ -156,6 +165,32 @@ function Invoke-CaptureItem($Item) {
         'registry' {
             Set-RegistryYamlValue $Item.Payload.Entry $Item.Payload.Value
             Invoke-RepoGit @('add', '--', $script:WindowsYaml) | Out-Null
+        }
+        'packages' { Invoke-PackageCapture $Item.Payload }
+    }
+}
+
+# Second picker for packages outside the manifest: add them to it, or uninstall them
+function Invoke-PackageCapture($Extra) {
+    $labels = @($Extra | ForEach-Object { '{0,-7} {1}' -f $_.Manager, $_.Name })
+    $chosen = @(Select-CaptureLabel $labels 'Packages outside the manifest')
+    if ($chosen.Count -eq 0) {
+        return
+    }
+    $answer = Read-CaptureAnswer "$($chosen.Count) package(s): [a]dd to the manifest / [u]ninstall / [s]kip"
+    foreach ($manager in @('winget', 'scoop')) {
+        $names = @($Extra | Where-Object { $_.Manager -eq $manager -and $chosen -contains ('{0,-7} {1}' -f $_.Manager, $_.Name) } |
+            ForEach-Object { $_.Name })
+        if ($names.Count -eq 0) {
+            continue
+        }
+        switch -Regex ($answer) {
+            '^(a|add)' {
+                Add-ManifestPackage $manager $names
+                Invoke-RepoGit @('add', '--', $script:PackagesYaml) | Out-Null
+            }
+            '^(u|uninstall)' { Uninstall-ExtraPackage $manager $names }
+            default { Write-ToolWarning 'Packages left alone' }
         }
     }
 }

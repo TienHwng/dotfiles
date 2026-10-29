@@ -834,14 +834,17 @@ ZSH_THEME="${ZSH_THEME:-}"
 if [[ ! -r "$ZSH/oh-my-zsh.sh" && -r /usr/share/oh-my-zsh/oh-my-zsh.sh ]]; then
   ZSH="/usr/share/oh-my-zsh"
 fi
+# Custom plugins always come from the chezmoi-managed directory, also when Oh My Zsh itself is
+# the system package (whose default ZSH_CUSTOM would be /usr/share/oh-my-zsh/custom)
+ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
 
 plugins=(
   git
   zsh-autosuggestions
   zsh-syntax-highlighting
   zsh-history-substring-search
-	auto-notify 
-	you-should-use
+  auto-notify
+  you-should-use
 )
 
 if [[ -r "$ZSH/oh-my-zsh.sh" ]]; then
