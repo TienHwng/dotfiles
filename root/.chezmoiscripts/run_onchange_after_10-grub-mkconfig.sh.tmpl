@@ -1,0 +1,6 @@
+#!/bin/sh
+# Regenerates grub.cfg after the GRUB defaults or the custom entries change.
+# etc/default/grub: {{ includeTemplate "etc/default/grub.tmpl" . | sha256sum }}
+# etc/grub.d/40_custom: {{ include "etc/grub.d/executable_40_custom" | sha256sum }}
+set -eu
+grub-mkconfig -o /boot/grub/grub.cfg

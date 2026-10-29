@@ -1,0 +1,12 @@
+#!/bin/sh
+# Rebuilds the initramfs after the Plymouth theme changes: the theme is copied into it.
+# plymouthd.conf: {{ includeTemplate "etc/plymouth/plymouthd.conf.tmpl" . | sha256sum }}
+set -eu
+if command -v mkinitcpio >/dev/null 2>&1; then
+  mkinitcpio -P
+elif command -v dracut >/dev/null 2>&1; then
+  dracut --regenerate-all --force
+else
+  echo 'No mkinitcpio or dracut; rebuild the initramfs by hand.' >&2
+  exit 1
+fi

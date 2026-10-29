@@ -94,7 +94,7 @@ PowerShell 7; options are PowerShell-style: `-DryRun`, `-NonInteractive`, `-Skip
 | `dots capture` | TUI listing drift (files, KDE keys, registry values, packages outside the manifest); the chosen items are written back to the repository, then commit and push. | `[Planned: P7]` |
 | `dots packages` | Install missing packages from the manifest after showing the list. | `[Implemented]` (Bash) |
 | `dots packages --diff` | List packages installed on the machine but absent from the manifest, and manifest packages not installed; later offer "add to manifest" or "uninstall". | `[Implemented]` (Bash, report only); interactive add/uninstall `[Planned: P7]` |
-| `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Implemented]` (Windows): previews `setup-system.ps1 -DryRun` as the user, asks, then runs it in an administrator window (UAC) unless already elevated; also the last `bootstrap` step, skipped by `-NonInteractive` unless `-DryRun`. Linux `[Planned: P6]` |
+| `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Implemented]` (Linux: `setup-system.sh`, boot theme packages then the `root/` instance with sudo; Windows): previews `setup-system.ps1 -DryRun` as the user, asks, then runs it in an administrator window (UAC) unless already elevated; also the last `bootstrap` step, skipped by `-NonInteractive` unless `-DryRun`. |
 | `dots status` | Commits ahead/behind, drift count, whether the sync timer is enabled. | `[Planned: P7]` |
 | `dots doctor` | `chezmoi doctor` plus checks: required tools, Bitwarden agent reachable, sync timer enabled. | `[Implemented]` (Bash): required tools (git, chezmoi), optional tools (gum, gitleaks, fzf), manifest readable, Git hooks, system instance config, `chezmoi doctor` (warnings only). Bitwarden, LFS, and timer checks come with P3/P4/P7 |
 | `dots update` | Upgrade installed packages (`paru -Syu`, `winget upgrade --all`, `scoop update *`) and fonts. | `[Implemented]` (Bash, runs `update.sh`) |
@@ -378,7 +378,9 @@ production.
 | Separate config/state directory, root cache, source ownership restored after each `cmr` | `[Implemented]` |
 | System config rendered by the user instance from `home/dot_config/chezmoi-root/chezmoi.toml.tmpl` | `[Implemented]` |
 | `cmr` review flow (status + diff + confirm), `cmr edit` (edit repo copy as the user, diff, confirm), `cmr capture` (fzf pick of files changed in `/`, `re-add`, templates listed for manual edit) | `[Implemented]` |
-| Machine data copied into the system config, templates per distro, drop-ins, hooks, PKGBUILD, `dots system` | `[Planned: P6]` |
+| `dots system` on Linux (`scripts/unix/setup-system.sh`): boot theme packages, then status + diff + confirm + apply of `root/` with sudo | `[Implemented]` |
+| `root/.chezmoidata/boot.yaml`, GRUB/SDDM/Plymouth templates, pacman drop-in, `run_onchange_after_` hooks, `pkgbuilds/boot-themes` | `[Implemented]` |
+| Machine data from the user config copied into the system config | `[Planned]` (no system file needs it yet) |
 
 1. **Separate state.** chezmoi keeps `chezmoistate.boltdb` next to its config file, so the
    system config lives in its own directory, `~/.config/chezmoi-root/chezmoi.toml`. `cmr`
@@ -388,9 +390,11 @@ production.
    chowns the source back to the user after every command; git does not track ownership and
    chezmoi sets target ownership from the process that writes it, so this is safe.
    `cmr cd` changes directory in the current shell instead of spawning a root shell.
-2. **Shared machine data.** The user instance already renders `~/.config/chezmoi-root/chezmoi.toml`
-   from `home/dot_config/chezmoi-root/chezmoi.toml.tmpl`. Planned: copy machine data into its
-   `[data]` table, so both instances read the same values.
+2. **Machine data.** System values live in `root/.chezmoidata/boot.yaml` (GRUB timeout,
+   theme and kernel command line, per-distro menu name and first kernel, Plymouth and SDDM
+   themes). The user instance renders `~/.config/chezmoi-root/chezmoi.toml` from
+   `home/dot_config/chezmoi-root/chezmoi.toml.tmpl`; copying identity data into its `[data]`
+   table waits until a system file needs it.
    Read-only lookups that `cmr` runs as the user (`source-path`) pass a throwaway
    `--persistent-state`, because the real state file is root-owned.
    Note: with an empty state file (first run after the move), chezmoi cannot tell that `/` was
@@ -398,15 +402,36 @@ production.
 3. **Templates per distro/machine.** `root/.chezmoiignore` gates files by distro, so planned
    distros (e.g. Ubuntu, which uses `update-grub`) can be added later.
 4. **Prefer drop-ins** (`/etc/sddm.conf.d/`, `/etc/mkinitcpio.conf.d/`, `sysctl.d`,
-   `modprobe.d`, systemd `*.d/`). For pacman, add `Include = /etc/pacman.d/custom.conf`
-   instead of owning `pacman.conf`. This avoids `.pacnew` conflicts.
-5. **Never write to `/usr`.** The Plymouth theme `motion` (~48 MB) becomes
-   `pkgbuilds/plymouth-theme-motion/PKGBUILD`, installed with `makepkg -si`.
-6. **Post-apply hooks:** `run_onchange_after_*.sh.tmpl` with a hash of the source file runs
-   `grub-mkconfig`, `mkinitcpio -P`, or `plymouth-set-default-theme`.
-7. **Policy:** `dots system` is an opt-in bootstrap step, interactive only, always with a diff.
-   It MUST NOT run in CI or with `NON_INTERACTIVE=1`. Until P6 is merged, `tests/ownership.bats`
-   still forbids any script from referencing the system instance, and that test wins.
+   `modprobe.d`, systemd `*.d/`). pacman (owner's choice): the options the owner sets
+   (`Color`, `ILoveCandy`, `VerbosePkgLists`, `DisableDownloadTimeout`, `ParallelDownloads`,
+   `IgnorePkg` for the kernel and NVIDIA) live in `/etc/pacman.d/dots.conf`;
+   `root/etc/modify_pacman.conf` is a `chezmoi:modify-template` that keeps the distribution's
+   `pacman.conf`, puts `Include = /etc/pacman.d/dots.conf` right after `[options]`, and drops
+   `[options]` lines for keys that `dots.conf` sets. The distribution keeps the repository
+   sections (CachyOS picks `v3`/`v4`/`znver4` per CPU). Whole files stay where no drop-in
+   exists: `/etc/default/grub` and `/etc/grub.d/40_custom` (GRUB has no defaults drop-in on
+   Arch), `/etc/sddm.conf` (owned by no package), `/etc/plymouth/plymouthd.conf` (two lines).
+   `40_custom` holds Shutdown and Reboot only; the owner dropped the machine-specific rescue
+   entry.
+5. **Never write to `/usr`.** Files there belong to packages. The 11 Plymouth themes that AUR
+   packages in the manifest install (`plymouth-theme-*-git`) left `root/`. The 8 themes no
+   package ships (7 GRUB themes, Plymouth `arch-mac-style`) are one split PKGBUILD,
+   `pkgbuilds/boot-themes` (one package per theme; the owner keeps all 8). `dots system`
+   builds it with `makepkg --nodeps` as the user and installs it with
+   `sudo pacman -U --needed --overwrite '<theme dir>/*'`, which lets the packages take over
+   files the system instance wrote there before P6. Bump `pkgrel` after changing a theme.
+6. **Post-apply hooks** (`root/.chezmoiscripts/run_onchange_after_*.sh.tmpl`, with a hash of
+   the rendered source in a comment): `grub-mkconfig -o /boot/grub/grub.cfg` when the GRUB
+   defaults or `40_custom` change; `mkinitcpio -P` (or `dracut --regenerate-all --force`) when
+   `plymouthd.conf` changes, because the theme is copied into the initramfs.
+7. **Policy:** `dots system` is an opt-in, last bootstrap step, interactive only, always with a
+   diff: `scripts/unix/setup-system.sh` refuses a real run with `NON_INTERACTIVE=1` or `CI`
+   set, and `dots bootstrap --non-interactive` skips the step. `--dry-run` previews as the user
+   with a throwaway state file (so hooks always show as pending) and runs no sudo.
+   `tests/ownership.bats` allows only `setup-system.sh` to name the system source and forbids
+   workflows from calling it; `tests/system.bats` checks the refusals with mocked
+   `sudo`/`makepkg`/`pacman`/`chezmoi`. `cmr` in `home/dot_zshrc` stays the manual path
+   (`cmr edit`, `cmr capture`).
 
 #### Linux: hardware (reference laptop)
 
@@ -539,7 +564,7 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 │   ├── AppData/                    # Windows-only configs       [Planned, when one is managed]
 │   └── dot_wslconfig               # Windows-only               [Planned: platform]
 ├── root/                           # system chezmoi source      [Implemented, manual]
-├── pkgbuilds/                      # local Arch packages        [Planned: P6]
+├── pkgbuilds/boot-themes/         # 7 GRUB + 1 Plymouth theme   [Implemented]
 ├── scripts/
 │   ├── package-list.tmpl           # renders one manifest list [Implemented]
 │   ├── unix/                       # bootstrap.sh, install-*.sh, setup-*.sh, update.sh,
@@ -575,9 +600,8 @@ Then show `git diff`, ask for a commit message, commit, and push. This replaces 
 
 ### 5.2 Freshly installed CachyOS
 
-Same order. L2 uses paru; L4 applies KDE keys; L5 is `dots system` → system instance diff →
-apply → hooks (GRUB, initramfs, Plymouth), PKGBUILD theme, `asusctl`; L7 enables the systemd
-user timer.
+Same order. L2 uses paru; L4 applies KDE keys; L5 is `dots system` → boot theme packages →
+system instance diff → apply → hooks (GRUB, initramfs); L7 enables the systemd user timer.
 
 ### 5.3 Planned platforms
 
@@ -619,7 +643,7 @@ user timer.
 | `windows-latest` job: config rendered with fake prompt values, analyzer, Pester, `bootstrap.ps1 -DryRun -NonInteractive` on Windows PowerShell 5.1 and PowerShell 7 | `[Implemented]` |
 | `archlinux` container job, as a regular user: Bats tests, template render, `bootstrap.sh --dry-run --non-interactive` (every step) with fake prompt values, HOME unchanged | `[Implemented]` |
 | Ownership test: no script runs `git lfs install` or `gh auth setup-git` | `[Implemented]` |
-| Ownership test update for the system step | `[Planned: P6]` |
+| Ownership test: only `setup-system.sh` names the system source, never from a workflow; `tests/system.bats` | `[Implemented]` |
 
 Tests MUST never provision the real machine.
 

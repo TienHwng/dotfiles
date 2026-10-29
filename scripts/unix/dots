@@ -10,8 +10,8 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 ROOT_DIR="$(repo_root)"
 # git renders ~/.gitconfig (gh credential helper) so accounts can log in to gh before
-# anything clones a private repository; wallpaper needs that login.
-STEPS=(packages git accounts fonts shell apply desktop wallpaper)
+# anything clones a private repository; wallpaper needs that login. system (sudo) goes last.
+STEPS=(packages git accounts fonts shell apply desktop wallpaper system)
 DRY_RUN="${DRY_RUN:-0}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
 
@@ -22,11 +22,15 @@ Usage: dots <command> [options]
 Commands:
   bootstrap [--dry-run] [--non-interactive] [--skip STEP]...
                   Set up this machine step by step: packages, git, accounts,
-                  fonts, shell, apply, desktop, wallpaper. Each step shows a preview and asks
-                  run / skip / quit before changing anything.
+                  fonts, shell, apply, desktop, wallpaper, system. Each step shows a
+                  preview and asks run / skip / quit before changing anything.
+                  --non-interactive skips system unless --dry-run is set.
   packages [--diff | --dry-run]
                   Install missing packages from the manifest (preview, then
                   ask), or report packages installed outside the manifest.
+  system [--dry-run]
+                  Boot theme packages and the system chezmoi instance (root/ -> /):
+                  preview, then ask and apply with sudo. Never non-interactive.
   doctor          Check required tools, Git hooks, the manifest, and chezmoi.
   update [...]    Update packages and fonts (scripts/unix/update.sh).
   backup [...]    Back up the repository and the local chezmoi configs.
@@ -89,6 +93,7 @@ step_description() {
     apply) printf 'Apply dotfiles from home/ with chezmoi (externals come later)' ;;
     desktop) printf 'Apply KDE Plasma settings from home/.chezmoidata/kde.yaml' ;;
     wallpaper) printf 'Fetch the wallpaper repository and set the desktop wallpaper' ;;
+    system) printf 'sudo: boot theme packages, then /etc from root/ (GRUB, Plymouth, SDDM, pacman)' ;;
   esac
 }
 
@@ -123,6 +128,7 @@ run_step() {
     apply) apply_dotfiles "$mode" ;;
     desktop) "$SCRIPT_DIR/setup-desktop.sh" "${dry[@]}" ;;
     wallpaper) "$SCRIPT_DIR/setup-wallpaper.sh" "${dry[@]}" ;;
+    system) "$SCRIPT_DIR/setup-system.sh" "${dry[@]}" "${quiet[@]}" ;;
   esac
 }
 
@@ -195,6 +201,10 @@ cmd_bootstrap() {
       log_warn "Skipping $step (disabled in .features)"
       continue
     fi
+    if [[ "$step" == 'system' && "$NON_INTERACTIVE" == '1' && "$DRY_RUN" == '0' ]]; then
+      log_warn 'Skipping system (sudo; it never runs non-interactively, run dots system later)'
+      continue
+    fi
     if [[ "$DRY_RUN" == '1' || "$NON_INTERACTIVE" == '1' ]]; then
       run_step "$step" run
       continue
@@ -239,6 +249,23 @@ cmd_packages() {
       fi
       ;;
     *) die "Unknown packages option: $1" ;;
+  esac
+}
+
+cmd_system() {
+  case "${1:-}" in
+    --dry-run) "$SCRIPT_DIR/setup-system.sh" --dry-run ;;
+    '')
+      [[ "$NON_INTERACTIVE" == '1' ]] \
+        && die 'dots system changes / and never runs non-interactively; use --dry-run to preview.'
+      "$SCRIPT_DIR/setup-system.sh" --dry-run
+      if ask_yes 'Run the system step with sudo?'; then
+        "$SCRIPT_DIR/setup-system.sh"
+      else
+        log_warn 'Nothing changed'
+      fi
+      ;;
+    *) die "Unknown system option: $1" ;;
   esac
 }
 
@@ -323,6 +350,7 @@ main() {
   case "$command" in
     bootstrap) cmd_bootstrap "$@" ;;
     packages) cmd_packages "$@" ;;
+    system) cmd_system "$@" ;;
     doctor) cmd_doctor ;;
     update) "$SCRIPT_DIR/update.sh" "$@" ;;
     backup) "$SCRIPT_DIR/backup.sh" "$@" ;;

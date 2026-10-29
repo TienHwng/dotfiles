@@ -27,12 +27,16 @@ setup() {
   [ "$status" -eq 1 ]
 }
 
-@test "bootstrap automation does not apply protected root source state" {
-  # Scripts may name the system config file (backup copies it, doctor checks it exists)
-  # but must never run chezmoi against the system instance or the root/ source.
-  run grep -rnE 'root\.toml|sourceDir.*root|--(config|source)[= ][^[:space:]]*(chezmoi-root|/root([^[:alnum:]_]|$))|(^|[^[:alnum:]_-])cmr([^[:alnum:]_]|$)' \
-    "$PROJECT_ROOT/scripts" "$PROJECT_ROOT/.github/workflows"
+@test "only the system step touches the system instance, and never from CI" {
+  # scripts/unix/setup-system.sh (dots system) is the one script that runs chezmoi against
+  # root/; it refuses NON_INTERACTIVE=1 and CI (tests/system.bats). Workflows never do.
+  # Scripts may name the system config file (backup copies it, doctor checks it exists).
+  pattern='ROOT_DIR/root([^[:alnum:]_]|$)|root\.toml|sourceDir.*root|--(config|source)[= ][^[:space:]]*(chezmoi-root|/root([^[:alnum:]_]|$))|(^|[^[:alnum:]_-])cmr([^[:alnum:]_]|$)'
 
+  run grep -rlE "$pattern" "$PROJECT_ROOT/scripts" "$PROJECT_ROOT/.github/workflows"
+  [ "$output" = "$PROJECT_ROOT/scripts/unix/setup-system.sh" ]
+
+  run grep -rnE 'setup-system\.sh|dots system|--skip-system' "$PROJECT_ROOT/.github/workflows"
   [ "$status" -eq 1 ]
 }
 

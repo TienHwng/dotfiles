@@ -1,0 +1,19 @@
+# Data for the system chezmoi instance (source root/, target /), applied by `dots system`.
+# Theme files come from packages: the AUR plymouth-theme-*-git packages in
+# home/.chezmoidata/packages.yaml and pkgbuilds/boot-themes (installed by dots system).
+boot:
+  grub:
+    timeout: 7
+    # /usr/share/grub/themes/<theme>/theme.txt: astronaut, astronaut_orange, blackice,
+    # catppuccin-{frappe,latte,macchiato,mocha}-grub-theme
+    theme: blackice
+    cmdline: nowatchdog nvme_load=YES splash loglevel=3
+    # Per distribution (.chezmoi.osRelease.id): menu name and the kernel listed first
+    distros:
+      cachyos: { distributor: CachyOS, topLevel: /boot/vmlinuz-linux-cachyos }
+      arch: { distributor: Arch, topLevel: /boot/vmlinuz-linux }
+  # /usr/share/plymouth/themes/<theme>; a change rebuilds the initramfs
+  plymouth:
+    theme: cuts
+  sddm:
+    theme: silent
