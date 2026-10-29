@@ -9,6 +9,13 @@
 
 kde:
   lookAndFeel: org.kde.breezetwilight.desktop
+  # fcitx5 input methods (the "Default" group): first the keyboard layout, then the input
+  # methods in switching order; default is the one the trigger key activates. fcitx5 rewrites its
+  # profile from memory, so a running fcitx5 gets the list over D-Bus, not through the file.
+  fcitx5:
+    layout: us
+    inputMethods: [keyboard-us, bamboo, lotus, unikey]
+    default: lotus
   settings:
     # Global shortcuts (take effect after the next login)
     - { file: kglobalshortcutsrc, group: [ksmserver], key: Shut Down, value: "Meta+U,none,Shut Down" }
@@ -25,6 +32,18 @@ kde:
     - { file: kdeglobals, group: [KDE], key: contrast, value: "4" }
     - { file: kdeglobals, group: [KDE], key: frameContrast, value: "0.2" }
     - { file: kdeglobals, group: [General], key: BrowserApplication, value: vivaldi-stable.desktop }
+    - { file: mimeapps.list, group: [Default Applications], key: x-scheme-handler/http, value: vivaldi-stable.desktop }
+    - { file: mimeapps.list, group: [Default Applications], key: x-scheme-handler/https, value: vivaldi-stable.desktop }
+    - { file: mimeapps.list, group: [Default Applications], key: text/html, value: vivaldi-stable.desktop }
+    # Touchpad and mouse, per device (vendor id, product id, name; take effect after the next login)
+    - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: NaturalScroll, value: "true" }
+    - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: PointerAcceleration, value: "0.400" }
+    - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: PointerAccelerationProfile, value: "1" }
+    - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: ScrollFactor, value: "0.3" }
+    - { file: kcminputrc, group: [Libinput, "14139", "4569", "Compx Wireless mouse 8k dongle-L"], key: PointerAccelerationProfile, value: "1" }
+    # Power: on AC, never turn the display off (takes effect after the next login)
+    - { file: powerdevilrc, group: [AC, Display], key: TurnOffDisplayWhenIdle, value: "false" }
+    - { file: powerdevilrc, group: [AC, Display], key: TurnOffDisplayIdleTimeoutSec, value: "-1" }
     # Splash screen (theme in home/dot_local/share/plasma/look-and-feel/a2n.kuro)
     - { file: ksplashrc, group: [KSplash], key: Engine, value: KSplashQML }
     - { file: ksplashrc, group: [KSplash], key: Theme, value: a2n.kuro }
