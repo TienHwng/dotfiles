@@ -158,3 +158,82 @@ Describe 'setup-system.ps1' {
         $output | Should -Match 'System step complete'
     }
 }
+
+Describe 'install-nvidia-app.ps1' {
+    BeforeEach {
+        . (Join-Path $WindowsScripts 'install-nvidia-app.ps1')
+        $script:Installs = 0
+        $fakeBytes = [Text.Encoding]::ASCII.GetBytes('fake installer')
+        $script:App = [pscustomobject]@{
+            version = '1.2.3'
+            url = 'https://us.download.nvidia.com/nvapp/client/1.2.3/NVIDIA_app_v1.2.3.exe'
+            sha256 = (Get-FileHash -InputStream ([IO.MemoryStream]::new($fakeBytes)) -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        Mock Test-Command { $true }
+        Mock Test-NvidiaGpu { $true }
+        Mock Get-NvidiaAppVersion { $null }
+        Mock Get-RepoData { $script:App } -ParameterFilter { $Expression -eq '.windows.nvidia.app' }
+        Mock Save-NvidiaInstaller { [IO.File]::WriteAllText($Path, 'fake installer') }
+        Mock Test-NvidiaSignature { $true }
+        Mock Start-NvidiaInstaller { $script:Installs++; 0 }
+    }
+
+    It 'skips machines without an NVIDIA GPU and machines that have the app' {
+        Mock Test-NvidiaGpu { $false }
+        Invoke-NvidiaAppStep 6>$null
+
+        Mock Test-NvidiaGpu { $true }
+        Mock Get-NvidiaAppVersion { '11.0.0.1' }
+        $output = Invoke-NvidiaAppStep 6>&1 | Out-String
+
+        $output | Should -Match 'NVIDIA App 11.0.0.1 is installed'
+        Should -Invoke Save-NvidiaInstaller -Times 0
+        $script:Installs | Should -Be 0
+    }
+
+    It 'previews the pinned download in a dry run' {
+        $output = Invoke-NvidiaAppStep -DryRun 6>&1 | Out-String
+
+        $output | Should -Match 'NVIDIA App: <not installed> -> 1\.2\.3'
+        $output | Should -Match '\+ download https://us\.download\.nvidia\.com/'
+        Should -Invoke Save-NvidiaInstaller -Times 0
+        $script:Installs | Should -Be 0
+    }
+
+    It 'installs when the checksum and the signature match' {
+        Invoke-NvidiaAppStep 6>$null
+
+        $script:Installs | Should -Be 1
+        Test-Path -LiteralPath (Join-Path ([IO.Path]::GetTempPath()) 'dots-nvidia-app') | Should -BeFalse
+    }
+
+    It 'refuses a download whose checksum differs' {
+        $script:App.sha256 = '0' * 64
+
+        { Invoke-NvidiaAppStep 6>$null } | Should -Throw '*does not match windows.nvidia.app.sha256*'
+        $script:Installs | Should -Be 0
+    }
+
+    It 'refuses a download without a valid NVIDIA signature' {
+        Mock Test-NvidiaSignature { $false }
+
+        { Invoke-NvidiaAppStep 6>$null } | Should -Throw '*no valid NVIDIA Corporation signature*'
+        $script:Installs | Should -Be 0
+    }
+}
+
+Describe 'windows.yaml NVIDIA App pin' {
+    It 'pins an NVIDIA download URL, its version and a SHA-256' {
+        if (-not $HasChezmoi) {
+            Set-ItResult -Skipped -Because 'chezmoi is not installed'
+            return
+        }
+        . (Join-Path $WindowsScripts 'install-nvidia-app.ps1')
+
+        $app = Get-RepoData '.windows.nvidia.app'
+
+        $app.url | Should -Match '^https://us\.download\.nvidia\.com/'
+        $app.url | Should -Match ([regex]::Escape($app.version))
+        $app.sha256 | Should -Match '^[0-9a-f]{64}$'
+    }
+}

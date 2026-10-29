@@ -41,8 +41,9 @@ Commands:
                   Install missing WinGet and Scoop packages from the manifest
                   (preview, then ask).
   system [-DryRun]
-                  Machine registry values and the OpenSSH agent service: preview,
-                  then ask and apply in an administrator window. Never non-interactive.
+                  Machine registry values, the OpenSSH agent service and the NVIDIA
+                  App: preview, then ask and apply in an administrator window. Never
+                  non-interactive.
   doctor          Check required tools, the shell setup, the manifest, and chezmoi.
   update [-Packages] [-Fonts] [-Upgrade] [-DryRun]
                   Pull and apply the repository, optionally packages and fonts.
@@ -99,7 +100,7 @@ function Get-StepDescription([string]$Step) {
         'apply' { 'Apply dotfiles from home/ with chezmoi (externals come later)' }
         'desktop' { 'Set user registry values (HKCU) from home/.chezmoidata/windows.yaml' }
         'wallpaper' { 'Fetch the wallpaper repository and set the desktop wallpaper' }
-        'system' { 'Admin: machine registry values (UTC clock, Fast Startup off), disable the OpenSSH agent service' }
+        'system' { 'Admin: machine registry values (UTC clock, Fast Startup off), disable the OpenSSH agent service, NVIDIA App' }
     }
 }
 
