@@ -70,6 +70,23 @@ manifest_list() {
   [[ "$output" == *'neovim'* ]]
 }
 
+@test "vendor entries render only on that vendor's hardware" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+
+  run env DOTFILES_VENDOR='ASUSTeK COMPUTER INC.' bash -c 'source "$1"; manifest_list winget' _ \
+    "$PROJECT_ROOT/scripts/unix/lib/common.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Asus.ArmouryCrate'* ]]
+
+  for vendor in 'Dell Inc.' ''; do
+    run env DOTFILES_VENDOR="$vendor" bash -c 'source "$1"; manifest_list winget' _ \
+      "$PROJECT_ROOT/scripts/unix/lib/common.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'Asus.ArmouryCrate'* ]]
+    [[ "$output" == *'Git.Git'* ]]
+  done
+}
+
 @test "an unknown manifest list renders nothing and a missing list name fails" {
   command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
 
