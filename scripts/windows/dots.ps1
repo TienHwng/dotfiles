@@ -53,7 +53,8 @@ Commands:
   status          Branch, commits behind/ahead, local changes, chezmoi drift, task.
   <step> [-DryRun]
                   Run one bootstrap step on its own (git, accounts, fonts, shell, apply,
-                  desktop, wallpaper, sync), previewed and confirmed.
+                  desktop, wallpaper), previewed and confirmed. packages, sync and system
+                  are commands of their own; the sync step is setup-sync.ps1.
   capture [-DryRun]
                   Pick what changed on this machine (repository files, dotfiles
                   chezmoi copied, registry values, packages), write it back, review the diff,
@@ -71,7 +72,7 @@ Commands:
                   Remove chezmoi caches.
   help            Show this help.
 
-Prompts use gum when it is installed; set DOTS_NO_GUM=1 for plain prompts.
+Full guide: docs/usage.md. Prompts use gum when it is installed; set DOTS_NO_GUM=1 for plain prompts.
 '@
 }
 

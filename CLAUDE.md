@@ -73,7 +73,7 @@ Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFro
 - Lists live in data, never in scripts: packages in `home/.chezmoidata/packages.yaml` (read with `manifest_list` / `Get-ManifestList` via `scripts/package-list.tmpl`; never parse the YAML yourself), KDE keys in `kde.yaml`, Windows registry values in `windows.yaml`. Arch installs via `paru -S --needed`, never as root. Windows uses winget for GUI/system apps and Scoop for CLI tools and fonts; no Chocolatey.
 - KDE `*rc` files and the Windows registry are managed **per key**, not as whole files.
 - `temp/` and `misc/` are gitignored scratch areas.
-- `docs/` holds `README.md` (index), `vision.md`, `design.md`, `roadmap.md`, `handoff.md` (state and next steps for a session on another machine), `memory.md` (shared agent memory, imported by this file).
+- `docs/` holds `README.md` (index), `vision.md`, `design.md`, `roadmap.md`, `usage.md` (the owner's guide to `dots`; update it with every command change), `handoff.md` (state and next steps for a session on another machine), `memory.md` (shared agent memory, imported by this file).
 
 ## Machine data, secrets, and config writers
 

@@ -74,6 +74,9 @@ Preview everything without changing the machine:
 
 ## Daily use
 
+The full guide, with everyday jobs, every option and troubleshooting, is
+[docs/usage.md](docs/usage.md).
+
 | Command | Purpose |
 |---|---|
 | `dots bootstrap` | Set up a fresh machine, or re-run safely on a configured one |

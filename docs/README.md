@@ -4,6 +4,7 @@ Read this file first. It tells you which document answers which question.
 
 | If you need to… | Read |
 |---|---|
+| Use `dots`: everyday jobs, every command and option, troubleshooting | [usage.md](usage.md) |
 | Know the owner's preferences, decisions, the machine, and traps already hit (shared agent memory) | [memory.md](memory.md) |
 | Pick up the work on another machine (current state, next steps on Windows) | [handoff.md](handoff.md) |
 | Understand what the project is for, its principles, and what it will never do | [vision.md](vision.md) |

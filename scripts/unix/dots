@@ -36,12 +36,14 @@ Commands:
   status          Branch, commits behind/ahead, local changes, chezmoi drift, timer.
   <step> [--dry-run] [--non-interactive]
                   Run one bootstrap step on its own (git, accounts, fonts, shell, apply,
-                  desktop, wallpaper, sync), previewed and confirmed. dots desktop also
-                  repairs the Plasma packages (the Kuro splash).
-  capture [--dry-run]
+                  desktop, wallpaper), previewed and confirmed. dots desktop also
+                  repairs the Plasma packages (the Kuro splash). packages, sync and
+                  system are commands of their own; the sync step is setup-sync.sh.
+  capture [--dry-run] | capture kde --discover
                   Pick what changed on this machine (repository files, dotfiles
                   chezmoi copied, KDE keys, packages outside the manifest), write it
-                  back, review the diff, then commit to main and push.
+                  back, review the diff, then commit to main and push. kde --discover
+                  offers KDE keys you change in System Settings while it waits.
   system [--dry-run]
                   Boot theme packages and the system chezmoi instance (root/ -> /):
                   preview, then ask and apply with sudo. Never non-interactive.
@@ -51,7 +53,7 @@ Commands:
   cleanup [...]   Remove package-manager and chezmoi caches.
   help            Show this help.
 
-Prompts use gum when it is installed; set DOTS_NO_GUM=1 for plain prompts.
+Full guide: docs/usage.md. Prompts use gum when it is installed; set DOTS_NO_GUM=1 for plain prompts.
 EOF
 }
 
