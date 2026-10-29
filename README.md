@@ -105,7 +105,7 @@ comment at the top of each file documents its fields.
 |---|---|---|
 | `home/.chezmoidata.yaml` | `features.*` switches (`installFonts`, `setupShell`, `desktop`, `wallpapers`: `false` skips that step), the wallpaper repository and current image, the SSH agent mode (`accounts.ssh`) | `dots bootstrap`; the `wallpaper` and `accounts` steps |
 | `home/.chezmoidata/packages.yaml` | Packages per manager (`mapped` entries name the package for paru, apt, brew, winget, Scoop; plus per-manager lists) and Nerd Fonts | `dots packages`, the `fonts` step |
-| `home/.chezmoidata/kde.yaml` | KDE Plasma: global theme, one entry per key (`file`, `group`, `key`, `value`: shortcuts, KWin, splash, touchpad, power, default browser), fcitx5 input methods | the `desktop` step (`scripts/unix/setup-desktop.sh`) |
+| `home/.chezmoidata/kde.yaml` | KDE Plasma: global theme, one entry per key (`file`, `group`, `key`, `value`: shortcuts, KWin, splash, power, default browser), fcitx5 input methods, and per-machine keys under `machines.<hostname>` (touchpad, mouse) | the `desktop` step (`scripts/unix/setup-desktop.sh`) |
 | `home/.chezmoidata/windows.yaml` | Registry values: `user` (HKCU) and `machine` (HKLM) | the `desktop` step on Windows; `dots system` (admin) |
 
 For example, to keep Night Color on, add one line to `kde.yaml`:
@@ -123,6 +123,19 @@ Then preview and apply it (or re-run `dots bootstrap`, which runs the same step)
 
 - KDE `*rc` files and registry keys are managed **per key**, never as whole files: Plasma
   and Windows rewrite them constantly.
+- Keys tied to one machine's hardware go under `kde.machines.<hostname>.settings`, where
+  `<hostname>` is what `chezmoi execute-template '{{ .chezmoi.hostname }}'` prints. Only that
+  machine applies them; an entry with the same file, group and key as a shared one replaces it
+  there:
+
+  ```yaml
+  kde:
+    machines:
+      HwngPC:
+        settings:
+          - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: NaturalScroll, value: "true" }
+  ```
+
 - Quote values that must stay strings (`"true"`, `"0.400"`, `"1267"`); unquoted, YAML reads
   them as booleans or numbers.
 - Identity (name, emails, GitHub username) is not in these files: see the next section.
