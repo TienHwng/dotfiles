@@ -200,7 +200,8 @@ PowerShell:
 - Keep `.ps1` sources ASCII (5.1 reads BOM-less files as ANSI).
 - End scripts with `exit 0`: probes leave a non-zero `$LASTEXITCODE`.
 - Variable names are case-insensitive: a `$Step` parameter and a `$step` loop variable are the
-  same variable.
+  same variable. A scriptblock passed to a function resolves its variables in that function
+  first: a `$command` read inside `Invoke-PackageCommand -Command { ... }` is the scriptblock.
 - Dot-sourcing a script with a `param()` block rebinds those parameters in the caller.
 - On 5.1, `ConvertFrom-Json` emits a JSON array as one object: enumerate it.
 - Pester `Mock Read-Host` can break after another test file defined a global `Read-Host`:

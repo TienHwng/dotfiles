@@ -128,13 +128,14 @@ if ($psModules.Count -gt 0) {
             continue
         }
 
-        $command = if ($installed) {
+        # Not $command: Invoke-PackageCommand's -Command parameter would shadow it
+        $moduleCommand = if ($installed) {
             "Update-Module -Name '$module' -Force"
         } else {
             "Install-Module -Name '$module' -Scope CurrentUser -Repository PSGallery -Force"
         }
         Invoke-PackageCommand $module -KeepGoing $ContinueOnError -Command {
-            Invoke-NativeCommand -FilePath 'pwsh' -ArgumentList @('-NoProfile', '-NonInteractive', '-Command', $command) -DryRun:$DryRun | Out-Null
+            Invoke-NativeCommand -FilePath 'pwsh' -ArgumentList @('-NoProfile', '-NonInteractive', '-Command', $moduleCommand) -DryRun:$DryRun | Out-Null
         }
     }
 }
