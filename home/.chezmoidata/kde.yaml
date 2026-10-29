@@ -3,8 +3,11 @@
 # with kwriteconfig6. Whole *rc files are not managed: Plasma rewrites them constantly.
 #
 # lookAndFeel: global theme, applied with plasma-apply-lookandfeel (it also sets the colors).
-# settings:    one entry per key. group is a list for nested groups ([services][kitty.desktop]).
-#              Global shortcuts are "active,default,friendly name".
+# settings:    one entry per key, for every machine. group is a list for nested groups
+#              ([services][kitty.desktop]). Global shortcuts are "active,default,friendly name".
+# machines:    extra settings for one machine, keyed by its hostname (.chezmoi.hostname): hardware
+#              such as one laptop's touchpad. They come after the shared settings; an entry with
+#              the same file, group and key replaces the shared one on that machine.
 # Screen-specific state (panels, tiling, display layout) stays manual.
 
 kde:
@@ -35,15 +38,20 @@ kde:
     - { file: mimeapps.list, group: [Default Applications], key: x-scheme-handler/http, value: vivaldi-stable.desktop }
     - { file: mimeapps.list, group: [Default Applications], key: x-scheme-handler/https, value: vivaldi-stable.desktop }
     - { file: mimeapps.list, group: [Default Applications], key: text/html, value: vivaldi-stable.desktop }
-    # Touchpad and mouse, per device (vendor id, product id, name; take effect after the next login)
-    - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: NaturalScroll, value: "true" }
-    - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: PointerAcceleration, value: "0.400" }
-    - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: PointerAccelerationProfile, value: "1" }
-    - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: ScrollFactor, value: "0.3" }
-    - { file: kcminputrc, group: [Libinput, "14139", "4569", "Compx Wireless mouse 8k dongle-L"], key: PointerAccelerationProfile, value: "1" }
     # Power: on AC, never turn the display off (takes effect after the next login)
     - { file: powerdevilrc, group: [AC, Display], key: TurnOffDisplayWhenIdle, value: "false" }
     - { file: powerdevilrc, group: [AC, Display], key: TurnOffDisplayIdleTimeoutSec, value: "-1" }
     # Splash screen (theme in home/dot_local/share/plasma/look-and-feel/a2n.kuro)
     - { file: ksplashrc, group: [KSplash], key: Engine, value: KSplashQML }
     - { file: ksplashrc, group: [KSplash], key: Theme, value: a2n.kuro }
+
+  # Per machine, keyed by .chezmoi.hostname
+  machines:
+    HwngPC:
+      settings:
+        # Touchpad and mouse, per device (vendor id, product id, name; take effect after the next login)
+        - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: NaturalScroll, value: "true" }
+        - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: PointerAcceleration, value: "0.400" }
+        - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: PointerAccelerationProfile, value: "1" }
+        - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: ScrollFactor, value: "0.3" }
+        - { file: kcminputrc, group: [Libinput, "14139", "4569", "Compx Wireless mouse 8k dongle-L"], key: PointerAccelerationProfile, value: "1" }

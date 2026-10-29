@@ -40,6 +40,12 @@ EOF
   chmod +x "$mock_bin"/*
 }
 
+# Make chezmoi report this hostname, as kde.machines is keyed by it
+set_hostname() {
+  mkdir -p "$XDG_CONFIG_HOME/chezmoi"
+  printf '[data.chezmoi]\nhostname = "%s"\n' "$1" >"$XDG_CONFIG_HOME/chezmoi/chezmoi.toml"
+}
+
 # Store every value from kde.yaml, so nothing differs
 store_all_current() {
   chezmoi --source "$PROJECT_ROOT" execute-template <"$PROJECT_ROOT/scripts/kde-settings.tmpl" \
@@ -104,6 +110,60 @@ store_stock_fcitx5() {
   grep -qx 'kwriteconfig6 --notify --file kwinrc --group NightColor --key Active true' "$calls"
   run grep -c '^plasma-apply-lookandfeel' "$calls"
   [ "$output" = '0' ]
+}
+
+@test "desktop step applies a machine's device keys on that machine" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+  set_hostname HwngPC
+  store_all_current
+  grep -q '^kcminputrc|Libinput/1267/12410/ELAN1203:00 04F3:307A Touchpad|NaturalScroll=true$' "$store"
+  sed -i '/^kcminputrc|/d' "$store"
+
+  run env PATH="$mock_bin:$PATH" "$DESKTOP" --dry-run
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'5 KDE setting(s) differ'* ]]
+  [[ "$output" == *'kcminputrc [Libinput][1267][12410][ELAN1203:00 04F3:307A Touchpad] NaturalScroll: <unset> -> true'* ]]
+  [[ "$output" == *'kcminputrc [Libinput][14139][4569][Compx Wireless mouse 8k dongle-L] PointerAccelerationProfile: <unset> -> 1'* ]]
+  [ ! -e "$calls" ]
+}
+
+@test "desktop step leaves another machine's device keys alone" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+  set_hostname OtherPC
+  store_all_current
+
+  run grep -c '^kcminputrc|' "$store"
+  [ "$output" = '0' ]
+  run grep -c '^kwinrc|NightColor|Active=true$' "$store"
+  [ "$output" = '1' ]
+
+  run env PATH="$mock_bin:$PATH" "$DESKTOP" --dry-run
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'already match kde.yaml'* ]]
+  [[ "$output" != *kcminputrc* ]]
+}
+
+@test "kde settings: a machine entry replaces the shared entry with the same key" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+  set_hostname TestPC
+  data='{"kde": {"settings": [
+      {"file": "powerdevilrc", "group": ["AC", "Display"], "key": "TurnOffDisplayWhenIdle", "value": "false"},
+      {"file": "kwinrc", "group": ["NightColor"], "key": "Active", "value": "true"}],
+    "machines": {
+      "TestPC": {"settings": [
+        {"file": "powerdevilrc", "group": ["AC", "Display"], "key": "TurnOffDisplayWhenIdle", "value": "true"},
+        {"file": "kcminputrc", "group": ["Mouse"], "key": "X11LibInputXAccelProfileFlat", "value": "true"}]},
+      "OtherPC": {"settings": [
+        {"file": "kwinrc", "group": ["NightColor"], "key": "Active", "value": "false"}]}}}}'
+
+  run chezmoi --source "$PROJECT_ROOT" --override-data "$data" execute-template <"$PROJECT_ROOT/scripts/kde-settings.tmpl"
+
+  [ "$status" -eq 0 ]
+  expected="$(printf '%s\t%s\t%s\t%s\n' kwinrc NightColor Active true \
+    powerdevilrc $'AC\x1fDisplay' TurnOffDisplayWhenIdle true kcminputrc Mouse X11LibInputXAccelProfileFlat true)"
+  [ "$output" = "$expected" ]
 }
 
 @test "desktop step skips machines without KDE Plasma" {
