@@ -292,11 +292,6 @@ kde:
   Meta+Shift+A activities, Meta+T kitty, Tiles editor unbound), KWin (fcitx5 Wayland input
   method, Night Color, one desktop), look (Breeze Twilight, contrast, Vivaldi as browser), and
   the Kuro splash (`ksplashrc`; theme files in `home/dot_local/share/plasma`).
-- Vietnamese input (fcitx5, both KDE and Hyprland): `environment.d/im.conf` sets only
-  `XMODIFIERS`, `QT_IM_MODULES=wayland;fcitx` and `SDL_IM_MODULE`; never `GTK_IM_MODULE` or
-  `QT_IM_MODULE`, which bypass Wayland text-input and break typing and switching. The input
-  method group (`keyboard-us` + `bamboo`, toggled with Ctrl+Space) is
-  `home/dot_config/fcitx5/create_profile`: written only when missing, since fcitx5 rewrites it.
 - `scripts/kde-settings.tmpl` renders one line per key (file, groups joined by the ASCII unit
   separator, key, value), like `package-list.tmpl` does for packages.
 - The `desktop` step of `dots` (`scripts/unix/setup-desktop.sh`, after `apply` so the splash
