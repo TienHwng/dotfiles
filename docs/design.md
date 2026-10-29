@@ -290,8 +290,17 @@ kde:
 
 - Current keys (owner's picks): custom global shortcuts (Meta+U shut down, Meta+A /
   Meta+Shift+A activities, Meta+T kitty, Tiles editor unbound), KWin (fcitx5 Wayland input
-  method, Night Color, one desktop), look (Breeze Twilight, contrast, Vivaldi as browser), and
-  the Kuro splash (`ksplashrc`; theme files in `home/dot_local/share/plasma`).
+  method, Night Color, one desktop), look (Breeze Twilight, contrast, Vivaldi as browser and as
+  the `mimeapps.list` handler for http/https/html), touchpad and mouse (`kcminputrc`, per
+  device), power (display stays on while on AC), the Kuro splash (`ksplashrc`; theme files in
+  `home/dot_local/share/plasma`), and the fcitx5 input methods (`kde.fcitx5`: layout, list,
+  default).
+- Choosing a global theme in System Settings resets the splash to the theme's own (Breeze,
+  the default, so `ksplashrc` ends up empty). Whole-file capture once saved that empty file;
+  per key, the `desktop` step applies the theme first and then sets the splash back.
+- fcitx5 rewrites `fcitx5/profile` from memory, so a running fcitx5 gets the list over D-Bus
+  (`org.fcitx.Fcitx.Controller1.SetInputMethodGroupInfo`, then `SetCurrentIM` for the
+  default), as fcitx5-configtool does; without one the step writes the profile keys.
 - `scripts/kde-settings.tmpl` renders one line per key (file, groups joined by the ASCII unit
   separator, key, value), like `package-list.tmpl` does for packages.
 - The `desktop` step of `dots` (`scripts/unix/setup-desktop.sh`, after `apply` so the splash
@@ -299,8 +308,10 @@ kde:
   `file [group] key: current -> new` for the ones that differ, then applies the global theme
   first (it rewrites colors) and writes each key with `kwriteconfig6 --notify` (nested groups:
   repeated `--group`). It reloads KWin with `qdbus6 org.kde.KWin /KWin reconfigure` when a
-  `kwinrc` key changed. Global shortcuts take effect after the next login: Plasma 6 runs
-  kglobalaccel inside KWin, with no service to restart. Without Plasma 6 the step does nothing.
+  `kwinrc` key changed. Global shortcuts, input devices and power settings take effect after
+  the next login (Plasma 6 runs kglobalaccel inside KWin, with no service to restart). Without Plasma 6 the step does nothing.
+  First it removes links in `~/.config` that dangle into `home/` (whole `*rc` files that
+  chezmoi symlinked before P5a): `kwriteconfig6` writes nothing through them yet exits 0.
   The owner chose a dots step over a `run_onchange_` script so every change is previewed and
   confirmed. Gate: `features.desktop`.
 - `dots capture kde` compares managed keys (`kreadconfig6`) with the YAML.
