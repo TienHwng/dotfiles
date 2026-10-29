@@ -6,7 +6,7 @@ nothing is shared between the two OSes except this GitHub repository. Read this 
 then [memory.md](memory.md) (also loaded through [../CLAUDE.md](../CLAUDE.md)),
 [README.md](README.md), and the parts of [design.md](design.md) you touch. The owner should not have to explain anything again.
 
-Last updated: 2026-10-29, from CachyOS.
+Last updated: 2026-10-29, first Windows session.
 
 ---
 
@@ -35,6 +35,25 @@ Every roadmap phase P0–P7 is written and tested in CI. What has run for real:
 The authoritative list of open items is the "Deferred owner tasks" table in
 [roadmap.md](roadmap.md). The Windows part of it is section 3 below.
 
+First Windows session (2026-10-29), read-only checks before any `dots` step ran:
+
+- The repository was a plain clone in `Documents\Code\Tools\dotfiles`; the owner chose the
+  chezmoi default `%USERPROFILE%\.local\share\chezmoi` (one clone only). No chezmoi config,
+  Scoop, gum, jq or Scheduled Task yet; `gh` logged in over HTTPS; chezmoi installed with
+  winget for the tests.
+- Already as `dots system` wants it: `RealTimeIsUniversal=1`, `HiberbootEnabled=0`,
+  `ssh-agent` disabled, NVIDIA App 11.0.9.565 installed.
+- PoC-4: `Documents` is not redirected (`C:\Users\Hwng\Documents`), OneDrive runs.
+- Armoury Crate came from the BIOS as the Store package `B9ECED6F.ArmouryCrate`; the manifest
+  entry now carries `appx:` so the packages step does not reinstall it.
+- The owner's hand-made `Microsoft.PowerShell_profile.ps1` (Catppuccin, Terminal-Icons,
+  PSReadLine, fastfetch) moved into the shared profile; the owner deletes that file after
+  the `shell` and `apply` steps.
+- Open, for the owner: `C:\Users\Hwng\Pictures\WALLPAPER` is a personal folder (not a clone),
+  and Windows paths ignore case, so the `wallpaper` step refuses it; and winget already has
+  CLI tools the manifest takes from Scoop (`GitHub.cli`, `junegunn.fzf`, `Neovim.Neovim`,
+  `7zip.7zip`, `JanDeDobbeleer.OhMyPosh`, `Fastfetch-cli.Fastfetch`).
+
 ## 3. What to do on Windows, in order
 
 The owner starts from the README quick start in **Windows PowerShell 5.1** (downloads
@@ -47,9 +66,8 @@ Then they open Claude Code in that folder. From there:
 2. **Walk `dots bootstrap` with the owner** (`pwsh`, then `dots bootstrap`; the `dots`
    function comes from the shared profile after the `shell` step, before that use
    `pwsh -File scripts\windows\dots.ps1 bootstrap`). Steps and what to check:
-   - `packages`: winget then Scoop. Check that `Asus.ArmouryCrate` is not reinstalled when the
-     BIOS already installed Armoury Crate (`winget list --id Asus.ArmouryCrate`); if winget
-     does not see it, note it and decide with the owner.
+   - `packages`: winget, Scoop, then PowerShell Gallery modules. Armoury Crate from the BIOS
+     shows as installed (Store package, `appx:` in the manifest).
    - `git`, `accounts`: `gh auth login` over HTTPS. Bitwarden is optional for now (PoC-3 is
      deferred); if the owner skips it, the accounts step warns and continues.
    - `fonts`, `shell` (`XDG_CONFIG_HOME`, profile stub), `apply`.
@@ -68,8 +86,7 @@ Then they open Claude Code in that folder. From there:
    `install-nvidia-app.ps1` looks for; if detection fails, find the real `DisplayName` with
    `Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\* | ? DisplayName -like 'NVIDIA*'`
    and fix the pattern.
-4. **PoC-4:** check whether OneDrive moved `Documents` (`[Environment]::GetFolderPath('MyDocuments')`);
-   the profile stub follows that path, so only note the result.
+4. **PoC-4:** done 2026-10-29, `Documents` is not redirected.
 5. **Clock:** after a reboot into CachyOS and back, both clocks must agree (UTC hardware clock).
 6. **Win11Debloat (the last open P5c item).** Sit with the owner and go through the current
    Windows settings to pick the switches; they only remember "show hidden files" and "show

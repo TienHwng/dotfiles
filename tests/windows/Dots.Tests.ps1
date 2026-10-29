@@ -131,6 +131,8 @@ Describe 'Windows step scripts in a dry run' {
 
         $output | Should -Match 'Microsoft\.PowerShell'
         $output | Should -Match '\+ scoop install ripgrep'
+        $output | Should -Match 'PowerShell Gallery: \d+ module'
+        $output | Should -Match 'Terminal-Icons'
         Test-Path -LiteralPath $env:SCOOP | Should -BeFalse
     }
 

@@ -177,7 +177,8 @@ step; until then `dots` uses plain prompts.
 |---|---|
 | Manifest `home/.chezmoidata/packages.yaml` (replaced `packages/*.txt`) | `[Implemented]` |
 | `scripts/package-list.tmpl` renderer, `manifest_list` (Bash) / `Get-ManifestList` (PowerShell) | `[Implemented]` |
-| `install-packages.sh` (paru, apt, brew) and `install-packages.ps1` (winget, then Scoop) read the manifest | `[Implemented]` |
+| `install-packages.sh` (paru, apt, brew) and `install-packages.ps1` (winget, then Scoop, then PowerShell Gallery modules) read the manifest | `[Implemented]` |
+| `appx:` key: a winget app installed as a Store package winget cannot match (Armoury Crate from the BIOS) counts as installed | `[Implemented]` |
 | `install-packages.sh --diff` report (arch, apt, brew) | `[Implemented]` |
 | Fonts (`nerdFonts` list) read from the manifest | `[Implemented]` |
 | Fedora backend | Removed |
@@ -201,13 +202,15 @@ packages:
     - name: armoury-crate
       vendor: ASUS              # only where the machine's manufacturer contains "ASUS"
       winget: Asus.ArmouryCrate
+      appx: B9ECED6F.ArmouryCrate  # installed when this Store package is (winget cannot match it)
   # Packages for one manager only
   arch: [paru, kitty, plymouth]
   apt: [build-essential]
   brew: []
   brewCask: []
   winget: [Microsoft.PowerShell]
-  scoop: []                   # "bucket/app" adds the bucket first
+  scoop: [fastfetch]          # "bucket/app" adds the bucket first
+  psModules: [Terminal-Icons]   # PowerShell Gallery, per user, for the PowerShell 7 profile
   nerdFonts: [JetBrainsMono]    # Linux: release archive; Windows: Scoop nerd-fonts/<name>-NF
 ```
 
@@ -230,7 +233,11 @@ Rules:
 - Manager per platform: CachyOS/Arch → `arch` (paru, `--needed`, never as root);
   Windows → `winget` for GUI/system apps, `scoop` for CLI tools and fonts. Both skip
   packages that are already installed; `-Upgrade` upgrades them instead. Scoop is installed
-  per user on first use and refuses an elevated shell.
+  per user on first use and refuses an elevated shell. `psModules` install through `pwsh`
+  (`Install-Module -Scope CurrentUser`), so they land in PowerShell 7's module folder even
+  when `dots` runs under 5.1. A winget entry with `appx:` counts as installed when that Store
+  package is, for the install step and `dots packages -Diff` alike, and is never upgraded
+  through winget (it updates itself).
   Planned: Ubuntu → `apt` (+ `flatpak`/`snap` for GUI); macOS → `brew` + `brewCask`;
   NixOS → `nix`. A new manager is a new key, with no structural change.
 - Put an app in `mapped` as soon as it is installed by two or more managers.
@@ -271,7 +278,12 @@ Rules:
   (`[Environment]::GetFolderPath('MyDocuments')\PowerShell\profile.ps1`) that dot-sources the
   chezmoi-managed `~/.config/powershell/profile.ps1`. A different existing file there is moved
   to `profile.ps1.bak-<timestamp>` first. The shared profile defines the `dots` function. That profile starts oh-my-posh with the same theme
-  name as `.zshrc` (`OMP_THEME_NAME`, default `montys`).
+  name as `.zshrc` (`OMP_THEME_NAME`, default `montys`), then (each only when present)
+  Terminal-Icons, PSReadLine predictions in a list with Tab menu completion, Catppuccin Mocha
+  colours for PSReadLine and `$PSStyle`, and fastfetch in a console host. The modules come from
+  the manifest's `psModules`, fastfetch from Scoop (moved in from the owner's hand-made
+  `Microsoft.PowerShell_profile.ps1` on 2026-10-29; the shell step still warns while that file
+  exists).
 - Windows-only app configs, when one is managed, live under `home/AppData/…`.
 - Apps with their own sync are not configured here. `dots bootstrap` ends by printing
   "sign in to sync" reminders for them.

@@ -22,14 +22,15 @@ function Test-NvidiaGpu {
     return @($controllers | Where-Object { "$($_.PNPDeviceID)" -match 'VEN_10DE' }).Count -gt 0
 }
 
-# DisplayVersion of the installed NVIDIA App, or $null
+# DisplayVersion of the installed NVIDIA App ("NVIDIA App 11.0.9.565", not its components
+# such as "NVIDIA App driver settings"), or $null
 function Get-NvidiaAppVersion {
     $uninstallKeys = @(
         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
         'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
     )
     $entry = Get-ItemProperty -Path $uninstallKeys -ErrorAction SilentlyContinue |
-        Where-Object { $_.PSObject.Properties['DisplayName'] -and "$($_.DisplayName)" -match '^NVIDIA app\b' } |
+        Where-Object { $_.PSObject.Properties['DisplayName'] -and "$($_.DisplayName)" -match '^NVIDIA app( [\d.]+)?$' } |
         Select-Object -First 1
     if ($null -eq $entry) {
         return $null

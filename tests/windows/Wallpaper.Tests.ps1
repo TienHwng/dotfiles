@@ -23,6 +23,10 @@ Describe 'setup-wallpaper.ps1' {
             Set-ItResult -Skipped -Because 'chezmoi is not installed'
             return
         }
+        if ($IsWindows -and (Test-Path -LiteralPath (Join-Path $HOME 'Pictures\wallpaper'))) {
+            Set-ItResult -Skipped -Because 'Windows takes HOME from the profile folder, which already has Pictures\wallpaper'
+            return
+        }
         $homeDir = Join-Path $TestDrive 'fresh-home'
         New-Item -ItemType Directory -Path $homeDir | Out-Null
 

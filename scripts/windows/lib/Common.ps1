@@ -162,6 +162,33 @@ function Test-WingetPackage([string]$Id) {
     return $LASTEXITCODE -eq 0
 }
 
+# Store (MSIX) package names keyed by WinGet id, from the `appx` key of mapped manifest
+# entries: apps that may arrive as a Store package winget does not match to its id
+function Get-AppxNameMap {
+    $map = @{}
+    foreach ($entry in @((Get-RepoData '.packages.mapped') | ForEach-Object { $_ })) {
+        if ($entry.PSObject.Properties['winget'] -and $entry.PSObject.Properties['appx']) {
+            $map[$entry.winget] = $entry.appx
+        }
+    }
+    return $map
+}
+
+# True when a Store (MSIX) package with this name is installed for the current user
+function Test-AppxPackage([string]$Name) {
+    if (-not (Test-Command 'Get-AppxPackage')) {
+        return $false
+    }
+    return @(Get-AppxPackage -Name $Name -ErrorAction SilentlyContinue).Count -gt 0
+}
+
+# True when a PowerShell Gallery module is installed for PowerShell 7 (CurrentUser scope),
+# whichever PowerShell asks
+function Test-PwshModule([string]$Name) {
+    $modules = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'PowerShell\Modules'
+    return Test-Path -LiteralPath (Join-Path $modules $Name)
+}
+
 function Get-ScoopRoot {
     if ($env:SCOOP) {
         return $env:SCOOP

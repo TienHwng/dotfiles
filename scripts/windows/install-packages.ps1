@@ -44,7 +44,14 @@ if ($wingetPackages.Count -gt 0) {
     }
 
     Write-Step "WinGet: $($wingetPackages.Count) package(s)"
+    $appxNames = Get-AppxNameMap
     foreach ($package in $wingetPackages) {
+        # Installed as a Store package winget does not match to the id; it updates itself
+        if ($appxNames.ContainsKey($package) -and (Test-AppxPackage $appxNames[$package])) {
+            Write-Success "$package is installed (Store package $($appxNames[$package]))"
+            continue
+        }
+
         $installed = $hasWinget -and (Test-WingetPackage $package)
         if ($installed -and -not $Upgrade) {
             Write-Success "$package is installed"
@@ -102,8 +109,38 @@ if ($scoopPackages.Count -gt 0) {
     }
 }
 
-if ($wingetPackages.Count -eq 0 -and $scoopPackages.Count -eq 0) {
-    Write-ToolWarning 'No WinGet or Scoop packages configured'
+# PowerShell Gallery: modules the PowerShell 7 profile imports, installed per user. They
+# install through pwsh so they land in PowerShell 7's module folder, even from 5.1.
+$psModules = @(Get-ManifestList 'psModules')
+if ($psModules.Count -gt 0) {
+    if (-not (Test-Command 'pwsh')) {
+        if (-not $DryRun) {
+            Stop-Tool 'PowerShell 7 (pwsh) is required for the profile modules; Microsoft.PowerShell is in the WinGet list.'
+        }
+        Write-ToolWarning 'PowerShell 7 is not currently available; printing every planned module install.'
+    }
+
+    Write-Step "PowerShell Gallery: $($psModules.Count) module(s)"
+    foreach ($module in $psModules) {
+        $installed = Test-PwshModule $module
+        if ($installed -and -not $Upgrade) {
+            Write-Success "$module is installed"
+            continue
+        }
+
+        $command = if ($installed) {
+            "Update-Module -Name '$module' -Force"
+        } else {
+            "Install-Module -Name '$module' -Scope CurrentUser -Repository PSGallery -Force"
+        }
+        Invoke-PackageCommand $module -KeepGoing $ContinueOnError -Command {
+            Invoke-NativeCommand -FilePath 'pwsh' -ArgumentList @('-NoProfile', '-NonInteractive', '-Command', $command) -DryRun:$DryRun | Out-Null
+        }
+    }
+}
+
+if ($wingetPackages.Count -eq 0 -and $scoopPackages.Count -eq 0 -and $psModules.Count -eq 0) {
+    Write-ToolWarning 'No WinGet, Scoop or PowerShell Gallery packages configured'
     return
 }
 

@@ -172,7 +172,7 @@ which are commands of their own (`dots sync` pulls; the `sync` step itself is
 
 | Step | Linux | Windows | Reads |
 |---|---|---|---|
-| `packages` | paru (repositories and AUR) | winget, then Scoop | `packages.yaml` |
+| `packages` | paru (repositories and AUR) | winget, then Scoop, then PowerShell Gallery modules | `packages.yaml` |
 | `git` | checks Git name and email, renders `~/.gitconfig` | same | local chezmoi config |
 | `accounts` | `gh auth login` over HTTPS; Bitwarden SSH agent check | same | `.chezmoidata.yaml` (`accounts.ssh`) |
 | `fonts` | Nerd Fonts from the release archives | Scoop `nerd-fonts` | `packages.yaml` (`nerdFonts`) |

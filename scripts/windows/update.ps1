@@ -7,7 +7,8 @@ param(
 )
 
 # Upgrades what is installed; with neither -Packages nor -Fonts, both:
-#   -Packages  WinGet and Scoop packages from the manifest (upgrade, install the missing ones)
+#   -Packages  WinGet, Scoop and PowerShell Gallery packages from the manifest (upgrade,
+#              install the missing ones)
 #   -Fonts     reinstall the Nerd Fonts from their latest release
 # Each part lists what it would do and asks first; -DryRun only lists. Repository changes
 # are not pulled here: that is dots sync, which shows and asks.

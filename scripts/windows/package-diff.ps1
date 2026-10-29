@@ -25,7 +25,10 @@ function Get-InstalledWingetId {
             return @()
         }
         $export = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
-        return @($export.Sources | ForEach-Object { $_.Packages } | ForEach-Object { $_.PackageIdentifier })
+        $ids = @($export.Sources | ForEach-Object { $_.Packages } | ForEach-Object { $_.PackageIdentifier })
+        # Ids whose app arrived as a Store package winget does not match (Armoury Crate)
+        $appxNames = Get-AppxNameMap
+        return $ids + @($appxNames.Keys | Where-Object { Test-AppxPackage $appxNames[$_] })
     } finally {
         Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue
     }

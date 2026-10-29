@@ -1,6 +1,8 @@
 # Shared PowerShell 7 profile, managed by chezmoi (home/dot_config/powershell).
 # The stub that `dots bootstrap` (shell step) writes to $PROFILE.CurrentUserAllHosts
 # dot-sources this file, so OneDrive moving Documents does not matter.
+# Terminal-Icons and Catppuccin come from the manifest (psModules), fastfetch from Scoop;
+# each part is skipped while its module or command is missing.
 
 # The dots CLI lives in the repository
 function dots {
@@ -18,4 +20,66 @@ if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     }
     oh-my-posh init pwsh --config $ompTheme | Invoke-Expression
     Remove-Variable ompTheme
+}
+
+if (Get-Module -ListAvailable -Name Terminal-Icons) {
+    Import-Module Terminal-Icons
+}
+
+# Predictions from history and plugins in a list, Tab cycles through a menu
+if (Get-Module -ListAvailable -Name PSReadLine) {
+    Import-Module PSReadLine
+    try {
+        Set-PSReadLineOption -PredictionSource HistoryAndPlugin
+    } catch {
+        Set-PSReadLineOption -PredictionSource History
+    }
+    try {
+        Set-PSReadLineOption -PredictionViewStyle ListView
+    } catch {
+        # Older PSReadLine versions have no ListView
+    }
+    Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete
+}
+
+# Catppuccin Mocha for PSReadLine and $PSStyle
+if ((Get-Module PSReadLine) -and (Get-Module -ListAvailable -Name Catppuccin)) {
+    Import-Module Catppuccin
+    & {
+        $flavor = $Catppuccin['Mocha']
+        if ($null -eq $flavor) {
+            return
+        }
+        Set-PSReadLineOption -Colors @{
+            ContinuationPrompt     = $flavor.Teal.Foreground()
+            Emphasis               = $flavor.Red.Foreground()
+            Selection              = $flavor.Surface0.Background()
+            InlinePrediction       = $flavor.Overlay0.Foreground()
+            ListPrediction         = $flavor.Mauve.Foreground()
+            ListPredictionSelected = $flavor.Surface0.Background()
+            Command                = $flavor.Blue.Foreground()
+            Comment                = $flavor.Overlay0.Foreground()
+            Default                = $flavor.Text.Foreground()
+            Error                  = $flavor.Red.Foreground()
+            Keyword                = $flavor.Mauve.Foreground()
+            Member                 = $flavor.Rosewater.Foreground()
+            Number                 = $flavor.Peach.Foreground()
+            Operator               = $flavor.Sky.Foreground()
+            Parameter              = $flavor.Pink.Foreground()
+            String                 = $flavor.Green.Foreground()
+            Type                   = $flavor.Yellow.Foreground()
+            Variable               = $flavor.Lavender.Foreground()
+        }
+        $PSStyle.Formatting.Debug = $flavor.Sky.Foreground()
+        $PSStyle.Formatting.Error = $flavor.Red.Foreground()
+        $PSStyle.Formatting.ErrorAccent = $flavor.Blue.Foreground()
+        $PSStyle.Formatting.FormatAccent = $flavor.Teal.Foreground()
+        $PSStyle.Formatting.TableHeader = $flavor.Rosewater.Foreground()
+        $PSStyle.Formatting.Verbose = $flavor.Yellow.Foreground()
+        $PSStyle.Formatting.Warning = $flavor.Peach.Foreground()
+    }
+}
+
+if ($Host.Name -eq 'ConsoleHost' -and (Get-Command fastfetch -ErrorAction SilentlyContinue)) {
+    fastfetch
 }

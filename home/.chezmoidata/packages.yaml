@@ -6,9 +6,14 @@
 #          DOTFILES_HEADLESS=1 (WSL, servers). `vendor: X` entries are installed
 #          only on hardware whose manufacturer contains X (DMI sys_vendor on
 #          Linux, Win32_ComputerSystem on Windows; DOTFILES_VENDOR overrides).
+#          `appx: Name` marks a winget app that may arrive as a Store (MSIX)
+#          package winget does not match to its id (Armoury Crate, installed by
+#          the BIOS): when that package is installed, the winget id counts as
+#          installed and is left to update itself.
 # <list>:  packages that exist for one manager only.
 #
-# Lists: arch (paru, CachyOS/Arch), apt, brew, brewCask, winget, scoop, nerdFonts.
+# Lists: arch (paru, CachyOS/Arch), apt, brew, brewCask, winget, scoop, nerdFonts,
+# psModules (PowerShell Gallery modules the PowerShell 7 profile imports).
 # Windows: winget for GUI and system apps, scoop for CLI tools. Scoop names may
 # carry a bucket ("extras/app"); the bucket is added before installing.
 # Scripts read them with scripts/package-list.tmpl; see docs/design.md (L2).
@@ -109,6 +114,7 @@ packages:
       gui: true
       vendor: ASUS
       winget: Asus.ArmouryCrate
+      appx: B9ECED6F.ArmouryCrate
     # Repository validation (make validate, pre-commit secret scan)
     - name: shellcheck
       arch: shellcheck
@@ -234,7 +240,13 @@ packages:
     - Microsoft.WindowsTerminal
     - Microsoft.PowerToys
 
-  scoop: []
+  scoop:
+    - fastfetch
+
+  # PowerShell Gallery modules for the PowerShell 7 profile, installed per user
+  psModules:
+    - Terminal-Icons
+    - Catppuccin
 
   # Nerd Fonts release archive names, installed per user by install-fonts
   # (Linux: release archive; Windows: Scoop nerd-fonts/<name>-NF)

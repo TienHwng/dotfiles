@@ -11,7 +11,7 @@ the date when it matters. Remove what stops being true. Do not store secrets or 
 identity beyond what is already public in the repository. Current next steps belong in
 [handoff.md](handoff.md) and [roadmap.md](roadmap.md), not here.
 
-Last updated: 2026-10-29 (evening, before the switch to Windows).
+Last updated: 2026-10-29 (first Windows session).
 
 ---
 
@@ -65,7 +65,12 @@ Last updated: 2026-10-29 (evening, before the switch to Windows).
   `dots` prompts in plain text; `gh` is logged in over HTTPS.
 - The repository lives at `~/.local/share/chezmoi` (chezmoi **symlink** mode on Linux: most
   dotfiles are links into the repository) and `%USERPROFILE%\.local\share\chezmoi` on Windows
-  (**copy** mode). Wallpapers are a clone of the private `TienHwng/wallpapers` at
+  (**copy** mode; the owner chose the default over `Documents\Code\Tools\dotfiles` on
+  2026-10-29: one clone only, out of OneDrive's reach).
+- Windows (2026-10-29): Armoury Crate is the BIOS-installed Store package
+  `B9ECED6F.ArmouryCrate` (winget cannot match it to `Asus.ArmouryCrate`); NVIDIA App
+  11.0.9.565 installed; `Documents` not redirected; many apps and some CLI tools already came
+  from winget before `dots`; `Pictures\WALLPAPER` is the owner's own picture folder. Wallpapers are a clone of the private `TienHwng/wallpapers` at
   `~/Pictures/wallpaper`.
 
 ## 3. Decisions already made (do not re-ask)
@@ -201,4 +206,7 @@ PowerShell:
 - Pester `Mock Read-Host` can break after another test file defined a global `Read-Host`:
   wrap prompts in a small function and mock that.
 - Step functions may write to the pipeline: never use their output as a return value.
+- Windows paths ignore case: `Pictures\wallpaper` is the owner's existing `Pictures\WALLPAPER`.
+- A child `pwsh` on Windows takes `$HOME` from the profile folder, not `$env:HOME`: tests
+  that run a script in a child process are not isolated from the real profile there.
 - WinRT toasts work only in Windows PowerShell 5.1; PowerShell 7 has no WinRT projection.
