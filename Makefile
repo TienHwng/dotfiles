@@ -28,7 +28,7 @@ packages-unix: ## Install packages for the detected Unix platform from the manif
 packages-unix-diff: ## List packages installed outside the manifest and manifest packages not installed
 	./scripts/unix/install-packages.sh --diff
 
-update-unix: ## Update the Unix dotfiles environment
+update-unix: ## Upgrade installed packages and fonts (asks first)
 	./scripts/unix/update.sh
 
 bootstrap-windows: ## Provision the Windows user environment
@@ -37,7 +37,7 @@ bootstrap-windows: ## Provision the Windows user environment
 packages-windows: ## Install WinGet and Scoop packages from the manifest
 	$(PWSH) -NoProfile -File ./scripts/windows/install-packages.ps1
 
-update-windows: ## Update the Windows dotfiles environment
+update-windows: ## Upgrade manifest packages and fonts (asks first)
 	$(PWSH) -NoProfile -File ./scripts/windows/update.ps1
 
 preview: ## Preview user-level chezmoi changes

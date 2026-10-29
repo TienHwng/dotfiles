@@ -14,10 +14,10 @@ param(
     [switch]$Notify,
     # packages
     [switch]$Diff,
+    [switch]$Upgrade,
     # update
     [switch]$Packages,
     [switch]$Fonts,
-    [switch]$Upgrade,
     # cleanup
     [switch]$Yes,
     # backup
@@ -42,9 +42,10 @@ Commands:
                   fonts, shell, apply, desktop, wallpaper, sync, system. Each step
                   shows a preview and asks run / skip / quit before changing anything.
                   -NonInteractive skips system unless -DryRun is set.
-  packages [-DryRun | -Diff]
+  packages [-DryRun] [-Upgrade] | packages -Diff
                   Install missing WinGet and Scoop packages from the manifest
-                  (preview, then ask), or list packages installed outside it.
+                  (preview, then ask; -Upgrade also upgrades installed ones), or
+                  list packages installed outside it.
   sync [-Check [-Notify]]
                   Pull new commits (fast-forward only, after showing them), then run
                   the steps whose files changed, each with a preview. -Check only
@@ -64,8 +65,10 @@ Commands:
                   App: preview, then ask and apply in an administrator window. Never
                   non-interactive.
   doctor          Check required tools, the shell setup, the manifest, and chezmoi.
-  update [-Packages] [-Fonts] [-Upgrade] [-DryRun]
-                  Pull and apply the repository, optionally packages and fonts.
+  update [-Packages] [-Fonts] [-DryRun]
+                  Upgrade the manifest's WinGet and Scoop packages and reinstall the
+                  Nerd Fonts, each listed first and confirmed; neither option means
+                  both. It does not pull the repository: that is dots sync.
   backup [-Destination PATH] [-DryRun]
                   Back up the repository and the local chezmoi config.
   cleanup [-Yes] [-DryRun]
@@ -544,7 +547,7 @@ function Invoke-DotsCommand {
             }
         }
         'update' {
-            & (Join-Path $PSScriptRoot 'update.ps1') -Packages:$Packages -Fonts:$Fonts -UpgradePackages:$Upgrade -DryRun:$DryRun
+            & (Join-Path $PSScriptRoot 'update.ps1') -Packages:$Packages -Fonts:$Fonts -DryRun:$DryRun -NonInteractive:$NonInteractive
         }
         'backup' {
             $arguments = @{ DryRun = $DryRun }

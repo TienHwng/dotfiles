@@ -101,7 +101,11 @@ Last updated: 2026-10-29 (evening, before the switch to Windows).
   copied as real files by the desktop step; never as chezmoi symlinks (section 5).
 - **Sync:** check at login and every 6 hours, notify only, with a *Sync now* button; Windows
   toast through the built-in API (no BurntToast). `dots capture` commits to `main` and pushes.
-- **Docs:** English, flat `docs/` (README index, vision, design, roadmap, handoff, memory).
+- **Repository changes arrive only through `dots sync`** (shows the commits, asks).
+  `dots update` only upgrades installed packages and fonts; it used to run `chezmoi update`,
+  which pulled and applied without asking (changed 2026-10-29).
+- **Docs:** English, flat `docs/` (README index, vision, design, roadmap, usage, handoff,
+  memory). `docs/usage.md` is the owner's guide to `dots`; update it with every command change.
 
 ## 4. How the project got here
 

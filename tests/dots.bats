@@ -144,3 +144,28 @@ mock_package_tools() {
   [[ "$output" == *'The splash screen Missing.theme is not installed anywhere'* ]]
   [[ "$output" == *'Plasma refused 1 package file(s)'* ]]
 }
+
+@test "dots update lists upgrades, asks, and never pulls the repository" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+  mock_bin="$BATS_TEST_TMPDIR/update-bin"
+  calls="$BATS_TEST_TMPDIR/update-calls"
+  mkdir -p "$mock_bin"
+  printf '#!/usr/bin/env bash\necho "lvm2 2.03.43-2 -> 2.03.44-1"\n' >"$mock_bin/checkupdates"
+  printf '#!/usr/bin/env bash\nprintf "paru %%s\\n" "$*" >>%q\n[[ "$1" == -Qua ]] && echo "zsh-auto-notify 0.11.0 -> 0.11.1"\nexit 0\n' "$calls" >"$mock_bin/paru"
+  chmod +x "$mock_bin"/*
+
+  run env PATH="$mock_bin:$PATH" DOTFILES_PLATFORM=arch "$DOTS" update --packages --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'lvm2 2.03.43-2 -> 2.03.44-1'* ]]
+  [[ "$output" == *'zsh-auto-notify'* ]]
+  [[ "$output" == *'+ paru -Syu'* ]]
+  [[ "$output" != *'chezmoi update'* ]]
+  run grep -c '^paru -Syu' "$calls"
+  [ "$output" = '0' ]
+
+  run env PATH="$mock_bin:$PATH" DOTFILES_PLATFORM=arch DOTS_NO_GUM=1 bash -c 'printf "n\nn\n" | "$1" update --packages' _ "$DOTS"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Packages left as they are'* ]]
+  run grep -c '^paru -Syu' "$calls"
+  [ "$output" = '0' ]
+}

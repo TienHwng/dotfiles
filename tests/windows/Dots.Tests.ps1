@@ -134,6 +134,20 @@ Describe 'Windows step scripts in a dry run' {
         Test-Path -LiteralPath $env:SCOOP | Should -BeFalse
     }
 
+    It 'update lists package upgrades and fonts without pulling the repository' {
+        if (-not $HasChezmoi) {
+            Set-ItResult -Skipped -Because 'chezmoi is not installed'
+            return
+        }
+
+        $output = & (Join-Path $WindowsScripts 'update.ps1') -DryRun *>&1 | Out-String
+
+        $output | Should -Match 'Packages from the manifest'
+        $output | Should -Match 'Nerd Fonts'
+        $output | Should -Not -Match 'chezmoi update'
+        Test-Path -LiteralPath $env:SCOOP | Should -BeFalse
+    }
+
     It 'install-fonts prints the Scoop Nerd Font install' {
         if (-not $HasChezmoi) {
             Set-ItResult -Skipped -Because 'chezmoi is not installed'

@@ -108,6 +108,15 @@ dots system
 Shows a preview as you, then asks; on Linux it applies with `sudo`, on Windows in an
 administrator window (UAC). It never runs without you at the keyboard.
 
+### Keep apps and fonts up to date
+
+```bash
+dots update
+```
+
+Lists the pending package upgrades and asks, then the fonts. `--packages` or `--fonts` limits
+it to one part. Repository changes come with `dots sync`, not here.
+
 ### Before reinstalling an OS
 
 ```bash
@@ -148,7 +157,7 @@ nothing to change.
 | `packages` | `--dry-run`, `--diff` | `-DryRun`, `-Diff` | Install missing packages from the manifest; `--diff` lists packages installed outside it and listed but missing. | yes, asks |
 | `system` | `--dry-run` | `-DryRun` | System-level settings with sudo / admin (section 2). | yes, asks |
 | `doctor` | | | Health checks; exits non-zero when a required check fails. | no |
-| `update` | `--packages --fonts --dry-run` | `-Packages -Fonts -Upgrade -DryRun` | `chezmoi update` (pull and apply **without asking**), then optionally install missing packages (Windows `-Upgrade` upgrades them) and reinstall fonts. Prefer `dots sync` for repository changes. | yes |
+| `update` | `--packages --fonts --dry-run` | `-Packages -Fonts -DryRun` | Upgrade what is installed: Linux lists pending upgrades (`checkupdates`, AUR) then `paru -Syu` and the missing manifest packages; Windows upgrades the manifest's WinGet and Scoop packages; both reinstall the Nerd Fonts. Neither option means both. Never pulls the repository (that is `sync`). | yes, asks |
 | `backup` | `--destination DIR --dry-run` | `-Destination PATH -DryRun` | Tarball of the repository and local chezmoi configs (default `~/dotfiles-backups`, or `DOTFILES_BACKUP_DIR`). | writes the backup |
 | `cleanup` | `--yes --dry-run` | `-Yes -DryRun` | Clear package-manager and chezmoi caches (Linux also the chezmoi binary in `~/.local/bin`). | yes, asks unless `--yes` |
 | `help` | | | Short reference. | no |

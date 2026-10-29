@@ -48,7 +48,10 @@ Commands:
                   Boot theme packages and the system chezmoi instance (root/ -> /):
                   preview, then ask and apply with sudo. Never non-interactive.
   doctor          Check required tools, Git hooks, the manifest, and chezmoi.
-  update [...]    Update packages and fonts (scripts/unix/update.sh).
+  update [--packages] [--fonts] [--dry-run]
+                  Upgrade installed packages (paru -Syu) and reinstall the Nerd Fonts,
+                  each listed first and confirmed; neither option means both. It does
+                  not pull the repository: that is dots sync.
   backup [...]    Back up the repository and the local chezmoi configs.
   cleanup [...]   Remove package-manager and chezmoi caches.
   help            Show this help.
