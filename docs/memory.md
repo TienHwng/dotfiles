@@ -90,7 +90,7 @@ Last updated: 2026-10-29.
   all 8 boot themes no package ships are packaged in `pkgbuilds/boot-themes`; pacman options
   live in a drop-in; Plymouth themes that AUR packages ship come from the manifest.
 - **Plasma packages:** the Kuro splash is kept in `kde/plasma/look-and-feel/a2n.kuro` and
-  installed with `kpackagetool6`; never as chezmoi symlinks (section 5).
+  copied as real files by the desktop step; never as chezmoi symlinks (section 5).
 - **Sync:** check at login and every 6 hours, notify only, with a *Sync now* button; Windows
   toast through the built-in API (no BurntToast). `dots capture` commits to `main` and pushes.
 - **Docs:** English, flat `docs/` (README index, vision, design, roadmap, handoff, memory).
@@ -106,17 +106,23 @@ Last updated: 2026-10-29.
   Crate), P6 (Linux system instance, boot theme packages, pacman drop-in) and P7 (`dots sync`,
   the timer and task, `dots capture`, KDE key discovery, Windows packages). The owner ran
   `dots system` and enabled the timer on CachyOS. The work moved from PRs to direct commits.
-  The Kuro splash moved out of the chezmoi source after KDE's Get New replaced its symlinks.
+  The Kuro splash had vanished because Plasma refuses symlinked package files; it moved out of
+  the chezmoi source into `kde/`, copied by the desktop step.
 - Next: the Windows run-through ([handoff.md](handoff.md)), then the planned platforms.
 
 ## 5. Traps already hit
 
 General:
 
-- **chezmoi symlink mode vs apps that rewrite files.** Plasma rewrites `*rc` files and KDE's
-  *Get New* replaces whole package directories; both silently turn links into real files, so
-  the repository stops seeing changes. Manage such things per key (`kde.yaml`) or as packages
-  (`kde/` + `kpackagetool6`), never as linked files.
+- **chezmoi symlink mode vs apps that read or rewrite files.** Plasma rewrites `*rc` files
+  (links become real files, the repository stops seeing changes). KPackage refuses package
+  files that are symlinks out of the package directory (journal: "Path traversal attempt
+  detected: … is not inside …"), so a linked splash theme simply vanished and the owner had to
+  reinstall it with *Get New*. Manage such things per key (`kde.yaml`) or as packages copied
+  as real files from `kde/`, never as linked files. `kpackagetool6 --upgrade` fails for Kuro
+  (its `KPackageStructure` is `Plasma/LookAndFeel/Splash`), so the desktop step copies.
+- When the owner reports something broken, look in the journal first
+  (`journalctl --user -o cat | grep -a -i <name>`); the cause is usually logged.
 - `chezmoi diff` never clones `git-repo` externals; the apply step excludes externals (the
   wallpaper repository needs the gh login first) and applies the zsh plugin externals as a
   separate target.

@@ -13,7 +13,7 @@ Usage:
   ./scripts/unix/setup-desktop.sh [--dry-run]
 
 Applies the KDE Plasma settings from home/.chezmoidata/kde.yaml: Plasma packages kept in
-kde/ (kpackagetool6), the global theme (plasma-apply-lookandfeel), each listed key (kwriteconfig6) and the fcitx5 input method list
+kde/ (copied as real files), the global theme (plasma-apply-lookandfeel), each listed key (kwriteconfig6) and the fcitx5 input method list
 (over D-Bus when fcitx5 runs, else its profile). Prints current -> new
 for every key that differs; with --dry-run it changes nothing.
 EOF
@@ -55,9 +55,9 @@ look_and_feel="$(chezmoi --source "$ROOT_DIR/home" execute-template '{{ .kde.loo
 fcitx5_wanted="$(chezmoi --source "$ROOT_DIR/home" execute-template \
   '{{ with .kde.fcitx5 }}{{ .layout }}{{ "\t" }}{{ join " " .inputMethods }}{{ "\t" }}{{ .default }}{{ end }}')"
 
-# type<TAB>path<TAB>id per Plasma package kept in kde/
+# path<TAB>id per Plasma package kept in kde/
 packages="$(chezmoi --source "$ROOT_DIR/home" execute-template \
-  '{{ range .kde.packages }}{{ .type }}{{ "\t" }}{{ .path }}{{ "\t" }}{{ .id }}{{ "\n" }}{{ end }}')"
+  '{{ range .kde.packages }}{{ .path }}{{ "\t" }}{{ .id }}{{ "\n" }}{{ end }}')"
 
 changes=0
 kwin_changed=0
@@ -74,23 +74,26 @@ for link in "$config_dir"/*; do
   run_or_print rm -- "$link"
 done
 
-# Plasma packages: install the repository copy when missing, upgrade when the installed copy
-# differs (diff follows symlinks; links left over from the old chezmoi layout count as differing)
-package_actions=()
-while IFS=$'\t' read -r type path id; do
-  [[ -n "$type" ]] || continue
+# Plasma packages: copy the repository copy when the installed one is missing, differs, or
+# contains symlinks. Plasma rejects package files that link outside the package ("Path
+# traversal attempt detected"), which is how chezmoi symlink mode lost the Kuro splash.
+pending_packages=()
+while IFS=$'\t' read -r path id; do
+  [[ -n "$path" ]] || continue
   source_dir="$ROOT_DIR/kde/$path/$id"
   target_dir="${XDG_DATA_HOME:-$HOME/.local/share}/$path/$id"
   [[ -d "$source_dir" ]] || die "kde.packages lists $id but $source_dir is missing."
   if [[ ! -e "$target_dir" && ! -L "$target_dir" ]]; then
-    printf '  package %s: <not installed> -> kde/%s/%s\n' "$id" "$path" "$id"
-    package_actions+=("--install"$'\t'"$type"$'\t'"$source_dir")
+    reason='<not installed>'
+  elif [[ -L "$target_dir" || -n "$(find "$target_dir" -type l -print -quit)" ]]; then
+    reason='symlinks Plasma refuses'
   elif ! diff -rq "$source_dir" "$target_dir" >/dev/null 2>&1; then
-    printf '  package %s: installed copy differs -> kde/%s/%s (dots capture keeps the installed one)\n' "$id" "$path" "$id"
-    package_actions+=("--upgrade"$'\t'"$type"$'\t'"$source_dir")
+    reason='installed copy differs (dots capture keeps the installed one)'
   else
     continue
   fi
+  printf '  package %s: %s -> kde/%s/%s\n' "$id" "$reason" "$path" "$id"
+  pending_packages+=("$source_dir"$'\t'"$target_dir")
   changes=$((changes + 1))
 done <<<"$packages"
 
@@ -149,13 +152,11 @@ fi
 log_step "$changes KDE setting(s) differ from kde.yaml"
 
 # Packages first: the global theme and ksplashrc may name them
-for action in "${package_actions[@]}"; do
-  IFS=$'\t' read -r flag type source_dir <<<"$action"
-  if has kpackagetool6; then
-    run_or_print kpackagetool6 --type "$type" "$flag" "$source_dir"
-  else
-    log_warn "kpackagetool6 not found; install $source_dir by hand."
-  fi
+for entry in "${pending_packages[@]}"; do
+  IFS=$'\t' read -r source_dir target_dir <<<"$entry"
+  run_or_print rm -rf -- "$target_dir"
+  run_or_print mkdir -p -- "$(dirname -- "$target_dir")"
+  run_or_print cp -r -- "$source_dir" "$target_dir"
 done
 
 # The global theme rewrites colors in kdeglobals, so it goes first

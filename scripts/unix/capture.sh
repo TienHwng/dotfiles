@@ -96,10 +96,10 @@ collect_kde_keys() {
 
 # Plasma packages (kde.packages) whose installed copy differs from kde/, e.g. after Get New
 collect_kde_packages() {
-  local type path id source_dir target_dir
+  local path id source_dir target_dir
   has chezmoi || return 0
-  while IFS=$'\t' read -r type path id; do
-    [[ -n "$type" ]] || continue
+  while IFS=$'\t' read -r path id; do
+    [[ -n "$path" ]] || continue
     source_dir="$ROOT_DIR/kde/$path/$id"
     target_dir="${XDG_DATA_HOME:-$HOME/.local/share}/$path/$id"
     # Only a real installed copy can be kept: missing or dangling means the desktop step installs it
@@ -108,7 +108,7 @@ collect_kde_packages() {
     diff -rq "$source_dir" "$target_dir" >/dev/null 2>&1 && continue
     items+=("kde-pkg"$'\t'"$path/$id"$'\t'"kde-pkg   $path/$id: keep the installed copy in kde/$path/$id")
   done < <(chezmoi --source "$ROOT_DIR/home" execute-template \
-    '{{ range .kde.packages }}{{ .type }}{{ "\t" }}{{ .path }}{{ "\t" }}{{ .id }}{{ "\n" }}{{ end }}' 2>/dev/null || true)
+    '{{ range .kde.packages }}{{ .path }}{{ "\t" }}{{ .id }}{{ "\n" }}{{ end }}' 2>/dev/null || true)
 }
 
 collect_packages() {

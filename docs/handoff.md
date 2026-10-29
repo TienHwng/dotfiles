@@ -29,7 +29,7 @@ Every roadmap phase P0–P7 is written and tested in CI. What has run for real:
 | `dots system` (P5b/P5c/P6) | Done 2026-10-29: 8 theme packages, pacman drop-in, broken `IgnorePkg` line gone, rescue GRUB entry removed, GRUB/Plymouth/SDDM fine after reboot | Not run (UTC clock, Fast Startup off, OpenSSH agent off, NVIDIA App) |
 | Sync timer / task (P7a) | Timer enabled | Not registered |
 | Capture (P7b) | Dry-run only | Not run |
-| Kuro splash | Moved to `kde/plasma/look-and-feel/a2n.kuro` (installed with `kpackagetool6`) after KDE's Get New replaced the chezmoi symlinks | Not applicable |
+| Kuro splash | Moved to `kde/plasma/look-and-feel/a2n.kuro`, copied as real files by the desktop step (Plasma refused the chezmoi symlinks, so the theme had vanished) | Not applicable |
 | Bitwarden SSH agent (PoC-3) | Not installed yet | Not installed yet |
 
 The authoritative list of open items is the "Deferred owner tasks" table in

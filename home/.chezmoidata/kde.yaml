@@ -9,9 +9,10 @@
 #              such as one laptop's touchpad. They come after the shared settings; an entry with
 #              the same file, group and key replaces the shared one on that machine.
 # Screen-specific state (panels, tiling, display layout) stays manual.
-# packages:    Plasma packages kept in the repository at kde/<path>/<id> and installed by the
-#              desktop step with kpackagetool6 (type) into ~/.local/share/<path>/<id>.
-#              dots capture copies an installed copy that changed (Get New, an update) back.
+# packages:    Plasma packages kept in the repository at kde/<path>/<id>; the desktop step
+#              copies them as real files to ~/.local/share/<path>/<id> (Plasma refuses files
+#              that are symlinks out of the package). dots capture copies an installed copy
+#              that changed (Get New, an update) back.
 # discover:    files `dots capture kde --discover` skips (shell globs): screen, panel and
 #              session state that Plasma rewrites on its own.
 
@@ -19,7 +20,7 @@ kde:
   lookAndFeel: org.kde.breezetwilight.desktop
   packages:
     # Kuro the cat splash screen by a2n (GPLv3), selected in ksplashrc below
-    - { type: Plasma/LookAndFeel, path: plasma/look-and-feel, id: a2n.kuro }
+    - { path: plasma/look-and-feel, id: a2n.kuro }
   discover:
     ignore:
       - plasma-org.kde.plasma.desktop-appletsrc

@@ -314,13 +314,17 @@ kde:
   (`ksplashrc` keys; the theme itself is a Plasma package, see below), and the fcitx5 input methods (`kde.fcitx5`: layout, list,
   default).
 - Plasma packages `[Implemented]` (splash and global themes from the KDE Store) are listed in
-  `kde.packages` (`type`, `path`, `id`) and kept in the repository at `kde/<path>/<id>`; today
-  the Kuro splash (`a2n.kuro`, GPLv3). The desktop step installs a missing one with
-  `kpackagetool6 --type <type> --install` and upgrades an installed copy that differs. They used
-  to be chezmoi symlinks in `home/dot_local/share/plasma`, but KDE's *Get New* (KNewStuff)
-  replaces the whole directory with real files on install or update, which silently detached
-  them from the repository (2026-10-29). `.local/share/plasma` is now ignored by chezmoi;
-  `dots capture` offers an installed copy that changed and copies it into `kde/`.
+  `kde.packages` (`path`, `id`) and kept in the repository at `kde/<path>/<id>`; today the Kuro
+  splash (`a2n.kuro`, GPLv3). The desktop step copies the repository copy as real files to
+  `~/.local/share/<path>/<id>` when the installed one is missing, differs, or contains
+  symlinks. Why not chezmoi: in symlink mode the theme files were links into the repository,
+  and KPackage rejects any package file that resolves outside the package directory
+  ("Path traversal attempt detected"), so the splash disappeared and the owner had to
+  reinstall it with *Get New* (2026-10-29). Why not `kpackagetool6`: Kuro's metadata declares
+  `KPackageStructure: Plasma/LookAndFeel/Splash`, which `kpackagetool6` cannot load, so
+  `--upgrade` fails ("not installed"). `.local/share/plasma` is ignored by chezmoi;
+  `dots capture` offers an installed copy that changed (a *Get New* update) and copies it
+  into `kde/`.
 - Choosing a global theme in System Settings resets the splash to the theme's own (Breeze,
   the default, so `ksplashrc` ends up empty). Whole-file capture once saved that empty file;
   per key, the `desktop` step applies the theme first and then sets the splash back.
@@ -563,7 +567,7 @@ item that opens a second picker.
 |---|---|---|
 | Repository files | `git status --porcelain` (on Linux dotfiles are symlinks into the repository, so edits land here) | `git add` |
 | Copied dotfiles | `chezmoi status`, first column `M` (edited since chezmoi wrote them: Windows copy mode, templates and private files on Linux) | `chezmoi re-add`, then `git add` the source; templates are listed for a manual edit |
-| Plasma packages (Linux) | `diff -r` of `~/.local/share/<path>/<id>` against `kde/<path>/<id>` for each `kde.packages` entry | Copy the installed package (links followed) over the repository copy |
+| Plasma packages (Linux) | `diff -r` of `~/.local/share/<path>/<id>` against `kde/<path>/<id>` for each `kde.packages` entry (installed copies with dangling links are skipped) | Copy the installed package (links followed) over the repository copy |
 | KDE keys (Linux) | `kreadconfig6` vs `scripts/kde-settings.tmpl` | Rewrite `value:` of that one-line entry in `kde.yaml` (the host's machine entry first) |
 | Registry (Windows) | `Get-RegistryCurrent` vs `windows.yaml` (same kind only) | Rewrite `value:` of that entry in `windows.yaml` |
 | Packages | `install-packages.sh --extra` (Arch, apt; packages from `pkgbuilds/` count as known) / `package-diff.ps1` (`winget export`, Scoop apps; fonts as `<font>-NF`) | Add to the manifest (appended to the platform, `winget` or `scoop` list; an empty `[]` becomes a block list), or uninstall (`paru -Rns` / `apt-get remove` / `winget uninstall` / `scoop uninstall`) |
@@ -599,7 +603,7 @@ changes, which go straight to `main`). Answering no unstages everything. It repl
 │   ├── AppData/                    # Windows-only configs       [Planned, when one is managed]
 │   └── dot_wslconfig               # Windows-only               [Planned: platform]
 ├── root/                           # system chezmoi source      [Implemented, manual]
-├── kde/plasma/look-and-feel/      # Plasma packages (Kuro splash) [Implemented]
+├── kde/plasma/look-and-feel/      # Plasma packages (Kuro splash), copied by the desktop step [Implemented]
 ├── pkgbuilds/boot-themes/         # 7 GRUB + 1 Plymouth theme   [Implemented]
 ├── scripts/
 │   ├── package-list.tmpl           # renders one manifest list [Implemented]

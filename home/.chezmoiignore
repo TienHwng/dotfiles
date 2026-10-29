@@ -21,8 +21,8 @@
 .config/kwinrc
 .config/plasmashellrc
 
-{{- /* Plasma packages (splash/global themes) live in kde/ and are installed with kpackagetool6
-       by the desktop step; KDE's Get New replaces whole directories, which broke symlinks */}}
+{{- /* Plasma packages (splash/global themes) live in kde/ and the desktop step copies them;
+       Plasma refuses package files that are symlinks out of the package */}}
 .local/share/plasma
 
 {{- /* Unix-only targets */}}
