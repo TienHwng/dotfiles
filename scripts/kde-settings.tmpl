@@ -1,5 +1,18 @@
 {{- /* One KDE key per line: file<TAB>groups (joined by ASCII unit separator)<TAB>key<TAB>value.
-       Read by scripts/unix/setup-desktop.sh; data in home/.chezmoidata/kde.yaml. */ -}}
+       Read by scripts/unix/setup-desktop.sh; data in home/.chezmoidata/kde.yaml.
+       The shared kde.settings come first, then kde.machines.<hostname>.settings; a machine
+       entry with the same file, groups and key replaces the shared one. */ -}}
+{{- $machine := dig "machines" .chezmoi.hostname "settings" list .kde -}}
+{{- $replaced := dict -}}
+{{- range $machine -}}
+{{- $_ := set $replaced (printf "%s\t%s\t%s" .file (join "\x1f" .group) .key) true -}}
+{{- end -}}
+{{- $settings := list -}}
 {{- range .kde.settings -}}
+{{- if not (hasKey $replaced (printf "%s\t%s\t%s" .file (join "\x1f" .group) .key)) -}}
+{{- $settings = append $settings . -}}
+{{- end -}}
+{{- end -}}
+{{- range concat $settings $machine -}}
 {{ .file }}{{ "\t" }}{{ join "\x1f" .group }}{{ "\t" }}{{ .key }}{{ "\t" }}{{ .value }}{{ "\n" }}
 {{- end -}}

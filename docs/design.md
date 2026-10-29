@@ -283,17 +283,21 @@ and are listed in `home/.chezmoiignore` on every OS so nobody adds them back.
 # home/.chezmoidata/kde.yaml
 kde:
   lookAndFeel: org.kde.breezetwilight.desktop      # plasma-apply-lookandfeel --apply
-  settings:                                        # one entry per key
+  settings:                                        # one entry per key, every machine
     - { file: kwinrc, group: [NightColor], key: Active, value: "true" }
     - { file: kglobalshortcutsrc, group: [services, kitty.desktop], key: _launch, value: "Meta+T" }
+  machines:                                        # keyed by .chezmoi.hostname
+    HwngPC:
+      settings:                                    # this machine only
+        - { file: kcminputrc, group: [Libinput, "1267", "12410", "ELAN1203:00 04F3:307A Touchpad"], key: NaturalScroll, value: "true" }
 ```
 
 - Current keys (owner's picks): custom global shortcuts (Meta+U shut down, Meta+A /
   Meta+Shift+A activities, Meta+T kitty, Tiles editor unbound), KWin (fcitx5 Wayland input
   method, Night Color, one desktop), look (Breeze Twilight, contrast, Vivaldi as browser and as
   the `mimeapps.list` handler for http/https/html), touchpad and mouse (`kcminputrc`, per
-  device), power (display stays on while on AC), the Kuro splash (`ksplashrc`; theme files in
-  `home/dot_local/share/plasma`), and the fcitx5 input methods (`kde.fcitx5`: layout, list,
+  device, only on `HwngPC`), power (display stays on while on AC), the Kuro splash
+  (`ksplashrc`; theme files in `home/dot_local/share/plasma`), and the fcitx5 input methods (`kde.fcitx5`: layout, list,
   default).
 - Choosing a global theme in System Settings resets the splash to the theme's own (Breeze,
   the default, so `ksplashrc` ends up empty). Whole-file capture once saved that empty file;
@@ -303,6 +307,13 @@ kde:
   default), as fcitx5-configtool does; without one the step writes the profile keys.
 - `scripts/kde-settings.tmpl` renders one line per key (file, groups joined by the ASCII unit
   separator, key, value), like `package-list.tmpl` does for packages.
+- Machine-specific keys `[Implemented]`: keys tied to one machine's hardware (a laptop's
+  touchpad, a mouse by vendor and product id) go under `kde.machines.<hostname>.settings`,
+  keyed by `.chezmoi.hostname`. The template renders the shared `kde.settings` first, then the
+  current machine's entries; a machine entry with the same file, groups and key replaces the
+  shared one, so a machine can also change a shared value. Other machines never see them.
+  `setup-desktop.sh` reads only the rendered lines and does not know about machines. Tests
+  set the hostname with `[data.chezmoi] hostname` in the isolated chezmoi config.
 - The `desktop` step of `dots` (`scripts/unix/setup-desktop.sh`, after `apply` so the splash
   theme exists, before `wallpaper`) reads each key with `kreadconfig6`, prints
   `file [group] key: current -> new` for the ones that differ, then applies the global theme
@@ -320,7 +331,8 @@ kde:
 - Panel/widget layout (`plasma-org.kde.plasma.desktop-appletsrc`) is screen-specific and stays
   manual. Scripted layouts are `[Future]`.
 - Display layout (KScreen: arrangement, refresh rate, scale) is per machine and per monitor,
-  so it is not synced. Values that must be fixed per machine go into machine data.
+  so it is not synced. Values that must be fixed per machine go into machine data
+  (`kde.machines` for KDE keys).
 - Themes, icons, cursors (~11 MB) stay in the repository or come from packages.
 
 #### Windows user registry (HKCU) `[Implemented]`
