@@ -13,16 +13,3 @@ menuentry "Reboot" --class restart --class reboot {
     echo "Rebooting system..."
     reboot
 }
-
-menuentry 'CachyOS RESCUE 7.2.4-3 - DO NOT DELETE' {
-    insmod part_gpt
-    insmod ext2
-
-    search --no-floppy --fs-uuid --set=root 41c2bfbf-2f66-40dc-981e-c77c2bf5ae5f
-
-    linux /boot/rescue-7.2.4/vmlinuz-7.2.4-3-cachyos \
-        root=UUID=41c2bfbf-2f66-40dc-981e-c77c2bf5ae5f \
-        rw nowatchdog nvme_load=YES splash loglevel=3
-
-    initrd /boot/rescue-7.2.4/initramfs-7.2.4-3-cachyos.img
-}

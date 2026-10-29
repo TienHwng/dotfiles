@@ -1,0 +1,6 @@
+{{- /* System instance (source root/, target /). pacman files only on Arch-based distros. */ -}}
+{{- $idLike := splitList " " (get .chezmoi.osRelease "idLike" | default "") -}}
+{{- if not (or (eq .chezmoi.osRelease.id "arch") (has "arch" $idLike)) }}
+etc/pacman.conf
+etc/pacman.d/dots.conf
+{{- end }}

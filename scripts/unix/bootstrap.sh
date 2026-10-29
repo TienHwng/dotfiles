@@ -62,6 +62,7 @@ SKIP_SHELL=0
 SKIP_APPLY=0
 SKIP_DESKTOP=0
 SKIP_WALLPAPER=0
+SKIP_SYSTEM=0
 
 usage() {
   cat <<'EOF'
@@ -87,6 +88,7 @@ Options:
   --skip-apply
   --skip-desktop
   --skip-wallpaper
+  --skip-system
 EOF
 }
 
@@ -263,6 +265,10 @@ main() {
         SKIP_WALLPAPER=1
         shift
         ;;
+      --skip-system)
+        SKIP_SYSTEM=1
+        shift
+        ;;
       -h | --help)
         usage
         exit 0
@@ -341,6 +347,7 @@ main() {
   [[ "$SKIP_APPLY" == '1' ]] && dots_args+=(--skip apply)
   [[ "$SKIP_DESKTOP" == '1' ]] && dots_args+=(--skip desktop)
   [[ "$SKIP_WALLPAPER" == '1' ]] && dots_args+=(--skip wallpaper)
+  [[ "$SKIP_SYSTEM" == '1' ]] && dots_args+=(--skip system)
   "$active_script_dir/dots" "${dots_args[@]}"
 
   log_success 'Unix bootstrap complete'

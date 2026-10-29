@@ -1,0 +1,78 @@
+# Boot themes that no Arch or AUR package ships, packaged so pacman owns their files in
+# /usr instead of the system chezmoi instance. Split package: one package per theme.
+# Built and installed by `dots system` (scripts/unix/setup-system.sh). Bump pkgrel after
+# changing any theme file, so installed machines pick the change up.
+
+pkgbase=dots-boot-themes
+pkgname=(
+  grub-theme-astronaut
+  grub-theme-astronaut-orange
+  grub-theme-blackice
+  grub-theme-catppuccin-frappe
+  grub-theme-catppuccin-latte
+  grub-theme-catppuccin-macchiato
+  grub-theme-catppuccin-mocha
+  plymouth-theme-arch-mac-style
+)
+pkgver=1
+pkgrel=1
+pkgdesc='Boot themes from the dotfiles repository'
+arch=('any')
+url='https://github.com/TienHwng/dotfiles'
+license=('custom')
+
+# Copies a theme directory from this folder into $pkgdir with regular file modes
+_install_theme() {
+  local from="$startdir/$1" to="$pkgdir/$2" file
+  while IFS= read -r -d '' file; do
+    install -Dm644 "$file" "$to/${file#"$from"/}"
+  done < <(find "$from" -type f -print0)
+}
+
+package_grub-theme-astronaut() {
+  pkgdesc='Astronaut GRUB theme'
+  depends=('grub')
+  _install_theme grub/astronaut usr/share/grub/themes/astronaut
+}
+
+package_grub-theme-astronaut-orange() {
+  pkgdesc='Astronaut GRUB theme, orange'
+  depends=('grub')
+  _install_theme grub/astronaut_orange usr/share/grub/themes/astronaut_orange
+}
+
+package_grub-theme-blackice() {
+  pkgdesc='blackice neon HUD GRUB theme'
+  depends=('grub')
+  _install_theme grub/blackice usr/share/grub/themes/blackice
+}
+
+package_grub-theme-catppuccin-frappe() {
+  pkgdesc='Catppuccin Frappe GRUB theme'
+  depends=('grub')
+  _install_theme grub/catppuccin-frappe-grub-theme usr/share/grub/themes/catppuccin-frappe-grub-theme
+}
+
+package_grub-theme-catppuccin-latte() {
+  pkgdesc='Catppuccin Latte GRUB theme'
+  depends=('grub')
+  _install_theme grub/catppuccin-latte-grub-theme usr/share/grub/themes/catppuccin-latte-grub-theme
+}
+
+package_grub-theme-catppuccin-macchiato() {
+  pkgdesc='Catppuccin Macchiato GRUB theme'
+  depends=('grub')
+  _install_theme grub/catppuccin-macchiato-grub-theme usr/share/grub/themes/catppuccin-macchiato-grub-theme
+}
+
+package_grub-theme-catppuccin-mocha() {
+  pkgdesc='Catppuccin Mocha GRUB theme'
+  depends=('grub')
+  _install_theme grub/catppuccin-mocha-grub-theme usr/share/grub/themes/catppuccin-mocha-grub-theme
+}
+
+package_plymouth-theme-arch-mac-style() {
+  pkgdesc='Arch macOS-style Plymouth theme'
+  depends=('plymouth')
+  _install_theme plymouth/arch-mac-style usr/share/plymouth/themes/arch-mac-style
+}

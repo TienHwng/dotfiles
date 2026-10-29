@@ -41,3 +41,8 @@ temp/
 misc/
 # Pester -CI output
 testResults.xml
+
+# makepkg output in pkgbuilds/
+pkgbuilds/*/src/
+pkgbuilds/*/pkg/
+pkgbuilds/*/*.pkg.tar.*
