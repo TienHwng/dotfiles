@@ -95,6 +95,38 @@ PowerShell profile (`~/.config/powershell/profile.ps1`) that runs `scripts/windo
 with PowerShell-style options (`dots bootstrap -DryRun`, `dots packages`). `dots packages --diff`
 is CachyOS-only for now. `just` / `make` recipes remain available (`make help` lists them).
 
+## Configuration
+
+What a machine gets is data, not code: the scripts and `dots` read these YAML files through
+chezmoi, so changing a package, a KDE key or a registry value means editing one file. The
+comment at the top of each file documents its fields.
+
+| File | What it controls | Applied by |
+|---|---|---|
+| `home/.chezmoidata.yaml` | `features.*` switches (`installFonts`, `setupShell`, `desktop`, `wallpapers`: `false` skips that step), the wallpaper repository and current image, the SSH agent mode (`accounts.ssh`) | `dots bootstrap`; the `wallpaper` and `accounts` steps |
+| `home/.chezmoidata/packages.yaml` | Packages per manager (`mapped` entries name the package for paru, apt, brew, winget, Scoop; plus per-manager lists) and Nerd Fonts | `dots packages`, the `fonts` step |
+| `home/.chezmoidata/kde.yaml` | KDE Plasma: global theme, one entry per key (`file`, `group`, `key`, `value`: shortcuts, KWin, splash, touchpad, power, default browser), fcitx5 input methods | the `desktop` step (`scripts/unix/setup-desktop.sh`) |
+| `home/.chezmoidata/windows.yaml` | Registry values: `user` (HKCU) and `machine` (HKLM) | the `desktop` step on Windows; `dots system` (admin) |
+
+For example, to keep Night Color on, add one line to `kde.yaml`:
+
+```yaml
+    - { file: kwinrc, group: [NightColor], key: Active, value: "true" }
+```
+
+Then preview and apply it (or re-run `dots bootstrap`, which runs the same step):
+
+```bash
+./scripts/unix/setup-desktop.sh --dry-run
+./scripts/unix/setup-desktop.sh
+```
+
+- KDE `*rc` files and registry keys are managed **per key**, never as whole files: Plasma
+  and Windows rewrite them constantly.
+- Quote values that must stay strings (`"true"`, `"0.400"`, `"1267"`); unquoted, YAML reads
+  them as booleans or numbers.
+- Identity (name, emails, GitHub username) is not in these files: see the next section.
+
 ## Machine-specific values and secrets
 
 `home/.chezmoi.toml.tmpl` asks once for Git name, Git email, GitHub username, and SSH email.
