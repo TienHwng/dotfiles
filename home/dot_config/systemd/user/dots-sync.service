@@ -1,0 +1,11 @@
+# Checks the dotfiles repository for new commits and notifies; never applies anything.
+# Started by dots-sync.timer; enabled by the sync step of dots bootstrap.
+[Unit]
+Description=Check the dotfiles repository for new commits
+After=graphical-session.target network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/dots sync --check --notify
+# The notification waits for a click on "Sync now" or for being closed
+TimeoutStartSec=infinity

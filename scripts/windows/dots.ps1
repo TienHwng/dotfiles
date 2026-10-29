@@ -9,6 +9,9 @@ param(
     [switch]$DryRun,
     [switch]$NonInteractive,
     [string[]]$Skip = @(),
+    # sync
+    [switch]$Check,
+    [switch]$Notify,
     # update
     [switch]$Packages,
     [switch]$Fonts,
@@ -25,7 +28,7 @@ $ErrorActionPreference = 'Stop'
 
 # git renders ~/.gitconfig (gh credential helper) so accounts can log in to gh before
 # anything clones a private repository; wallpaper needs that login. system (admin) goes last.
-$script:Steps = @('packages', 'git', 'accounts', 'fonts', 'shell', 'apply', 'desktop', 'wallpaper', 'system')
+$script:Steps = @('packages', 'git', 'accounts', 'fonts', 'shell', 'apply', 'desktop', 'wallpaper', 'sync', 'system')
 
 function Show-Usage {
     Write-Host @'
@@ -34,12 +37,18 @@ Usage: dots <command> [options]
 Commands:
   bootstrap [-DryRun] [-NonInteractive] [-Skip step,...]
                   Set up this machine step by step: packages, git, accounts,
-                  fonts, shell, apply, desktop, wallpaper, system. Each step shows a
-                  preview and asks run / skip / quit before changing anything.
+                  fonts, shell, apply, desktop, wallpaper, sync, system. Each step
+                  shows a preview and asks run / skip / quit before changing anything.
                   -NonInteractive skips system unless -DryRun is set.
   packages [-DryRun]
                   Install missing WinGet and Scoop packages from the manifest
                   (preview, then ask).
+  sync [-Check [-Notify]]
+                  Pull new commits (fast-forward only, after showing them), then run
+                  the steps whose files changed, each with a preview. -Check only
+                  fetches and reports how far behind this machine is; -Notify adds a
+                  toast with a Sync now button (the dots-sync Scheduled Task uses it).
+  status          Branch, commits behind/ahead, local changes, chezmoi drift, task.
   system [-DryRun]
                   Machine registry values, the OpenSSH agent service and the NVIDIA
                   App: preview, then ask and apply in an administrator window. Never
@@ -100,6 +109,7 @@ function Get-StepDescription([string]$Step) {
         'apply' { 'Apply dotfiles from home/ with chezmoi (externals come later)' }
         'desktop' { 'Set user registry values (HKCU) from home/.chezmoidata/windows.yaml' }
         'wallpaper' { 'Fetch the wallpaper repository and set the desktop wallpaper' }
+        'sync' { 'Register the dots-sync Scheduled Task: check the repository at logon and every 6 hours' }
         'system' { 'Admin: machine registry values (UTC clock, Fast Startup off), disable the OpenSSH agent service, NVIDIA App' }
     }
 }
@@ -156,6 +166,7 @@ function Invoke-Step([string]$Step, [string]$Mode) {
         'apply' { Invoke-ChezmoiApply $Mode }
         'desktop' { & (Join-Path $PSScriptRoot 'setup-registry.ps1') -Scope user -DryRun:$dry }
         'wallpaper' { & (Join-Path $PSScriptRoot 'setup-wallpaper.ps1') -DryRun:$dry }
+        'sync' { & (Join-Path $PSScriptRoot 'setup-sync.ps1') -DryRun:$dry }
         'system' { Invoke-System -Preview:$dry }
     }
 }
@@ -182,6 +193,104 @@ function Invoke-System([switch]$Preview) {
     }
     if ($exitCode -ne 0) {
         Stop-Tool "The system step failed (exit code $exitCode)"
+    }
+}
+
+# Steps whose inputs changed, in step order, for repository paths
+function Get-StepsForPath([string[]]$Path) {
+    $wanted = @{}
+    foreach ($item in $Path) {
+        switch -Wildcard ($item) {
+            'home/.chezmoidata/packages.yaml' { $wanted.packages = $true; $wanted.fonts = $true; break }
+            'home/.chezmoidata/windows.yaml' { $wanted.desktop = $true; $wanted.system = $true; break }
+            'home/.chezmoidata/kde.yaml' { break }
+            'home/.chezmoiexternal.toml.tmpl' { $wanted.apply = $true; $wanted.wallpaper = $true; break }
+            'home/.chezmoidata.yaml' { $wanted.apply = $true; $wanted.wallpaper = $true; break }
+            'home/*' { $wanted.apply = $true; break }
+        }
+    }
+    return @($script:Steps | Where-Object { $wanted.ContainsKey($_) })
+}
+
+function Get-RepoGit([string[]]$Arguments) {
+    # Windows PowerShell 5.1 turns native stderr into a terminating error under 'Stop'
+    $ErrorActionPreference = 'Continue'
+    return @(& git -C (Get-RepoRoot) @Arguments 2>$null)
+}
+
+# Pull (fast-forward only, after showing the commits), then run the steps whose files changed
+function Invoke-SyncCommand {
+    $syncScript = Join-Path $PSScriptRoot 'sync.ps1'
+    if ($Check) {
+        & $syncScript -Check -Notify:$Notify
+        return
+    }
+    if ($NonInteractive) {
+        Stop-Tool 'dots sync asks before pulling; use dots sync -Check without a terminal.'
+    }
+
+    $localChanges = @(Get-RepoGit @('status', '--porcelain', '--untracked-files=no'))
+    if ($localChanges.Count -gt 0) {
+        $localChanges | ForEach-Object { Write-Host "  $_" }
+        Stop-Tool 'The repository has local changes; commit them (dots capture) before syncing.'
+    }
+
+    . $syncScript
+    $state = Invoke-SyncCheck
+    if ($state.Behind -eq 0) {
+        Write-Success 'Already up to date'
+        return
+    }
+
+    $before = "$(Get-RepoGit @('rev-parse', 'HEAD'))".Trim()
+    Get-RepoGit @('log', '--oneline', '--no-decorate', 'HEAD..@{upstream}') | ForEach-Object { Write-Host "  $_" }
+    Get-RepoGit @('diff', '--stat', 'HEAD...@{upstream}') | ForEach-Object { Write-Host "  $_" }
+    if (-not (Confirm-Yes 'Pull these commits?')) {
+        Write-ToolWarning 'Nothing pulled'
+        return
+    }
+    if ((Invoke-NativeCommand -FilePath 'git' -ArgumentList @('-C', (Get-RepoRoot), 'merge', '--ff-only', '--quiet', '@{upstream}') -IgnoreExitCode) -ne 0) {
+        Stop-Tool 'Cannot fast-forward (local commits?); rebase or merge by hand.'
+    }
+    $after = "$(Get-RepoGit @('rev-parse', 'HEAD'))".Trim()
+    Write-Success "Pulled $($before.Substring(0, 7))..$($after.Substring(0, 7))"
+
+    $steps = Get-StepsForPath (Get-RepoGit @('diff', '--name-only', $before, $after))
+    if ($steps.Count -eq 0) {
+        Write-Success 'No step needs to run for these changes'
+        return
+    }
+    Write-Step "Steps for the changed files: $($steps -join ' ')"
+    Invoke-StepList $steps
+    if (-not $script:StoppedEarly) {
+        Write-Success 'Sync complete'
+    }
+}
+
+function Invoke-Status {
+    $root = Get-RepoRoot
+    $branch = "$(Get-RepoGit @('branch', '--show-current'))".Trim()
+    Write-Host "Repository   $root ($(if ($branch) { $branch } else { 'detached' }))"
+    $upstream = "$(Get-RepoGit @('rev-parse', '--abbrev-ref', '@{upstream}'))".Trim()
+    if ($upstream) {
+        $env:GIT_TERMINAL_PROMPT = '0'
+        Get-RepoGit @('fetch', '--quiet') | Out-Null
+        $behind = "$(Get-RepoGit @('rev-list', '--count', 'HEAD..@{upstream}'))".Trim()
+        $ahead = "$(Get-RepoGit @('rev-list', '--count', '@{upstream}..HEAD'))".Trim()
+        Write-Host "Upstream     $($upstream): $behind behind, $ahead ahead"
+    } else {
+        Write-Host 'Upstream     none'
+    }
+    Write-Host "Local edits  $(@(Get-RepoGit @('status', '--porcelain')).Count) file(s) changed in the repository"
+    if (Test-Command 'chezmoi') {
+        $ErrorActionPreference = 'Continue'
+        $drift = @(& chezmoi --source (Join-Path $root 'home') status --exclude externals 2>$null).Count
+        Write-Host "Drift        $drift target(s) differ from home/ (dots capture)"
+    }
+    if (Test-Command 'Get-ScheduledTask') {
+        $task = Get-ScheduledTask -TaskName 'dots-sync' -TaskPath '\dots\' -ErrorAction SilentlyContinue
+        $taskState = if ($task) { "$($task.State)" } else { 'not registered (run the sync step: dots bootstrap)' }
+        Write-Host "Sync task    $taskState"
     }
 }
 
@@ -212,19 +321,15 @@ function Write-ManualChecklist {
     ) | ForEach-Object { Write-Host "  $_" }
 }
 
-function Invoke-Bootstrap {
-    # pwsh -File passes "-Skip a,b" as one string; split it
-    $skipSteps = @($Skip | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    foreach ($step in $skipSteps) {
-        if ($step -notin $script:Steps) {
-            Stop-Tool "Unknown step: $step (steps: $($script:Steps -join ' '))"
-        }
-    }
-
-    foreach ($step in $script:Steps) {
+# Runs the given steps in order: describe, preview, ask run / skip / quit.
+# Sets $script:StoppedEarly when the person quits (steps may write to the pipeline,
+# so it is not a return value).
+function Invoke-StepList([string[]]$StepList, [string[]]$SkipStep = @()) {
+    $script:StoppedEarly = $false
+    foreach ($step in $StepList) {
         Write-Step "[$step] $(Get-StepDescription $step)"
 
-        if ($step -in $skipSteps) {
+        if ($step -in $SkipStep) {
             Write-ToolWarning "Skipping $step"
             continue
         }
@@ -250,10 +355,26 @@ function Invoke-Bootstrap {
             'run' { Invoke-Step $step 'run' }
             'skip' { Write-ToolWarning "Skipped $step" }
             'quit' {
-                Write-ToolWarning "Stopped before $step; run dots bootstrap again to continue."
+                Write-ToolWarning "Stopped before $step; run the same dots command again to continue."
+                $script:StoppedEarly = $true
                 return
             }
         }
+    }
+}
+
+function Invoke-Bootstrap {
+    # pwsh -File passes "-Skip a,b" as one string; split it
+    $skipSteps = @($Skip | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    foreach ($step in $skipSteps) {
+        if ($step -notin $script:Steps) {
+            Stop-Tool "Unknown step: $step (steps: $($script:Steps -join ' '))"
+        }
+    }
+
+    Invoke-StepList $script:Steps $skipSteps
+    if ($script:StoppedEarly) {
+        return
     }
 
     if (-not $DryRun -and (Test-Command 'chezmoi')) {
@@ -354,6 +475,17 @@ function Invoke-Doctor {
         Write-ToolWarning 'Bitwarden SSH agent is not running or holds no keys; see the accounts step: dots bootstrap'
     }
 
+    Write-Step 'Sync task'
+    if (Test-Command 'Get-ScheduledTask') {
+        if (Get-ScheduledTask -TaskName 'dots-sync' -TaskPath '\dots\' -ErrorAction SilentlyContinue) {
+            Write-Success 'The dots-sync task is registered (repository check at logon and every 6 hours)'
+        } else {
+            Write-ToolWarning 'The dots-sync task is not registered; run the sync step: dots bootstrap'
+        }
+    } else {
+        Write-ToolWarning 'Scheduled Tasks are unavailable; the repository check cannot run here'
+    }
+
     Write-Step 'Git hooks'
     $hooksPath = ''
     if (Test-Command 'git') {
@@ -389,6 +521,8 @@ function Invoke-DotsCommand {
         'bootstrap' { Invoke-Bootstrap }
         'packages' { Invoke-PackageInstall }
         'system' { Invoke-SystemCommand }
+        'sync' { Invoke-SyncCommand }
+        'status' { Invoke-Status }
         'doctor' {
             if ((Invoke-Doctor) -gt 0) {
                 exit 1

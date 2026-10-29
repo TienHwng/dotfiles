@@ -79,7 +79,7 @@ theme_version() {
 @test "dots skips system in a non-interactive bootstrap and refuses dots system" {
   run env PATH="$mock_bin:$PATH" "$PROJECT_ROOT/scripts/unix/dots" bootstrap --non-interactive \
     --skip packages --skip git --skip accounts --skip fonts --skip shell --skip apply \
-    --skip desktop --skip wallpaper
+    --skip desktop --skip wallpaper --skip sync
   [ "$status" -eq 0 ]
   [[ "$output" == *'Skipping system'* ]]
 

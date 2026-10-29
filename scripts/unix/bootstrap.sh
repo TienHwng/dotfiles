@@ -62,6 +62,7 @@ SKIP_SHELL=0
 SKIP_APPLY=0
 SKIP_DESKTOP=0
 SKIP_WALLPAPER=0
+SKIP_SYNC=0
 SKIP_SYSTEM=0
 
 usage() {
@@ -88,6 +89,7 @@ Options:
   --skip-apply
   --skip-desktop
   --skip-wallpaper
+  --skip-sync
   --skip-system
 EOF
 }
@@ -265,6 +267,10 @@ main() {
         SKIP_WALLPAPER=1
         shift
         ;;
+      --skip-sync)
+        SKIP_SYNC=1
+        shift
+        ;;
       --skip-system)
         SKIP_SYSTEM=1
         shift
@@ -347,6 +353,7 @@ main() {
   [[ "$SKIP_APPLY" == '1' ]] && dots_args+=(--skip apply)
   [[ "$SKIP_DESKTOP" == '1' ]] && dots_args+=(--skip desktop)
   [[ "$SKIP_WALLPAPER" == '1' ]] && dots_args+=(--skip wallpaper)
+  [[ "$SKIP_SYNC" == '1' ]] && dots_args+=(--skip sync)
   [[ "$SKIP_SYSTEM" == '1' ]] && dots_args+=(--skip system)
   "$active_script_dir/dots" "${dots_args[@]}"
 

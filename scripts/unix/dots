@@ -11,7 +11,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 ROOT_DIR="$(repo_root)"
 # git renders ~/.gitconfig (gh credential helper) so accounts can log in to gh before
 # anything clones a private repository; wallpaper needs that login. system (sudo) goes last.
-STEPS=(packages git accounts fonts shell apply desktop wallpaper system)
+STEPS=(packages git accounts fonts shell apply desktop wallpaper sync system)
 DRY_RUN="${DRY_RUN:-0}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
 
@@ -22,12 +22,18 @@ Usage: dots <command> [options]
 Commands:
   bootstrap [--dry-run] [--non-interactive] [--skip STEP]...
                   Set up this machine step by step: packages, git, accounts,
-                  fonts, shell, apply, desktop, wallpaper, system. Each step shows a
-                  preview and asks run / skip / quit before changing anything.
+                  fonts, shell, apply, desktop, wallpaper, sync, system. Each step shows
+                  a preview and asks run / skip / quit before changing anything.
                   --non-interactive skips system unless --dry-run is set.
   packages [--diff | --dry-run]
                   Install missing packages from the manifest (preview, then
                   ask), or report packages installed outside the manifest.
+  sync [--check [--notify]]
+                  Pull new commits (fast-forward only, after showing them), then run
+                  the steps whose files changed, each with a preview. --check only
+                  fetches and reports how far behind this machine is; --notify adds a
+                  desktop notification (the dots-sync timer uses it).
+  status          Branch, commits behind/ahead, local changes, chezmoi drift, timer.
   system [--dry-run]
                   Boot theme packages and the system chezmoi instance (root/ -> /):
                   preview, then ask and apply with sudo. Never non-interactive.
@@ -93,6 +99,7 @@ step_description() {
     apply) printf 'Apply dotfiles from home/ with chezmoi (externals come later)' ;;
     desktop) printf 'Apply KDE Plasma settings from home/.chezmoidata/kde.yaml' ;;
     wallpaper) printf 'Fetch the wallpaper repository and set the desktop wallpaper' ;;
+    sync) printf 'Enable the dots-sync timer: check the repository at login and every 6 hours' ;;
     system) printf 'sudo: boot theme packages, then /etc from root/ (GRUB, Plymouth, SDDM, pacman)' ;;
   esac
 }
@@ -128,6 +135,7 @@ run_step() {
     apply) apply_dotfiles "$mode" ;;
     desktop) "$SCRIPT_DIR/setup-desktop.sh" "${dry[@]}" ;;
     wallpaper) "$SCRIPT_DIR/setup-wallpaper.sh" "${dry[@]}" ;;
+    sync) "$SCRIPT_DIR/setup-sync.sh" "${dry[@]}" ;;
     system) "$SCRIPT_DIR/setup-system.sh" "${dry[@]}" "${quiet[@]}" ;;
   esac
 }
@@ -161,9 +169,55 @@ print_manual_checklist() {
     'Enable the secret-scanning Git hook once per clone: make hooks'
 }
 
+# Runs the given steps in order: describe, preview, ask run / skip / quit. Arguments
+# starting with "-" name steps to skip. Returns 1 when the person quits.
+run_steps() {
+  local -a skip=() steps=()
+  local step choice arg
+
+  for arg in "$@"; do
+    if [[ "$arg" == -* ]]; then
+      skip+=("${arg#-}")
+    else
+      steps+=("$arg")
+    fi
+  done
+
+  for step in "${steps[@]}"; do
+    log_step "[$step] $(step_description "$step")"
+
+    if contains "$step" "${skip[@]}"; then
+      log_warn "Skipping $step"
+      continue
+    fi
+    if ! step_enabled "$step"; then
+      log_warn "Skipping $step (disabled in .features)"
+      continue
+    fi
+    if [[ "$step" == 'system' && "$NON_INTERACTIVE" == '1' && "$DRY_RUN" == '0' ]]; then
+      log_warn 'Skipping system (sudo; it never runs non-interactively, run dots system later)'
+      continue
+    fi
+    if [[ "$DRY_RUN" == '1' || "$NON_INTERACTIVE" == '1' ]]; then
+      run_step "$step" run
+      continue
+    fi
+
+    run_step "$step" preview || log_warn "The $step preview reported a problem; review it before running."
+    choice="$(ask_step "$step")"
+    case "$choice" in
+      run) run_step "$step" run ;;
+      skip) log_warn "Skipped $step" ;;
+      quit)
+        log_warn "Stopped before $step; run the same dots command again to continue."
+        return 1
+        ;;
+    esac
+  done
+}
+
 cmd_bootstrap() {
   local -a skip=()
-  local step choice
 
   while (($#)); do
     case "$1" in
@@ -190,37 +244,7 @@ cmd_bootstrap() {
   done
   export DRY_RUN NON_INTERACTIVE
 
-  for step in "${STEPS[@]}"; do
-    log_step "[$step] $(step_description "$step")"
-
-    if contains "$step" "${skip[@]}"; then
-      log_warn "Skipping $step"
-      continue
-    fi
-    if ! step_enabled "$step"; then
-      log_warn "Skipping $step (disabled in .features)"
-      continue
-    fi
-    if [[ "$step" == 'system' && "$NON_INTERACTIVE" == '1' && "$DRY_RUN" == '0' ]]; then
-      log_warn 'Skipping system (sudo; it never runs non-interactively, run dots system later)'
-      continue
-    fi
-    if [[ "$DRY_RUN" == '1' || "$NON_INTERACTIVE" == '1' ]]; then
-      run_step "$step" run
-      continue
-    fi
-
-    run_step "$step" preview || log_warn "The $step preview reported a problem; review it before running."
-    choice="$(ask_step "$step")"
-    case "$choice" in
-      run) run_step "$step" run ;;
-      skip) log_warn "Skipped $step" ;;
-      quit)
-        log_warn "Stopped before $step; run dots bootstrap again to continue."
-        return 0
-        ;;
-    esac
-  done
+  run_steps "${skip[@]/#/-}" "${STEPS[@]}" || return 0
 
   if [[ "$DRY_RUN" == '0' ]] && has chezmoi; then
     log_step 'Running chezmoi doctor...'
@@ -250,6 +274,107 @@ cmd_packages() {
       ;;
     *) die "Unknown packages option: $1" ;;
   esac
+}
+
+# Steps whose inputs changed, in STEPS order, for the repository paths on stdin
+steps_for_paths() {
+  local -A wanted=()
+  local path step
+
+  while IFS= read -r path; do
+    case "$path" in
+      home/.chezmoidata/packages.yaml) wanted[packages]=1 wanted[fonts]=1 ;;
+      home/.chezmoidata/kde.yaml | scripts/kde-settings.tmpl) wanted[desktop]=1 ;;
+      home/.chezmoidata/windows.yaml) ;;
+      home/.chezmoiexternal.toml.tmpl | home/.chezmoidata.yaml) wanted[apply]=1 wanted[wallpaper]=1 ;;
+      home/*) wanted[apply]=1 ;;
+      root/* | pkgbuilds/*) wanted[system]=1 ;;
+    esac
+  done
+
+  for step in "${STEPS[@]}"; do
+    [[ -n "${wanted[$step]:-}" ]] && printf '%s\n' "$step"
+  done
+  return 0
+}
+
+# Pull (fast-forward only, after showing the commits), then run the steps whose files changed
+cmd_sync() {
+  local before after
+  local -a steps
+
+  case "${1:-}" in
+    --check)
+      shift
+      "$SCRIPT_DIR/sync.sh" --check "$@"
+      return
+      ;;
+    '') ;;
+    *) die "Unknown sync option: $1" ;;
+  esac
+  [[ "$NON_INTERACTIVE" == '1' ]] && die 'dots sync asks before pulling; use dots sync --check without a terminal.'
+
+  # Linux symlinks dotfiles into the repository, so local edits show up here
+  if [[ -n "$(git -C "$ROOT_DIR" status --porcelain --untracked-files=no)" ]]; then
+    git -C "$ROOT_DIR" status --short --untracked-files=no
+    die 'The repository has local changes; commit them (dots capture) before syncing.'
+  fi
+
+  "$SCRIPT_DIR/sync.sh" --check
+  before="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+  if [[ "$(git -C "$ROOT_DIR" rev-list --count 'HEAD..@{upstream}')" == '0' ]]; then
+    log_success 'Already up to date'
+    return 0
+  fi
+
+  git -C "$ROOT_DIR" log --oneline --no-decorate 'HEAD..@{upstream}'
+  git -C "$ROOT_DIR" diff --stat 'HEAD...@{upstream}'
+  if ! ask_yes 'Pull these commits?'; then
+    log_warn 'Nothing pulled'
+    return 0
+  fi
+  git -C "$ROOT_DIR" merge --ff-only --quiet '@{upstream}' \
+    || die 'Cannot fast-forward (local commits?); rebase or merge by hand.'
+  after="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+  log_success "Pulled ${before:0:7}..${after:0:7}"
+
+  mapfile -t steps < <(git -C "$ROOT_DIR" diff --name-only "$before" "$after" | steps_for_paths)
+  if ((${#steps[@]} == 0)); then
+    log_success 'No step needs to run for these changes'
+    return 0
+  fi
+  log_step "Steps for the changed files: ${steps[*]}"
+  run_steps "${steps[@]}" || return 0
+  log_success 'Sync complete'
+}
+
+cmd_status() {
+  local branch upstream counts timer drift local_changes
+
+  branch="$(git -C "$ROOT_DIR" branch --show-current)"
+  printf 'Repository   %s (%s)\n' "$ROOT_DIR" "${branch:-detached}"
+  if upstream="$(git -C "$ROOT_DIR" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null)"; then
+    GIT_TERMINAL_PROMPT=0 timeout 20 git -C "$ROOT_DIR" fetch --quiet 2>/dev/null \
+      || log_warn 'git fetch failed; counts use the last fetch'
+    counts="$(git -C "$ROOT_DIR" rev-list --left-right --count 'HEAD...@{upstream}')"
+    printf 'Upstream     %s: %s behind, %s ahead\n' "$upstream" "${counts##*[[:space:]]}" "${counts%%[[:space:]]*}"
+  else
+    printf 'Upstream     none\n'
+  fi
+
+  local_changes="$(git -C "$ROOT_DIR" status --porcelain | wc -l)"
+  printf 'Local edits  %s file(s) changed in the repository (dots capture)\n' "$local_changes"
+
+  if has chezmoi; then
+    drift="$(chezmoi --source "$ROOT_DIR/home" status --exclude externals 2>/dev/null | wc -l || true)"
+    printf 'Drift        %s target(s) differ from home/ (chezmoi status)\n' "$drift"
+  fi
+
+  if has systemctl && systemctl --user show-environment >/dev/null 2>&1; then
+    timer="$(systemctl --user is-enabled dots-sync.timer 2>/dev/null || true)"
+    [[ "$timer" == 'not-found' || -z "$timer" ]] && timer='not installed (run the sync step: dots bootstrap)'
+    printf 'Sync timer   %s\n' "$timer"
+  fi
 }
 
 cmd_system() {
@@ -313,6 +438,17 @@ cmd_doctor() {
     log_warn 'Bitwarden SSH agent is not running or holds no keys; see the accounts step: dots bootstrap'
   fi
 
+  log_step 'Sync timer'
+  if has systemctl && systemctl --user show-environment >/dev/null 2>&1; then
+    if [[ "$(systemctl --user is-enabled dots-sync.timer 2>/dev/null || true)" == 'enabled' ]]; then
+      log_success 'dots-sync.timer is enabled (repository check at login and every 6 hours)'
+    else
+      log_warn 'dots-sync.timer is not enabled; run the sync step: dots bootstrap'
+    fi
+  else
+    log_warn 'No systemd user manager; the repository check timer cannot run here'
+  fi
+
   log_step 'Git hooks'
   hooks_path="$(git -C "$ROOT_DIR" config --get core.hooksPath || true)"
   if [[ "$hooks_path" == '.githooks' ]]; then
@@ -351,6 +487,8 @@ main() {
     bootstrap) cmd_bootstrap "$@" ;;
     packages) cmd_packages "$@" ;;
     system) cmd_system "$@" ;;
+    sync) cmd_sync "$@" ;;
+    status) cmd_status ;;
     doctor) cmd_doctor ;;
     update) "$SCRIPT_DIR/update.sh" "$@" ;;
     backup) "$SCRIPT_DIR/backup.sh" "$@" ;;
