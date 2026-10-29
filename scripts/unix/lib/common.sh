@@ -133,12 +133,19 @@ detect_platform() {
 
 # Print one package per line from a manifest list (arch, apt, brew, brewCask,
 # winget, scoop, nerdFonts) in home/.chezmoidata/packages.yaml.
+# The firmware's manufacturer ("ASUSTeK COMPUTER INC."); empty when unknown
+machine_vendor() {
+  cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true
+}
+
 manifest_list() {
-  local list="$1" root output
+  local list="$1" root output vendor
 
   root="$(repo_root)"
-  output="$(DOTFILES_PACKAGE_LIST="$list" chezmoi --source "$root" execute-template \
-    <"$root/scripts/package-list.tmpl")" || return
+  # A set DOTFILES_VENDOR, even empty, overrides detection (tests)
+  vendor="${DOTFILES_VENDOR-$(machine_vendor)}"
+  output="$(DOTFILES_PACKAGE_LIST="$list" DOTFILES_VENDOR="$vendor" chezmoi --source "$root" \
+    execute-template <"$root/scripts/package-list.tmpl")" || return
   [[ -n "$output" ]] || return 0
   awk 'NF && !seen[$0]++' <<<"$output"
 }

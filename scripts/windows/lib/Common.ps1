@@ -34,13 +34,33 @@ function Get-RepoRoot {
     return (Resolve-Path (Join-Path $script:DotfilesCommonRoot '..\..\..')).Path
 }
 
+# The firmware's manufacturer ("ASUSTeK COMPUTER INC."); empty when unknown
+function Get-MachineVendor {
+    if (Test-Command 'Get-CimInstance') {
+        $system = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+        if ($null -ne $system) {
+            return "$($system.Manufacturer)".Trim()
+        }
+    }
+    $sysVendor = '/sys/class/dmi/id/sys_vendor'
+    if (Test-Path -LiteralPath $sysVendor) {
+        return (Get-Content -LiteralPath $sysVendor -Raw).Trim()
+    }
+    return ''
+}
+
 # One package per line from a manifest list (winget, scoop, nerdFonts, ...) in
 # home/.chezmoidata/packages.yaml, rendered by scripts/package-list.tmpl.
 function Get-ManifestList([string]$List) {
     $repoRoot = Get-RepoRoot
     $template = Join-Path $repoRoot 'scripts\package-list.tmpl'
     $previous = $env:DOTFILES_PACKAGE_LIST
+    $previousVendor = $env:DOTFILES_VENDOR
     $env:DOTFILES_PACKAGE_LIST = $List
+    # A set DOTFILES_VENDOR overrides detection (tests)
+    if ($null -eq $previousVendor) {
+        $env:DOTFILES_VENDOR = Get-MachineVendor
+    }
     try {
         $output = Get-Content -LiteralPath $template -Raw | & chezmoi --source $repoRoot execute-template
         if ($LASTEXITCODE -ne 0) {
@@ -48,6 +68,7 @@ function Get-ManifestList([string]$List) {
         }
     } finally {
         $env:DOTFILES_PACKAGE_LIST = $previous
+        $env:DOTFILES_VENDOR = $previousVendor
     }
 
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)

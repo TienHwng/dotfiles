@@ -34,6 +34,34 @@ Describe 'Get-ManifestList' {
         $scoop | Should -Contain 'oh-my-posh'
         @(Get-ManifestList 'nerdFonts') | Should -Be @('JetBrainsMono')
     }
+
+    It 'keeps vendor entries only on that vendor''s hardware' {
+        if (-not $HasChezmoi) {
+            Set-ItResult -Skipped -Because 'chezmoi is not installed'
+            return
+        }
+
+        try {
+            $env:DOTFILES_VENDOR = 'ASUSTeK COMPUTER INC.'
+            @(Get-ManifestList 'winget') | Should -Contain 'Asus.ArmouryCrate'
+            $env:DOTFILES_VENDOR = 'Microsoft Corporation'
+            @(Get-ManifestList 'winget') | Should -Not -Contain 'Asus.ArmouryCrate'
+            $env:DOTFILES_VENDOR | Should -Be 'Microsoft Corporation'
+        } finally {
+            Remove-Item Env:DOTFILES_VENDOR -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'detects the vendor when DOTFILES_VENDOR is unset and restores it' {
+        if (-not $HasChezmoi) {
+            Set-ItResult -Skipped -Because 'chezmoi is not installed'
+            return
+        }
+        Mock Get-MachineVendor { 'ASUSTeK COMPUTER INC.' }
+
+        @(Get-ManifestList 'winget') | Should -Contain 'Asus.ArmouryCrate'
+        Test-Path Env:DOTFILES_VENDOR | Should -BeFalse
+    }
 }
 
 Describe 'Test-ScoopApp' {

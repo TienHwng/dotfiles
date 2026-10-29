@@ -3,7 +3,9 @@
 # mapped:  apps that exist under several package managers. One entry per app;
 #          each key names the package for that manager. Omit a key when the app
 #          is not installed there. `gui: true` entries are skipped when
-#          DOTFILES_HEADLESS=1 (WSL, servers).
+#          DOTFILES_HEADLESS=1 (WSL, servers). `vendor: X` entries are installed
+#          only on hardware whose manufacturer contains X (DMI sys_vendor on
+#          Linux, Win32_ComputerSystem on Windows; DOTFILES_VENDOR overrides).
 # <list>:  packages that exist for one manager only.
 #
 # Lists: arch (paru, CachyOS/Arch), apt, brew, brewCask, winget, scoop, nerdFonts.
@@ -102,6 +104,11 @@ packages:
       gui: true
       brewCask: wezterm
       winget: wez.wezterm
+    # ASUS laptop tools; the owner keeps Armoury Crate rather than G-Helper (2026-10-29)
+    - name: armoury-crate
+      gui: true
+      vendor: ASUS
+      winget: Asus.ArmouryCrate
     # Repository validation (make validate, pre-commit secret scan)
     - name: shellcheck
       arch: shellcheck
