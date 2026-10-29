@@ -22,7 +22,7 @@ managed_for_os() {
 
   local linux_only
   for linux_only in .zshrc .oh-my-zsh .config/kitty .config/hypr .config/kwinrc \
-    .config/kdeglobals .config/chezmoi-root .local/share/plasma .local/bin/dots; do
+    .config/kdeglobals .config/fcitx5 .config/chezmoi-root .local/share/plasma .local/bin/dots; do
     if [[ "$output" == *"$linux_only"* ]]; then
       echo "Linux-only target managed on Windows: $linux_only"
       return 1
@@ -36,6 +36,7 @@ managed_for_os() {
   run managed_for_os linux
   [ "$status" -eq 0 ]
   [[ "$output" == *'.zshrc'* ]]
+  [[ "$output" == *'.config/fcitx5/profile'* ]]
   [[ "$output" != *'.config/kwinrc'* ]]
   [[ "$output" != *'.config/kglobalshortcutsrc'* ]]
   [[ "$output" == *'.local/share/plasma/look-and-feel/a2n.kuro/metadata.json'* ]]
