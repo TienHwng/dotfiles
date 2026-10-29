@@ -11,11 +11,16 @@ the date when it matters. Remove what stops being true. Do not store secrets or 
 identity beyond what is already public in the repository. Current next steps belong in
 [handoff.md](handoff.md) and [roadmap.md](roadmap.md), not here.
 
-Last updated: 2026-10-29.
+Last updated: 2026-10-29 (evening, before the switch to Windows).
 
 ---
 
 ## 1. The owner and how to work with them
+
+- The owner runs Claude Code in the repository folder, on CachyOS and on Windows. Each
+  machine's Claude has its own local memory, so this file is the only memory both share;
+  local chat history does not travel. On Windows, `/memory` in Claude Code shows that
+  `CLAUDE.md` and this file are loaded.
 
 - GitHub `TienHwng`; commits use the noreply address
   `95695191+TienHwng@users.noreply.github.com`. The repository is public.
@@ -55,6 +60,9 @@ Last updated: 2026-10-29.
   splash `a2n.kuro` (Kuro the cat), global theme Breeze Twilight, fcitx5 with Vietnamese input
   (lotus by default), terminal kitty, shell zsh with oh-my-posh theme `montys`, browser
   Vivaldi. The `dots-sync.timer` is enabled; the 8 boot theme packages are installed.
+- Tools on CachyOS: PowerShell 7.6 with Pester 5.7.1 and PSScriptAnalyzer 1.24.0 (CurrentUser
+  scope), so `make test-windows` and `make lint-windows` run there; `gum` is not installed, so
+  `dots` prompts in plain text; `gh` is logged in over HTTPS.
 - The repository lives at `~/.local/share/chezmoi` (chezmoi **symlink** mode on Linux: most
   dotfiles are links into the repository) and `%USERPROFILE%\.local\share\chezmoi` on Windows
   (**copy** mode). Wallpapers are a clone of the private `TienHwng/wallpapers` at
@@ -109,6 +117,35 @@ Last updated: 2026-10-29.
   The Kuro splash had vanished because Plasma refuses symlinked package files; it moved out of
   the chezmoi source into `kde/`, copied by the desktop step.
 - Next: the Windows run-through ([handoff.md](handoff.md)), then the planned platforms.
+
+### KDE breakages so far (all on CachyOS, all from chezmoi symlink mode, on since 2026-07-28)
+
+Symlink mode makes most dotfiles links into the repository. KDE does not cope with that, and
+it failed three times in three different ways. None of them came from a CachyOS update:
+`kpackage` 6.31 arrived on 2026-10-16, and the splash still worked at the 2026-10-29 09:38
+login.
+
+1. **Splash reset (before 2026-10-28).** Picking a global theme in System Settings resets
+   the splash to the theme's own (Breeze), which empties `ksplashrc`. The repository then
+   held the whole `ksplashrc`, captured empty, so every apply wrote the empty file back.
+   Fixed in P5a: KDE settings are per-key values in `kde.yaml`
+   (`ksplashrc` `Theme=a2n.kuro`, `Engine=KSplashQML`), and whole `*rc` files are ignored.
+2. **Dangling `*rc` links (2026-10-28/29).** After P5a removed the whole `*rc` files from
+   the source, `~/.config/kwinrc` and friends were still links to files that no longer
+   existed. `kwriteconfig6` writes nothing through a dangling link yet exits 0, so KWin lost
+   the fcitx5 input method and Vietnamese typing stopped. Fixed: the desktop step deletes
+   links in `~/.config` that dangle into `home/` (commit `a2b4533`).
+3. **Splash refused (2026-10-29).** The owner had installed Kuro with *Get New* on
+   2026-08-26 (real files). A `chezmoi apply` at 09:52 on 2026-10-29 replaced them with links
+   into the repository, and from the next login (16:07) `ksplashqml` logged "Path traversal
+   attempt detected … is not inside …" and showed no splash. KPackage refuses package files
+   that resolve outside the package directory. The owner reinstalled Kuro with *Get New* at
+   20:42. Fixed: the theme lives in `kde/`, the desktop step copies it as real files,
+   chezmoi ignores `.local/share/plasma`, and `dots doctor` watches for it (commits
+   `0d46c1a`, `b08842f`, `feee2e1`).
+
+The user journal keeps only a few boots (2026-10-28 onwards on 2026-10-29), so look early.
+`/var/log/pacman.log` has the full update history (`grep '] upgraded kpackage '`).
 
 ## 5. Traps already hit
 
