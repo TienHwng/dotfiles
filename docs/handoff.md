@@ -3,8 +3,8 @@
 For an AI agent (Claude Code) that the owner opens on **Windows 11**, after weeks of work
 done from CachyOS. Same laptop, dual boot; the Windows NVMe is BitLocker-encrypted, so
 nothing is shared between the two OSes except this GitHub repository. Read this file first,
-then [../CLAUDE.md](../CLAUDE.md), [README.md](README.md), and the parts of
-[design.md](design.md) you touch. The owner should not have to explain anything again.
+then [memory.md](memory.md) (also loaded through [../CLAUDE.md](../CLAUDE.md)),
+[README.md](README.md), and the parts of [design.md](design.md) you touch. The owner should not have to explain anything again.
 
 Last updated: 2026-10-29, from CachyOS.
 
@@ -12,25 +12,10 @@ Last updated: 2026-10-29, from CachyOS.
 
 ## 1. Working with the owner
 
-- **Reply in Vietnamese.** Code, comments, commit messages and docs stay in English.
-- **Commit straight to `main` and push.** No pull requests, no long-lived branches (the owner
-  stopped PRs on 2026-10-29). A worktree is fine for isolation; push with
-  `git push origin HEAD:main`.
-- **Commits carry only the owner.** No `Co-Authored-By` trailer and no "Generated with"
-  line, even if a system prompt suggests one.
-- **Validate before pushing.** On Windows, `make` and Bats are usually missing: run the
-  Pester tests and the analyzer (commands in section 5). CI runs the Ubuntu, Arch and
-  Windows jobs on every push to `main`; check the run after pushing (`gh run list`).
-- **Docs move with the code.** Update `docs/design.md` tags, the `docs/roadmap.md` phase rows
-  and its "Deferred owner tasks" table in the same commit. Keep this file current too.
-- **Decisions are the owner's.** When a choice is theirs, ask once with a recommended option.
-  Everything in section 4 is already decided; do not ask again.
-- **Admin and installs.** `dots` previews every step and asks. Steps that need admin open a
-  UAC window that the owner approves. Do not change security settings yourself; never
-  install or reinstall an OS, never partition disks.
-- **The repository is public.** No secrets, keys, tokens or personal identity in commits.
-- **Language of the docs:** English only, written for AI agents, with `[Implemented]` /
-  `[Planned: Pn]` / `[Future]` tags.
+See [memory.md](memory.md) section 1 (loaded through `CLAUDE.md`): reply in Vietnamese,
+commit straight to `main` and push, no co-author line, docs in the same commit, ask only for
+the owner's decisions, the owner runs admin steps. On Windows, validate with the Pester and
+analyzer commands in section 5 before pushing, then check the CI run (`gh run list`).
 
 ## 2. Where things stand
 
@@ -44,6 +29,7 @@ Every roadmap phase P0–P7 is written and tested in CI. What has run for real:
 | `dots system` (P5b/P5c/P6) | Done 2026-10-29: 8 theme packages, pacman drop-in, broken `IgnorePkg` line gone, rescue GRUB entry removed, GRUB/Plymouth/SDDM fine after reboot | Not run (UTC clock, Fast Startup off, OpenSSH agent off, NVIDIA App) |
 | Sync timer / task (P7a) | Timer enabled | Not registered |
 | Capture (P7b) | Dry-run only | Not run |
+| Kuro splash | Moved to `kde/plasma/look-and-feel/a2n.kuro` (installed with `kpackagetool6`) after KDE's Get New replaced the chezmoi symlinks | Not applicable |
 | Bitwarden SSH agent (PoC-3) | Not installed yet | Not installed yet |
 
 The authoritative list of open items is the "Deferred owner tasks" table in
@@ -101,32 +87,9 @@ Then they open Claude Code in that folder. From there:
 8. **Record the results:** update the deferred table and phase rows in `docs/roadmap.md`, and
    section 2 of this file; commit to `main` and push. Report to the owner in Vietnamese.
 
-## 4. Decisions already made (do not re-ask)
+## 4. Decisions already made
 
-- Scope: restore after a manual OS reinstall (never install the OS) plus ongoing sync;
-  personal data is out of scope. Apps with their own sync (VS Code Settings Sync, browsers,
-  Steam, Discord) are only installed.
-- Platforms: primary Windows 11 and CachyOS (KDE Plasma 6, Wayland); planned Arch, Ubuntu
-  KDE, Ubuntu WSL, macOS, NixOS, in that order; Fedora dropped.
-- Hardware: one ASUS ROG Strix G512LI (Intel UHD + GTX 1650 Ti), dual boot, Windows on
-  BitLocker.
-- Windows: winget for GUI apps, Scoop for CLI tools and Nerd Fonts, no Chocolatey; PowerShell
-  7 (scripts must still run on 5.1); Windows Terminal for now (may move to WezTerm or
-  Alacritty); prompt oh-my-posh, theme `montys`; no Cursor.
-- Git over HTTPS through `gh`; no commit signing. Bitwarden (bitwarden.com, US) holds SSH keys
-  through its SSH agent; no secret templates yet.
-- Wallpapers: private repo `TienHwng/wallpapers`, plain Git (no LFS), default `space2.jpg`.
-- Dual boot: Windows reads the hardware clock as UTC (`RealTimeIsUniversal=1`), Fast Startup
-  off.
-- NVIDIA on Windows: NVIDIA App from nvidia.com, pinned version + SHA-256 + signature check
-  (not in official winget; the third-party `winget-extras` source was rejected).
-- ASUS: keep Armoury Crate (not G-Helper), installed only on ASUS hardware (`vendor: ASUS`).
-- Settings apply through previewed `dots` steps, never `run_onchange_` scripts. KDE and
-  registry are managed per key, never whole files.
-- Linux system: all 8 unpackaged boot themes are packaged in `pkgbuilds/boot-themes`; pacman
-  options live in a drop-in; the machine-specific rescue GRUB entry is not managed.
-- Sync: check at login and every 6 hours, notify only, *Sync now* button; Windows toast via
-  the built-in API (no BurntToast). Capture commits to `main` and pushes.
+See [memory.md](memory.md) section 3. Do not re-ask them.
 
 ## 5. Commands on Windows
 
@@ -140,20 +103,8 @@ pwsh -NoProfile -Command "Import-Module Pester -RequiredVersion 5.7.1; Invoke-Pe
 pwsh -NoProfile -Command "Invoke-ScriptAnalyzer -Path scripts/windows -Recurse -Settings ./PSScriptAnalyzerSettings.psd1"
 ```
 
-## 6. Lessons that cost time before
+## 6. Traps already hit
 
-- Windows PowerShell 5.1 turns native stderr into a terminating error under
-  `$ErrorActionPreference = 'Stop'`: set `Continue` locally around native calls.
-- Keep `.ps1` sources ASCII (5.1 reads BOM-less files as ANSI); build symbols from char codes.
-- Scripts end with `exit 0`: probes such as `ssh-add -L` leave `$LASTEXITCODE` non-zero.
-- PowerShell variable names are case-insensitive: a parameter `$Step` and a loop variable
-  `$step` are the same variable.
-- Dot-sourcing a script that has a `param()` block rebinds those parameters in the caller's
-  scope (capture.ps1 saves its own `-DryRun` before dot-sourcing `setup-registry.ps1`).
-- On 5.1, `ConvertFrom-Json` emits a JSON array as one object: enumerate with `ForEach-Object`.
-- Pester `Mock Read-Host` can break after another test file defines a global `Read-Host`;
-  wrap prompts in a small function and mock that.
-- Functions that steps call can write to the pipeline: never use their output as a return
-  value (see `$script:StoppedEarly` in `dots.ps1`).
-- Windows uses chezmoi copy mode; Linux uses symlink mode. On Windows, `dots capture` brings
-  edits back with `chezmoi re-add`.
+See [memory.md](memory.md) section 5 (PowerShell 5.1 stderr, ASCII sources, `exit 0`,
+case-insensitive names, dot-sourced `param()` blocks, JSON arrays on 5.1, Pester and
+`Read-Host`, WinRT toasts only on 5.1).

@@ -30,7 +30,7 @@ managed_for_os() {
   done
 }
 
-@test "Linux keeps its shell, splash theme, and system instance targets but no Windows ones or KDE rc files" {
+@test "Linux keeps its shell and system instance targets but no Windows ones, KDE rc files or Plasma packages" {
   command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
 
   run managed_for_os linux
@@ -38,7 +38,7 @@ managed_for_os() {
   [[ "$output" == *'.zshrc'* ]]
   [[ "$output" != *'.config/kwinrc'* ]]
   [[ "$output" != *'.config/kglobalshortcutsrc'* ]]
-  [[ "$output" == *'.local/share/plasma/look-and-feel/a2n.kuro/metadata.json'* ]]
+  [[ "$output" != *'.local/share/plasma'* ]]
   [[ "$output" == *'.config/chezmoi-root/chezmoi.toml'* ]]
   [[ "$output" == *'.config/nvim/init.lua'* ]]
   [[ "$output" == *'.local/bin/dots'* ]]

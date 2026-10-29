@@ -254,8 +254,9 @@ Rules:
   `XDG_CONFIG_HOME=%USERPROFILE%\.config`. Neovim, oh-my-posh, WezTerm/Alacritty, and git then read
   `~/.config`, so `home/dot_config/nvim` etc. are shared unchanged.
 - **`.chezmoiignore` is OS-aware** `[Implemented]`. Linux-only targets (`.zshrc`, `.oh-my-zsh`,
-  kitty, hypr, tmux, fastfetch, KDE `*rc` files, `.local/share/plasma`, the system instance
-  config) are ignored on every non-Linux OS; Windows-only targets (`AppData`,
+  kitty, hypr, tmux, fastfetch, the system instance config) are ignored on every non-Linux
+  OS; KDE `*rc` files and `.local/share/plasma` are ignored everywhere (managed per key and
+  as Plasma packages); Windows-only targets (`AppData`,
   `Documents/PowerShell`, `.wslconfig`, `.config/powershell`) are ignored everywhere except Windows.
   `tests/chezmoiignore.bats` checks the managed set per OS by overriding `.chezmoi.os`
   (`chezmoi --override-data '{"chezmoi":{"os":"windows"}}' managed`). New OS-specific files
@@ -310,8 +311,16 @@ kde:
   method, Night Color, one desktop), look (Breeze Twilight, contrast, Vivaldi as browser and as
   the `mimeapps.list` handler for http/https/html), touchpad and mouse (`kcminputrc`, per
   device, only on `HwngPC`), power (display stays on while on AC), the Kuro splash
-  (`ksplashrc`; theme files in `home/dot_local/share/plasma`), and the fcitx5 input methods (`kde.fcitx5`: layout, list,
+  (`ksplashrc` keys; the theme itself is a Plasma package, see below), and the fcitx5 input methods (`kde.fcitx5`: layout, list,
   default).
+- Plasma packages `[Implemented]` (splash and global themes from the KDE Store) are listed in
+  `kde.packages` (`type`, `path`, `id`) and kept in the repository at `kde/<path>/<id>`; today
+  the Kuro splash (`a2n.kuro`, GPLv3). The desktop step installs a missing one with
+  `kpackagetool6 --type <type> --install` and upgrades an installed copy that differs. They used
+  to be chezmoi symlinks in `home/dot_local/share/plasma`, but KDE's *Get New* (KNewStuff)
+  replaces the whole directory with real files on install or update, which silently detached
+  them from the repository (2026-10-29). `.local/share/plasma` is now ignored by chezmoi;
+  `dots capture` offers an installed copy that changed and copies it into `kde/`.
 - Choosing a global theme in System Settings resets the splash to the theme's own (Breeze,
   the default, so `ksplashrc` ends up empty). Whole-file capture once saved that empty file;
   per key, the `desktop` step applies the theme first and then sets the splash back.
@@ -554,6 +563,7 @@ item that opens a second picker.
 |---|---|---|
 | Repository files | `git status --porcelain` (on Linux dotfiles are symlinks into the repository, so edits land here) | `git add` |
 | Copied dotfiles | `chezmoi status`, first column `M` (edited since chezmoi wrote them: Windows copy mode, templates and private files on Linux) | `chezmoi re-add`, then `git add` the source; templates are listed for a manual edit |
+| Plasma packages (Linux) | `diff -r` of `~/.local/share/<path>/<id>` against `kde/<path>/<id>` for each `kde.packages` entry | Copy the installed package (links followed) over the repository copy |
 | KDE keys (Linux) | `kreadconfig6` vs `scripts/kde-settings.tmpl` | Rewrite `value:` of that one-line entry in `kde.yaml` (the host's machine entry first) |
 | Registry (Windows) | `Get-RegistryCurrent` vs `windows.yaml` (same kind only) | Rewrite `value:` of that entry in `windows.yaml` |
 | Packages | `install-packages.sh --extra` (Arch, apt; packages from `pkgbuilds/` count as known) / `package-diff.ps1` (`winget export`, Scoop apps; fonts as `<font>-NF`) | Add to the manifest (appended to the platform, `winget` or `scoop` list; an empty `[]` becomes a block list), or uninstall (`paru -Rns` / `apt-get remove` / `winget uninstall` / `scoop uninstall`) |
@@ -589,6 +599,7 @@ changes, which go straight to `main`). Answering no unstages everything. It repl
 │   ├── AppData/                    # Windows-only configs       [Planned, when one is managed]
 │   └── dot_wslconfig               # Windows-only               [Planned: platform]
 ├── root/                           # system chezmoi source      [Implemented, manual]
+├── kde/plasma/look-and-feel/      # Plasma packages (Kuro splash) [Implemented]
 ├── pkgbuilds/boot-themes/         # 7 GRUB + 1 Plymouth theme   [Implemented]
 ├── scripts/
 │   ├── package-list.tmpl           # renders one manifest list [Implemented]

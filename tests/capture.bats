@@ -215,3 +215,26 @@ EOF2
   run chezmoi --source "$BATS_TEST_TMPDIR" execute-template '{{ (index (fromYaml (include "kde.yaml")).kde.machines.HwngPC.settings 1).value }}'
   [ "$output" = 'a "b"' ]
 }
+
+@test "capture offers a changed Plasma package and copies it into kde/" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+  repo="$BATS_TEST_TMPDIR/repo"
+  mkdir -p "$repo"
+  cp -r "$PROJECT_ROOT/scripts" "$PROJECT_ROOT/home" "$PROJECT_ROOT/kde" "$repo/"
+  installed="$XDG_DATA_HOME/plasma/look-and-feel/a2n.kuro"
+  mkdir -p "$(dirname "$installed")"
+  cp -r "$repo/kde/plasma/look-and-feel/a2n.kuro" "$installed"
+
+  run bash -c 'source "$1/scripts/unix/capture.sh"; collect_kde_packages; printf "%s\n" "${items[@]}"' _ "$repo"
+  [ -z "$output" ]
+
+  printf 'new frame\n' >"$installed/contents/splash/images/extra.txt"
+  run bash -c 'source "$1/scripts/unix/capture.sh"; collect_kde_packages; printf "%s\n" "${items[@]}"' _ "$repo"
+  [[ "$output" == *'kde-pkg   plasma/look-and-feel/a2n.kuro: keep the installed copy'* ]]
+
+  git -C "$repo" init -q
+  run bash -c 'source "$1/scripts/unix/capture.sh"; capture_item kde-pkg plasma/look-and-feel/a2n.kuro' _ "$repo"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$repo/kde/plasma/look-and-feel/a2n.kuro/contents/splash/images/extra.txt")" = 'new frame' ]
+  git -C "$repo" diff --cached --name-only | grep -qx 'kde/plasma/look-and-feel/a2n.kuro/contents/splash/images/extra.txt'
+}

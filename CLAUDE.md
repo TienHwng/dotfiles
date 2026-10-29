@@ -14,7 +14,8 @@ Primary platforms: **Windows 11** and **CachyOS**. Planned: Arch Linux, Ubuntu d
 (KDE), Ubuntu WSL, macOS, NixOS. Fedora is not supported.
 
 **Continuing on another machine (for example Windows)? Read `docs/handoff.md` first**: it holds
-the current state, the owner's decisions, and what is left to do there.
+the current state and what is left to do there. `docs/memory.md` (imported at the end of this
+file) holds the owner's preferences, decisions and the traps already hit.
 
 **Read `docs/README.md` first**, then `docs/design.md` before changing behaviour.
 Features are tagged `[Implemented]`, `[Planned: Pn]`, or `[Future]`; `docs/roadmap.md`
@@ -72,7 +73,7 @@ Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFro
 - Lists live in data, never in scripts: packages in `home/.chezmoidata/packages.yaml` (read with `manifest_list` / `Get-ManifestList` via `scripts/package-list.tmpl`; never parse the YAML yourself), KDE keys in `kde.yaml`, Windows registry values in `windows.yaml`. Arch installs via `paru -S --needed`, never as root. Windows uses winget for GUI/system apps and Scoop for CLI tools and fonts; no Chocolatey.
 - KDE `*rc` files and the Windows registry are managed **per key**, not as whole files.
 - `temp/` and `misc/` are gitignored scratch areas.
-- `docs/` holds `README.md` (index), `vision.md`, `design.md`, `roadmap.md`, `handoff.md` (state and next steps for a session on another machine).
+- `docs/` holds `README.md` (index), `vision.md`, `design.md`, `roadmap.md`, `handoff.md` (state and next steps for a session on another machine), `memory.md` (shared agent memory, imported by this file).
 
 ## Machine data, secrets, and config writers
 
@@ -95,12 +96,10 @@ Scripts read data with `chezmoi data --format json` + `jq` (Bash) or `ConvertFro
 - Style: Bash, 2-space indent, `shfmt -ci -bn`, must pass ShellCheck. PowerShell uses 4 spaces.
 - Never install/reinstall an OS, partition disks, or build `[Future]` items unless asked.
 
-## Working with the owner
+## Shared memory
 
-- Reply in Vietnamese; code, comments, commit messages and docs stay in English.
-- Commit straight to `main` and push after validating; no pull requests.
-- Commits carry only the owner: no `Co-Authored-By` trailer, no "Generated with" line.
-- Update `docs/design.md`, `docs/roadmap.md` (phase rows and the deferred owner tasks) and
-  `docs/handoff.md` in the same commit as the behaviour they describe.
-- Ask the owner only for decisions that are theirs, with a recommended option; `docs/handoff.md`
-  lists what is already decided.
+What the owner has decided, how they want to work (reply in Vietnamese, commit straight to
+`main`, no co-author line), facts about the machine, and traps already hit live in
+`docs/memory.md`, imported here so every session on every machine loads it. Keep it current.
+
+@docs/memory.md

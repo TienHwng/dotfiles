@@ -21,6 +21,8 @@ and pushes:
   file      a file changed in the repository (on Linux dotfiles are symlinks into it)
   re-add    a dotfile chezmoi wrote as a copy (templates are listed for a manual edit)
   kde       a KDE key whose value differs from home/.chezmoidata/kde.yaml
+  kde-pkg   a Plasma package from kde.packages whose installed copy changed (Get New, an
+            update); the installed copy replaces kde/<path>/<id>
   packages  installed packages that are not in the manifest (a second picker)
 
 --dry-run lists the items and changes nothing.
@@ -90,6 +92,23 @@ collect_kde_keys() {
     [[ -n "$current" && "$current" != "$value" ]] || continue
     items+=("kde"$'\t'"$file$SEP$groups$SEP$key$SEP$current"$'\t'"kde       $file [${groups//$SEP/][}] $key: $value -> $current")
   done < <(chezmoi --source "$ROOT_DIR" execute-template <"$ROOT_DIR/scripts/kde-settings.tmpl")
+}
+
+# Plasma packages (kde.packages) whose installed copy differs from kde/, e.g. after Get New
+collect_kde_packages() {
+  local type path id source_dir target_dir
+  has chezmoi || return 0
+  while IFS=$'\t' read -r type path id; do
+    [[ -n "$type" ]] || continue
+    source_dir="$ROOT_DIR/kde/$path/$id"
+    target_dir="${XDG_DATA_HOME:-$HOME/.local/share}/$path/$id"
+    # Only a real installed copy can be kept: missing or dangling means the desktop step installs it
+    [[ -d "$target_dir" ]] || continue
+    [[ -z "$(find "$target_dir" -xtype l -print -quit)" ]] || continue
+    diff -rq "$source_dir" "$target_dir" >/dev/null 2>&1 && continue
+    items+=("kde-pkg"$'\t'"$path/$id"$'\t'"kde-pkg   $path/$id: keep the installed copy in kde/$path/$id")
+  done < <(chezmoi --source "$ROOT_DIR/home" execute-template \
+    '{{ range .kde.packages }}{{ .type }}{{ "\t" }}{{ .path }}{{ "\t" }}{{ .id }}{{ "\n" }}{{ end }}' 2>/dev/null || true)
 }
 
 collect_packages() {
@@ -388,6 +407,13 @@ capture_item() {
 
   case "$kind" in
     file) repo_git add -A -- "$payload" ;;
+    kde-pkg)
+      # Copy the installed package (following links) over the repository copy
+      rm -rf -- "${ROOT_DIR:?}/kde/$payload"
+      mkdir -p -- "$(dirname -- "$ROOT_DIR/kde/$payload")"
+      cp -rL -- "${XDG_DATA_HOME:-$HOME/.local/share}/$payload" "$ROOT_DIR/kde/$payload"
+      repo_git add -A -- "kde/$payload"
+      ;;
     re-add)
       chezmoi --source "$ROOT_DIR/home" re-add "$payload"
       source="$(chezmoi --source "$ROOT_DIR/home" source-path "$payload")"
@@ -486,6 +512,7 @@ main() {
   collect_repo_files
   collect_chezmoi_drift
   collect_kde_keys
+  collect_kde_packages
   collect_packages
 
   if ((${#templates[@]})); then

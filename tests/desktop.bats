@@ -25,7 +25,7 @@ while ((\$#)); do
 done
 grep -F -- "\$file|\$groups|\$key=" '$store' | head -1 | cut -d= -f2- || true
 EOF
-  for tool in kwriteconfig6 plasma-apply-lookandfeel qdbus6; do
+  for tool in kwriteconfig6 plasma-apply-lookandfeel qdbus6 kpackagetool6; do
     printf '#!/usr/bin/env bash\nprintf "%%s %%s\\n" %q "$*" >>%q\n' "$tool" "$calls" >"$mock_bin/$tool"
   done
   # busctl answers NameHasOwner from FCITX5_RUNNING and logs every other call
@@ -46,8 +46,15 @@ set_hostname() {
   printf '[data.chezmoi]\nhostname = "%s"\n' "$1" >"$XDG_CONFIG_HOME/chezmoi/chezmoi.toml"
 }
 
+# Install a copy of every Plasma package from kde/, as kpackagetool6 would
+install_packages() {
+  mkdir -p "$XDG_DATA_HOME/plasma/look-and-feel"
+  cp -r "$PROJECT_ROOT/kde/plasma/look-and-feel/a2n.kuro" "$XDG_DATA_HOME/plasma/look-and-feel/"
+}
+
 # Store every value from kde.yaml, so nothing differs
 store_all_current() {
+  install_packages
   chezmoi --source "$PROJECT_ROOT" execute-template <"$PROJECT_ROOT/scripts/kde-settings.tmpl" \
     | awk -F'\t' '{ gsub("\037", "/", $2); print $1 "|" $2 "|" $3 "=" $4 }' >"$store"
   printf 'kdeglobals|KDE|LookAndFeelPackage=%s\n' \
@@ -242,4 +249,23 @@ store_stock_fcitx5() {
   [ "$status" -eq 0 ]
   [[ "$output" == *'+ busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 SetInputMethodGroupInfo ssa\(ss\) Default us 4 keyboard-us'* ]]
   [ ! -e "$calls" ]
+}
+
+@test "desktop step installs a missing Plasma package and upgrades a changed one" {
+  command -v chezmoi >/dev/null || skip 'chezmoi is not installed'
+  store_all_current
+  rm -rf "$XDG_DATA_HOME/plasma/look-and-feel/a2n.kuro"
+
+  run env PATH="$mock_bin:$PATH" "$DESKTOP"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'package a2n.kuro: <not installed> -> kde/plasma/look-and-feel/a2n.kuro'* ]]
+  grep -qx "kpackagetool6 --type Plasma/LookAndFeel --install $PROJECT_ROOT/kde/plasma/look-and-feel/a2n.kuro" "$calls"
+
+  install_packages
+  printf 'changed\n' >>"$XDG_DATA_HOME/plasma/look-and-feel/a2n.kuro/metadata.json"
+  rm -f "$calls"
+  run env PATH="$mock_bin:$PATH" "$DESKTOP"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'installed copy differs'* ]]
+  grep -qx "kpackagetool6 --type Plasma/LookAndFeel --upgrade $PROJECT_ROOT/kde/plasma/look-and-feel/a2n.kuro" "$calls"
 }

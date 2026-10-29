@@ -166,6 +166,7 @@ secrets from Bitwarden through chezmoi's `bitwarden*` functions; none does yet.
 ├── docs/                 # vision, design, roadmap (start with docs/README.md)
 ├── home/                 # user-level chezmoi source
 ├── root/                 # system-level chezmoi source (second instance, Linux)
+├── kde/                  # Plasma packages (Kuro splash), installed by the desktop step
 ├── scripts/unix/         # Bash scripts and the dots CLI
 ├── scripts/windows/      # PowerShell scripts and dots.ps1 (Windows PowerShell 5.1 and 7)
 ├── tests/                # Bats, Pester (tests/windows), template validation

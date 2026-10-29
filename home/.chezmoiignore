@@ -11,7 +11,6 @@
 .config/kitty
 .config/systemd
 .config/tmux
-.local/share/plasma
 {{- end }}
 
 {{- /* KDE *rc files are managed per key from .chezmoidata/kde.yaml (dots desktop step);
@@ -21,6 +20,10 @@
 .config/ksplashrc
 .config/kwinrc
 .config/plasmashellrc
+
+{{- /* Plasma packages (splash/global themes) live in kde/ and are installed with kpackagetool6
+       by the desktop step; KDE's Get New replaces whole directories, which broke symlinks */}}
+.local/share/plasma
 
 {{- /* Unix-only targets */}}
 {{- if eq .chezmoi.os "windows" }}
