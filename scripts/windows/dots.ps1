@@ -212,7 +212,7 @@ function Get-StepDetail([string]$Step) {
             }
         }
         'wallpaper' {
-            $dir = (Get-ChezmoiValue '.wallpapers.dir' 'Pictures/wallpaper') -replace '/', '\'
+            $dir = (Get-ChezmoiValue '.wallpapers.dirWindows' 'Pictures/wallpapers') -replace '/', '\'
             $image = Get-ChezmoiValue '.wallpapers.current' 'the configured image'
             @{
                 Does = @(

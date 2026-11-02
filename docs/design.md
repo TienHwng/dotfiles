@@ -536,8 +536,10 @@ already elevated. Step 4 is planned; step 5 belongs to the apps step.
   keeps counting deleted objects, and a `git-lfs` + filter prerequisite on every machine.
   Revisit only if a file approaches 100 MB or images are replaced often (history growth).
 - Data (`home/.chezmoidata.yaml`): `features.wallpapers`, `wallpapers.repo`, `wallpapers.dir`
-  (`Pictures/wallpaper`), `wallpapers.current` (`space2.jpg`).
-- `home/.chezmoiexternal.toml.tmpl` declares a `git-repo` external at `wallpapers.dir`
+  (`Pictures/wallpaper`), `wallpapers.dirWindows` (`Pictures/wallpapers`: Windows paths ignore
+  case, so `Pictures/wallpaper` there is the owner's own `Pictures\WALLPAPER` folder; decided
+  2026-11-03), `wallpapers.current` (`space2.jpg`).
+- `home/.chezmoiexternal.toml.tmpl` declares a `git-repo` external at `wallpapers.dir` (`wallpapers.dirWindows` on Windows)
   (`clone --depth 1`, `pull --ff-only`, `refreshPeriod = "168h"`) when `features.wallpapers`
   is on. The `dotfiles` step of `dots` excludes externals (`--exclude externals`); the
   `wallpaper` step (`setup-wallpaper.sh/.ps1`) runs `chezmoi apply <dir>` after `github-login`,

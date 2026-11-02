@@ -13,6 +13,9 @@ features:
 wallpapers:
   repo: https://github.com/TienHwng/wallpapers.git
   dir: Pictures/wallpaper
+  # Windows paths ignore case, so Pictures/wallpaper there is the owner's own
+  # Pictures/WALLPAPER folder; the clone goes next to it instead
+  dirWindows: Pictures/wallpapers
   current: space2.jpg
 
 accounts:

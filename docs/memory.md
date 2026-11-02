@@ -70,8 +70,9 @@ Last updated: 2026-11-03 (step names and descriptions).
 - Windows (2026-10-29): Armoury Crate is the BIOS-installed Store package
   `B9ECED6F.ArmouryCrate` (winget cannot match it to `Asus.ArmouryCrate`); NVIDIA App
   11.0.9.565 installed; `Documents` not redirected; many apps and some CLI tools already came
-  from winget before `dots`; `Pictures\WALLPAPER` is the owner's own picture folder. Wallpapers are a clone of the private `TienHwng/wallpapers` at
-  `~/Pictures/wallpaper`.
+  from winget before `dots`; `Pictures\WALLPAPER` is the owner's own picture folder. Wallpapers are a clone of the private
+  `TienHwng/wallpapers` at `~/Pictures/wallpaper` on Linux and `~\Pictures\wallpapers` on
+  Windows (`wallpapers.dirWindows`, 2026-11-03), next to that folder, never in it.
 
 ## 3. Decisions already made (do not re-ask)
 
@@ -222,7 +223,8 @@ PowerShell:
 - Step functions may write to the pipeline: never use their output as a return value.
 - A `switch` runs every clause that matches, not just the first: `dots apps` matched both
   `'apps'` and the step clause and installed twice. End such clauses with `break`.
-- Windows paths ignore case: `Pictures\wallpaper` is the owner's existing `Pictures\WALLPAPER`.
+- Windows paths ignore case: `Pictures\wallpaper` is the owner's existing `Pictures\WALLPAPER`,
+  so the Windows clone lives at `Pictures\wallpapers` (`wallpapers.dirWindows`).
 - Git for Windows sets `core.autocrlf=true` system-wide, so the bootstrap clone got CRLF files;
   once the `git-config` step (then `git`) rendered `~/.gitconfig` (`autocrlf=false`), 28 files showed as modified
   and `dots sync` refused to run (2026-10-29). Fixed with `* text=auto eol=lf` in

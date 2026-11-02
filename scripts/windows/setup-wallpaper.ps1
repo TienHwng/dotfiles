@@ -4,7 +4,7 @@ param(
 )
 
 # Fetches the wallpaper repository (chezmoi external, private Git repository from
-# .wallpapers.repo) into ~/.wallpapers.dir, then sets .wallpapers.current as the
+# .wallpapers.repo) into ~/.wallpapers.dirWindows, then sets .wallpapers.current as the
 # Windows desktop wallpaper.
 
 Set-StrictMode -Version Latest
@@ -27,7 +27,7 @@ function Get-DataValue([string]$Expression) {
 }
 
 $repo = Get-DataValue '.wallpapers.repo'
-$dir = Join-Path $HOME ((Get-DataValue '.wallpapers.dir') -replace '/', '\')
+$dir = Join-Path $HOME ((Get-DataValue '.wallpapers.dirWindows') -replace '/', '\')
 $image = Join-Path $dir (Get-DataValue '.wallpapers.current')
 
 if ([string]::IsNullOrWhiteSpace($repo)) {

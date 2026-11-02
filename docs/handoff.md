@@ -49,9 +49,10 @@ First Windows session (2026-10-29), read-only checks before any `dots` step ran:
 - The owner's hand-made `Microsoft.PowerShell_profile.ps1` (Catppuccin, Terminal-Icons,
   PSReadLine, fastfetch) moved into the shared profile; the owner deletes that file after
   the `shell-setup` and `dotfiles` steps.
-- Open, for the owner: `C:\Users\Hwng\Pictures\WALLPAPER` is a personal folder (not a clone),
-  and Windows paths ignore case, so the `wallpaper` step refuses it; and winget already has
-  CLI tools the manifest takes from Scoop (`GitHub.cli`, `junegunn.fzf`, `Neovim.Neovim`,
+- `C:\Users\Hwng\Pictures\WALLPAPER` is a personal folder (not a clone), and Windows paths
+  ignore case, so the `wallpaper` step refused `Pictures\wallpaper`. Since 2026-11-03 the
+  Windows clone goes to `Pictures\wallpapers` (`wallpapers.dirWindows`, owner's choice).
+- Open, for the owner: winget already has CLI tools the manifest takes from Scoop (`GitHub.cli`, `junegunn.fzf`, `Neovim.Neovim`,
   `7zip.7zip`, `JanDeDobbeleer.OhMyPosh`, `Fastfetch-cli.Fastfetch`).
 
 ## 3. What to do on Windows, in order
@@ -75,8 +76,8 @@ Then they open Claude Code in that folder. From there:
    - `fonts`, `shell-setup` (`XDG_CONFIG_HOME`, profile stub), `dotfiles`.
    - `desktop-settings`: HKCU values from `home/.chezmoidata/windows.yaml` (file extensions, hidden
      files, dark apps); Explorer restarts.
-   - `wallpaper`: clones the private `TienHwng/wallpapers` through the gh credential helper
-     and sets `space2.jpg`.
+   - `wallpaper`: clones the private `TienHwng/wallpapers` into `~\Pictures\wallpapers` through the gh
+     credential helper and sets `space2.jpg`.
    - `auto-check`: registers the Scheduled Task `\dots\dots-sync` and the `dots-sync:` protocol.
      Test with `Start-ScheduledTask -TaskPath '\dots\' -TaskName dots-sync` after a commit
      exists that Windows does not have yet: a toast with *Sync now* should appear and open

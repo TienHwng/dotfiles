@@ -194,7 +194,7 @@ their old spelling (`--skip-packages`, `-SkipApply`, ...).
 | `shell-setup` | sets up the shell | zsh as login shell | `XDG_CONFIG_HOME` and the PowerShell 7 profile stub | `.chezmoidata.yaml` |
 | `dotfiles` | writes config files in your home folder | chezmoi diff, then apply (`home/`), then the zsh plugin repositories | chezmoi diff, then apply | `home/` |
 | `desktop-settings` | changes desktop settings | Kuro splash (copied from `kde/`), global theme, KDE keys, fcitx5 input methods | HKCU registry values, Explorer restart | `kde.yaml` / `windows.yaml` |
-| `wallpaper` | downloads and sets the wallpaper | clone or update `TienHwng/wallpapers`, set it on Plasma | same, set it on Windows | `.chezmoidata.yaml` (`wallpapers`) |
+| `wallpaper` | downloads and sets the wallpaper | clone or update `TienHwng/wallpapers`, set it on Plasma | same into `~\Pictures\wallpapers` (next to your own `Pictures\WALLPAPER`), set it on Windows | `.chezmoidata.yaml` (`wallpapers`) |
 | `auto-check` | turns on the update check | enable `dots-sync.timer` | register the `\dots\dots-sync` task and the *Sync now* protocol | |
 | `system-settings` | changes machine-wide settings | boot theme packages, then `/etc` from `root/` with sudo (GRUB, Plymouth, SDDM, pacman), GRUB and initramfs hooks | HKLM values (UTC clock, Fast Startup off), OpenSSH agent off, NVIDIA App, in an admin window | `root/`, `windows.yaml` |
 

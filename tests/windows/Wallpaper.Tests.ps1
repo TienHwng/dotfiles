@@ -23,8 +23,8 @@ Describe 'setup-wallpaper.ps1' {
             Set-ItResult -Skipped -Because 'chezmoi is not installed'
             return
         }
-        if ($IsWindows -and (Test-Path -LiteralPath (Join-Path $HOME 'Pictures\wallpaper'))) {
-            Set-ItResult -Skipped -Because 'Windows takes HOME from the profile folder, which already has Pictures\wallpaper'
+        if ($IsWindows -and (Test-Path -LiteralPath (Join-Path $HOME 'Pictures\wallpapers'))) {
+            Set-ItResult -Skipped -Because 'Windows takes HOME from the profile folder, which already has Pictures\wallpapers'
             return
         }
         $homeDir = Join-Path $TestDrive 'fresh-home'
@@ -51,5 +51,18 @@ Describe 'setup-wallpaper.ps1' {
         $output = Invoke-WallpaperDryRun $homeDir
 
         $output | Should -Match 'is not a clone of https://github.com/TienHwng/wallpapers.git'
+    }
+
+    It 'clones next to the owner''s Pictures\WALLPAPER folder on Windows, not into it' {
+        if (-not $HasChezmoi -or -not $IsWindows) {
+            Set-ItResult -Skipped -Because 'renders the external as chezmoi does on Windows'
+            return
+        }
+        $template = Get-Content -LiteralPath (Join-Path $RepoRoot 'home\.chezmoiexternal.toml.tmpl') -Raw
+
+        $output = $template | & chezmoi --source (Join-Path $RepoRoot 'home') execute-template | Out-String
+
+        $output | Should -Match '\["Pictures/wallpapers"\]'
+        $output | Should -Not -Match '\["Pictures/wallpaper"\]'
     }
 }
