@@ -54,7 +54,7 @@ function Test-NvidiaSignature([string]$Path) {
         $signature.SignerCertificate.Subject -match 'O="?NVIDIA Corporation'
 }
 
-# The installer shows its own window; dots system runs it from an administrator shell
+# The installer shows its own window; dots system-settings runs it from an administrator shell
 function Start-NvidiaInstaller([string]$Path) {
     return (Start-Process -FilePath $Path -Wait -PassThru).ExitCode
 }

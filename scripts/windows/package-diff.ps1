@@ -3,7 +3,7 @@ param()
 
 # Compares what WinGet and Scoop have installed with the manifest
 # (home/.chezmoidata/packages.yaml): installed but not listed (extra), and listed but not
-# installed (missing). Changes nothing. Run by `dots packages -Diff`; dots capture reads
+# installed (missing). Changes nothing. Run by `dots apps -Diff`; dots capture reads
 # Get-ExtraPackage and writes chosen packages back with Add-ManifestPackage.
 
 Set-StrictMode -Version Latest

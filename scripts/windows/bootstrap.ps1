@@ -213,19 +213,20 @@ if (-not (Test-Path -LiteralPath $activeScriptRoot)) {
     throw "Bootstrap script directory not found: $activeScriptRoot"
 }
 
-# The steps themselves (packages, git, accounts, fonts, shell, apply, desktop, wallpaper,
-# sync, system) live in dots.ps1
+# The steps themselves (apps, git-config, github-login, fonts, shell-setup, dotfiles,
+# desktop-settings, wallpaper, auto-check, system-settings) live in dots.ps1; the -Skip*
+# switches keep their old names
 $skip = @()
-if ($SkipPackages) { $skip += 'packages' }
-if ($SkipGit) { $skip += 'git' }
-if ($SkipAccounts) { $skip += 'accounts' }
+if ($SkipPackages) { $skip += 'apps' }
+if ($SkipGit) { $skip += 'git-config' }
+if ($SkipAccounts) { $skip += 'github-login' }
 if ($SkipFonts) { $skip += 'fonts' }
-if ($SkipShell) { $skip += 'shell' }
-if ($SkipApply) { $skip += 'apply' }
-if ($SkipDesktop) { $skip += 'desktop' }
+if ($SkipShell) { $skip += 'shell-setup' }
+if ($SkipApply) { $skip += 'dotfiles' }
+if ($SkipDesktop) { $skip += 'desktop-settings' }
 if ($SkipWallpaper) { $skip += 'wallpaper' }
-if ($SkipSync) { $skip += 'sync' }
-if ($SkipSystem) { $skip += 'system' }
+if ($SkipSync) { $skip += 'auto-check' }
+if ($SkipSystem) { $skip += 'system-settings' }
 
 $dotsArguments = @{
     Command = 'bootstrap'

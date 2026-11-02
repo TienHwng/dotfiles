@@ -9,9 +9,16 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" >/de
 source "$SCRIPT_DIR/lib/common.sh"
 
 ROOT_DIR="$(repo_root)"
-# git renders ~/.gitconfig (gh credential helper) so accounts can log in to gh before
-# anything clones a private repository; wallpaper needs that login. system (sudo) goes last.
-STEPS=(packages git accounts fonts shell apply desktop wallpaper sync system)
+# git-config renders ~/.gitconfig (gh credential helper) so github-login can log in to gh
+# before anything clones a private repository; wallpaper needs that login.
+# system-settings (sudo) goes last.
+STEPS=(apps git-config github-login fonts shell-setup dotfiles desktop-settings wallpaper auto-check system-settings)
+# Names used before 2026-11-03, only to point at the new name; they no longer run.
+# dots sync (pull) is still a command; only the step that enabled the timer moved.
+declare -A RENAMED_STEPS=(
+  [packages]=apps [git]=git-config [accounts]=github-login [shell]=shell-setup
+  [apply]=dotfiles [desktop]=desktop-settings [sync]=auto-check [system]=system-settings
+)
 DRY_RUN="${DRY_RUN:-0}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
 
@@ -21,33 +28,27 @@ Usage: dots <command> [options]
 
 Commands:
   bootstrap [--dry-run] [--non-interactive] [--skip STEP]...
-                  Set up this machine step by step: packages, git, accounts,
-                  fonts, shell, apply, desktop, wallpaper, sync, system. Each step shows
-                  a preview and asks run / skip / quit before changing anything.
-                  --non-interactive skips system unless --dry-run is set.
-  packages [--diff | --dry-run]
-                  Install missing packages from the manifest (preview, then
-                  ask), or report packages installed outside the manifest.
+                  Set up this machine step by step: apps, git-config, github-login,
+                  fonts, shell-setup, dotfiles, desktop-settings, wallpaper, auto-check,
+                  system-settings. Each step says what it does to this computer, shows
+                  a preview, and asks run / skip / quit before changing anything.
+                  --non-interactive skips system-settings unless --dry-run is set.
+  <step> [--dry-run] [--non-interactive]
+                  Run one of those steps on its own, described, previewed and confirmed.
+                  dots desktop-settings also repairs the Plasma packages (the Kuro splash).
+  apps --diff     Report packages installed outside the manifest.
   sync [--check [--notify]]
                   Pull new commits (fast-forward only, after showing them), then run
                   the steps whose files changed, each with a preview. --check only
                   fetches and reports how far behind this machine is; --notify adds a
-                  desktop notification (the dots-sync timer uses it).
+                  desktop notification (the auto-check timer uses it).
   status          Branch, commits behind/ahead, local changes, chezmoi drift, timer.
-  <step> [--dry-run] [--non-interactive]
-                  Run one bootstrap step on its own (git, accounts, fonts, shell, apply,
-                  desktop, wallpaper), previewed and confirmed. dots desktop also
-                  repairs the Plasma packages (the Kuro splash). packages, sync and
-                  system are commands of their own; the sync step is setup-sync.sh.
   capture [--dry-run] | capture kde --discover
                   Pick what changed on this machine (repository files, dotfiles
                   chezmoi copied, KDE keys, packages outside the manifest), write it
                   back, review the diff, then commit to main and push. kde --discover
                   offers KDE keys you change in System Settings while it waits.
-  system [--dry-run]
-                  Boot theme packages and the system chezmoi instance (root/ -> /):
-                  preview, then ask and apply with sudo. Never non-interactive.
-  doctor          Check required tools, Git hooks, the manifest, and chezmoi.
+  doctor         Check required tools, Git hooks, the manifest, and chezmoi.
   update [--packages] [--fonts] [--dry-run]
                   Upgrade installed packages (paru -Syu) and reinstall the Nerd Fonts,
                   each listed first and confirmed; neither option means both. It does
@@ -102,26 +103,132 @@ login_shell() {
   chezmoi_value '.shell.name' 'zsh'
 }
 
-step_description() {
+step_title() {
   case "$1" in
-    packages) printf 'Install packages from home/.chezmoidata/packages.yaml' ;;
-    git) printf 'Check the Git identity and render ~/.gitconfig from the git template' ;;
-    accounts) printf 'Log in to GitHub with gh and check the SSH key in the Bitwarden agent' ;;
-    fonts) printf 'Install Nerd Fonts from the manifest' ;;
-    shell) printf 'Make %s the login shell' "$(login_shell)" ;;
-    apply) printf 'Apply dotfiles from home/ with chezmoi, then the zsh plugin externals (wallpapers come later)' ;;
-    desktop) printf 'Apply KDE Plasma settings from home/.chezmoidata/kde.yaml' ;;
-    wallpaper) printf 'Fetch the wallpaper repository and set the desktop wallpaper' ;;
-    sync) printf 'Enable the dots-sync timer: check the repository at login and every 6 hours' ;;
-    system) printf 'sudo: boot theme packages, then /etc from root/ (GRUB, Plymouth, SDDM, pacman)' ;;
+    apps) printf 'Install the apps and command-line tools this setup uses' ;;
+    git-config) printf 'Set your Git name and email, write ~/.gitconfig' ;;
+    github-login) printf 'Log in to GitHub and check your SSH key' ;;
+    fonts) printf 'Install the Nerd Fonts' ;;
+    shell-setup) printf 'Make %s your login shell' "$(login_shell)" ;;
+    dotfiles) printf 'Link the config files from the repository into your home folder' ;;
+    desktop-settings) printf 'Change KDE Plasma settings (theme, splash, input methods)' ;;
+    wallpaper) printf 'Download the wallpaper collection and set the desktop wallpaper' ;;
+    auto-check) printf 'Check GitHub for repository changes in the background, notify only' ;;
+    system-settings) printf 'Change system files with sudo (boot themes, GRUB, Plymouth, SDDM, pacman)' ;;
   esac
+}
+
+# What a step does to this computer, in plain words, shown before its preview:
+# what changes and where, what it leaves alone, how to undo it
+print_step_detail() {
+  local never='' undo='' shell dir image
+  local -a does=()
+
+  case "$1" in
+    apps)
+      does=(
+        'Installs the missing packages listed in home/.chezmoidata/packages.yaml: on CachyOS/Arch with paru (official repositories and the AUR, paru -S --needed, run as you; pacman asks for your sudo password), on Ubuntu with apt, on macOS with brew.'
+        'Installs paru itself with pacman first when it is missing.'
+      )
+      never='remove or upgrade packages already installed (dots update upgrades, after asking).'
+      undo='paru -Rns <package> (apt remove / brew uninstall elsewhere).'
+      ;;
+    git-config)
+      does=(
+        'Asks for your Git name and email if they are missing, and keeps them in ~/.config/chezmoi/chezmoi.toml on this computer only (never in the repository).'
+        'Replaces ~/.gitconfig with the one built from home/dot_gitconfig.tmpl (the preview shows the difference).'
+      )
+      never='change the settings of any Git repository.'
+      undo='edit ~/.gitconfig by hand; the next dotfiles or git-config run writes it again from the template.'
+      ;;
+    github-login)
+      does=(
+        'If the GitHub CLI is not logged in, opens your browser to log in to GitHub over HTTPS; gh keeps the token in your keyring.'
+        'Checks that the Bitwarden SSH agent (~/.bitwarden-ssh-agent.sock) holds a key and that GitHub accepts it; if GitHub does not know the key yet, offers to add its public key to your GitHub account.'
+        'Stops with a warning while Bitwarden is not set up: skip the step until then.'
+      )
+      never='store a token or a key in the repository.'
+      undo='gh auth logout; remove the key at github.com/settings/keys.'
+      ;;
+    fonts)
+      does=(
+        'Downloads each Nerd Font from the manifest (its GitHub release archive) into ~/.local/share/fonts/<name>, replacing that folder, and refreshes the font cache.'
+      )
+      never='touch fonts installed by packages under /usr.'
+      undo='rm -r ~/.local/share/fonts/<name>; fc-cache -f.'
+      ;;
+    shell-setup)
+      shell="$(login_shell)"
+      does=(
+        "Makes $shell your login shell with chsh (it asks for your password); new terminals and logins start $shell."
+      )
+      never='edit the shell config files (the dotfiles step manages them).'
+      undo='chsh -s /bin/bash (or another shell).'
+      ;;
+    dotfiles)
+      does=(
+        'Puts the config files kept in home/ (zsh, kitty, Neovim, Git, SSH, ...) into your home folder, overwriting the ones that differ; the preview shows every difference. Most become symlinks into the repository, so editing them edits the repository; templates are written as real files.'
+        'Downloads the public zsh plugin repositories into ~/.oh-my-zsh/custom/plugins.'
+        'Asks before overwriting a file that was edited outside dots.'
+      )
+      never='delete files it does not manage, touch KDE *rc files or Plasma themes (desktop-settings does), or download the wallpapers.'
+      undo='there is no backup of the overwritten files: to keep a local edit, skip this step and run dots capture, which saves it into the repository instead.'
+      ;;
+    desktop-settings)
+      does=(
+        'Writes the KDE settings listed in home/.chezmoidata/kde.yaml one key at a time with kwriteconfig6, only the ones that differ; the preview shows old -> new. Running apps are told to reload.'
+        'Applies the global theme with plasma-apply-lookandfeel when it differs.'
+        'Copies the Plasma packages kept in kde/ (the Kuro splash) into ~/.local/share/plasma as real files, replacing a copy that is missing or differs.'
+        'Sets the fcitx5 input methods (Vietnamese) and reloads fcitx5.'
+        'Deletes links in ~/.config that point to files no longer in the repository.'
+      )
+      never='write whole *rc files, or change settings outside kde.yaml.'
+      undo='change the setting back in System Settings (dots capture keeps it in the repository).'
+      ;;
+    wallpaper)
+      dir="$(chezmoi_value '.wallpapers.dir' 'Pictures/wallpaper')"
+      image="$(chezmoi_value '.wallpapers.current' 'the configured image')"
+      does=(
+        "Downloads the private repository TienHwng/wallpapers into ~/$dir with your GitHub login, or updates it when it is already there."
+        "Sets $image from it as the Plasma wallpaper."
+      )
+      never="touch a folder at ~/$dir that is not that repository: it stops instead."
+      undo='pick another wallpaper in Plasma; delete the folder to remove the images.'
+      ;;
+    auto-check)
+      does=(
+        'Enables the systemd user timer dots-sync.timer (its unit files come with the dotfiles step): 2 minutes after login and every 6 hours it asks GitHub for new commits and shows a notification with a Sync now button when there are some. It never downloads or changes files.'
+      )
+      never='pull, apply or install anything on its own.'
+      undo='systemctl --user disable --now dots-sync.timer.'
+      ;;
+    system-settings)
+      does=(
+        'Uses sudo. Builds the boot theme packages in pkgbuilds/boot-themes as you (makepkg) and installs them with pacman -U.'
+        'Applies root/ to / with a second chezmoi instance: GRUB (/etc/default/grub, /etc/grub.d/40_custom), Plymouth (/etc/plymouth/plymouthd.conf), SDDM (/etc/sddm.conf), pacman options (/etc/pacman.d/dots.conf, included from /etc/pacman.conf). It shows the status and diff, asks, then applies.'
+        'Regenerates /boot/grub/grub.cfg and the initramfs when their inputs changed. The changes show after a reboot.'
+      )
+      never='write into /usr outside packages, or run without a terminal.'
+      undo='restore a file from the diff, then sudo grub-mkconfig -o /boot/grub/grub.cfg and sudo mkinitcpio -P; sudo pacman -R <theme package>.'
+      ;;
+  esac
+
+  printf '  What it does to this computer:\n'
+  printf '    - %s\n' "${does[@]}"
+  printf '  It does not %s\n' "$never"
+  printf '  To undo: %s\n' "$undo"
+}
+
+# The new name of a step or command renamed on 2026-11-03; fails for other names
+renamed_step() {
+  [[ -n "${RENAMED_STEPS[$1]:-}" ]] && printf '%s' "${RENAMED_STEPS[$1]}"
 }
 
 step_enabled() {
   case "$1" in
     fonts) [[ "$(chezmoi_value '.features.installFonts' 'true')" == 'true' ]] ;;
-    shell) [[ "$(chezmoi_value '.features.setupShell' 'true')" == 'true' ]] ;;
-    desktop) [[ "$(chezmoi_value '.features.desktop' 'true')" == 'true' ]] ;;
+    shell-setup) [[ "$(chezmoi_value '.features.setupShell' 'true')" == 'true' ]] ;;
+    desktop-settings) [[ "$(chezmoi_value '.features.desktop' 'true')" == 'true' ]] ;;
     wallpaper) [[ "$(chezmoi_value '.features.wallpapers' 'true')" == 'true' ]] ;;
     *) return 0 ;;
   esac
@@ -137,25 +244,25 @@ run_step() {
   [[ "$mode" == 'preview' || "$NON_INTERACTIVE" == '1' ]] && quiet=(--non-interactive)
 
   case "$step" in
-    packages) "$SCRIPT_DIR/install-packages.sh" "${dry[@]}" ;;
-    git)
+    apps) "$SCRIPT_DIR/install-packages.sh" "${dry[@]}" ;;
+    git-config)
       "$SCRIPT_DIR/setup-git.sh" "${dry[@]}" "${quiet[@]}"
       apply_dotfiles "$mode" "$HOME/.gitconfig"
       ;;
-    accounts) "$SCRIPT_DIR/setup-accounts.sh" "${dry[@]}" "${quiet[@]}" ;;
+    github-login) "$SCRIPT_DIR/setup-accounts.sh" "${dry[@]}" "${quiet[@]}" ;;
     fonts) "$SCRIPT_DIR/install-fonts.sh" "${dry[@]}" ;;
-    shell) "$SCRIPT_DIR/setup-shell.sh" "$(login_shell)" "${dry[@]}" "${quiet[@]}" ;;
-    apply)
+    shell-setup) "$SCRIPT_DIR/setup-shell.sh" "$(login_shell)" "${dry[@]}" "${quiet[@]}" ;;
+    dotfiles)
       apply_dotfiles "$mode"
       # zsh plugin externals (public); the wallpaper external waits for the wallpaper step
       if [[ "$(uname -s)" == 'Linux' ]]; then
         apply_dotfiles "$mode" "$HOME/.oh-my-zsh/custom/plugins"
       fi
       ;;
-    desktop) "$SCRIPT_DIR/setup-desktop.sh" "${dry[@]}" ;;
+    desktop-settings) "$SCRIPT_DIR/setup-desktop.sh" "${dry[@]}" ;;
     wallpaper) "$SCRIPT_DIR/setup-wallpaper.sh" "${dry[@]}" ;;
-    sync) "$SCRIPT_DIR/setup-sync.sh" "${dry[@]}" ;;
-    system) "$SCRIPT_DIR/setup-system.sh" "${dry[@]}" "${quiet[@]}" ;;
+    auto-check) "$SCRIPT_DIR/setup-sync.sh" "${dry[@]}" ;;
+    system-settings) "$SCRIPT_DIR/setup-system.sh" "${dry[@]}" "${quiet[@]}" ;;
   esac
 }
 
@@ -203,7 +310,7 @@ run_steps() {
   done
 
   for step in "${steps[@]}"; do
-    log_step "[$step] $(step_description "$step")"
+    log_step "[$step] $(step_title "$step")"
 
     if contains "$step" "${skip[@]}"; then
       log_warn "Skipping $step"
@@ -213,15 +320,18 @@ run_steps() {
       log_warn "Skipping $step (disabled in .features)"
       continue
     fi
-    if [[ "$step" == 'system' && "$NON_INTERACTIVE" == '1' && "$DRY_RUN" == '0' ]]; then
-      log_warn 'Skipping system (sudo; it never runs non-interactively, run dots system later)'
+    if [[ "$step" == 'system-settings' && "$NON_INTERACTIVE" == '1' && "$DRY_RUN" == '0' ]]; then
+      log_warn 'Skipping system-settings (sudo; it never runs non-interactively, run dots system-settings later)'
       continue
     fi
+    print_step_detail "$step"
+    [[ "$DRY_RUN" == '1' ]] && printf '  Dry run, nothing changes:\n'
     if [[ "$DRY_RUN" == '1' || "$NON_INTERACTIVE" == '1' ]]; then
       run_step "$step" run
       continue
     fi
 
+    printf '  Preview, nothing has changed yet:\n'
     run_step "$step" preview || log_warn "The $step preview reported a problem; review it before running."
     choice="$(ask_step "$step")"
     case "$choice" in
@@ -236,6 +346,7 @@ run_steps() {
 }
 
 cmd_bootstrap() {
+  local renamed
   local -a skip=()
 
   while (($#)); do
@@ -250,7 +361,10 @@ cmd_bootstrap() {
         ;;
       --skip)
         [[ $# -ge 2 ]] || die '--skip requires a step name'
-        contains "$2" "${STEPS[@]}" || die "Unknown step: $2 (steps: ${STEPS[*]})"
+        if ! contains "$2" "${STEPS[@]}"; then
+          renamed="$(renamed_step "$2")" && die "Unknown step: $2 (renamed to $renamed)"
+          die "Unknown step: $2 (steps: ${STEPS[*]})"
+        fi
         skip+=("$2")
         shift 2
         ;;
@@ -274,25 +388,13 @@ cmd_bootstrap() {
   print_manual_checklist
 }
 
-cmd_packages() {
-  case "${1:-}" in
-    --diff | --dry-run)
-      "$SCRIPT_DIR/install-packages.sh" "$@"
-      ;;
-    '')
-      if [[ "$NON_INTERACTIVE" == '1' ]]; then
-        "$SCRIPT_DIR/install-packages.sh"
-        return
-      fi
-      "$SCRIPT_DIR/install-packages.sh" --dry-run
-      if ask_yes 'Install these packages?'; then
-        "$SCRIPT_DIR/install-packages.sh"
-      else
-        log_warn 'Nothing installed'
-      fi
-      ;;
-    *) die "Unknown packages option: $1" ;;
-  esac
+# dots apps --diff reports; anything else is the apps step
+cmd_apps() {
+  if [[ "${1:-}" == '--diff' ]]; then
+    "$SCRIPT_DIR/install-packages.sh" --diff
+    return
+  fi
+  cmd_step apps "$@"
 }
 
 # Steps whose inputs changed, in STEPS order, for the repository paths on stdin
@@ -302,12 +404,12 @@ steps_for_paths() {
 
   while IFS= read -r path; do
     case "$path" in
-      home/.chezmoidata/packages.yaml) wanted[packages]=1 wanted[fonts]=1 ;;
-      home/.chezmoidata/kde.yaml | scripts/kde-settings.tmpl) wanted[desktop]=1 ;;
+      home/.chezmoidata/packages.yaml) wanted[apps]=1 wanted[fonts]=1 ;;
+      home/.chezmoidata/kde.yaml | scripts/kde-settings.tmpl) wanted["desktop-settings"]=1 ;;
       home/.chezmoidata/windows.yaml) ;;
-      home/.chezmoiexternal.toml.tmpl | home/.chezmoidata.yaml) wanted[apply]=1 wanted[wallpaper]=1 ;;
-      home/*) wanted[apply]=1 ;;
-      root/* | pkgbuilds/*) wanted[system]=1 ;;
+      home/.chezmoiexternal.toml.tmpl | home/.chezmoidata.yaml) wanted[dotfiles]=1 wanted[wallpaper]=1 ;;
+      home/*) wanted[dotfiles]=1 ;;
+      root/* | pkgbuilds/*) wanted["system-settings"]=1 ;;
     esac
   done
 
@@ -391,7 +493,7 @@ cmd_status() {
 
   if has systemctl && systemctl --user show-environment >/dev/null 2>&1; then
     timer="$(systemctl --user is-enabled dots-sync.timer 2>/dev/null || true)"
-    [[ "$timer" == 'not-found' || -z "$timer" ]] && timer='not installed (run the sync step: dots bootstrap)'
+    [[ "$timer" == 'not-found' || -z "$timer" ]] && timer='not installed (run: dots auto-check)'
     printf 'Sync timer   %s\n' "$timer"
   fi
 }
@@ -413,19 +515,25 @@ cmd_step() {
 }
 
 cmd_system() {
+  log_step "[system-settings] $(step_title system-settings)"
+  print_step_detail system-settings
   case "${1:-}" in
-    --dry-run) "$SCRIPT_DIR/setup-system.sh" --dry-run ;;
+    --dry-run)
+      printf '  Dry run, nothing changes:\n'
+      "$SCRIPT_DIR/setup-system.sh" --dry-run
+      ;;
     '')
       [[ "$NON_INTERACTIVE" == '1' ]] \
-        && die 'dots system changes / and never runs non-interactively; use --dry-run to preview.'
+        && die 'dots system-settings changes / and never runs non-interactively; use --dry-run to preview.'
+      printf '  Preview, nothing has changed yet:\n'
       "$SCRIPT_DIR/setup-system.sh" --dry-run
-      if ask_yes 'Run the system step with sudo?'; then
+      if ask_yes 'Run system-settings with sudo?'; then
         "$SCRIPT_DIR/setup-system.sh"
       else
         log_warn 'Nothing changed'
       fi
       ;;
-    *) die "Unknown system option: $1" ;;
+    *) die "Unknown system-settings option: $1" ;;
   esac
 }
 
@@ -441,11 +549,11 @@ doctor_plasma_packages() {
     [[ -n "$path" ]] || continue
     target="${XDG_DATA_HOME:-$HOME/.local/share}/$path/$id"
     if [[ ! -d "$target" ]]; then
-      log_warn "$id is not installed; run: dots desktop"
+      log_warn "$id is not installed; run: dots desktop-settings"
     elif [[ -L "$target" || -n "$(find "$target" -type l -print -quit)" ]]; then
-      log_warn "$id contains symlinks, which Plasma refuses; run: dots desktop"
+      log_warn "$id contains symlinks, which Plasma refuses; run: dots desktop-settings"
     elif ! diff -rq "$ROOT_DIR/kde/$path/$id" "$target" >/dev/null 2>&1; then
-      log_warn "$id differs from kde/$path/$id; keep it with dots capture, or restore it with dots desktop"
+      log_warn "$id differs from kde/$path/$id; keep it with dots capture, or restore it with dots desktop-settings"
     else
       log_success "$id is installed as real files and matches the repository"
     fi
@@ -458,14 +566,14 @@ doctor_plasma_packages() {
   if [[ -n "$splash" && "$splash" != 'None' ]] \
     && [[ ! -d "${XDG_DATA_HOME:-$HOME/.local/share}/plasma/look-and-feel/$splash" ]] \
     && [[ ! -d "/usr/share/plasma/look-and-feel/$splash" ]]; then
-    log_warn "The splash screen $splash is not installed anywhere; run: dots desktop"
+    log_warn "The splash screen $splash is not installed anywhere; run: dots desktop-settings"
   fi
   if has journalctl; then
     # Only refusals after the packages were last installed count
     refused="$(journalctl --user -b -o cat --since "@$since" 2>/dev/null \
       | grep -a -c 'Path traversal attempt detected' || true)"
     if ((refused > 0)); then
-      log_warn "Plasma refused $refused package file(s) (journalctl --user -b | grep 'Path traversal'); run: dots desktop"
+      log_warn "Plasma refused $refused package file(s) (journalctl --user -b | grep 'Path traversal'); run: dots desktop-settings"
     fi
   fi
 }
@@ -511,7 +619,7 @@ cmd_doctor() {
   elif SSH_AUTH_SOCK="$HOME/.bitwarden-ssh-agent.sock" ssh-add -l >/dev/null 2>&1; then
     log_success 'Bitwarden SSH agent is running and holds keys'
   else
-    log_warn 'Bitwarden SSH agent is not running or holds no keys; see the accounts step: dots bootstrap'
+    log_warn 'Bitwarden SSH agent is not running or holds no keys; see: dots github-login'
   fi
 
   log_step 'Plasma packages'
@@ -522,7 +630,7 @@ cmd_doctor() {
     if [[ "$(systemctl --user is-enabled dots-sync.timer 2>/dev/null || true)" == 'enabled' ]]; then
       log_success 'dots-sync.timer is enabled (repository check at login and every 6 hours)'
     else
-      log_warn 'dots-sync.timer is not enabled; run the sync step: dots bootstrap'
+      log_warn 'dots-sync.timer is not enabled; run: dots auto-check'
     fi
   else
     log_warn 'No systemd user manager; the repository check timer cannot run here'
@@ -564,8 +672,8 @@ main() {
 
   case "$command" in
     bootstrap) cmd_bootstrap "$@" ;;
-    packages) cmd_packages "$@" ;;
-    system) cmd_system "$@" ;;
+    apps) cmd_apps "$@" ;;
+    system-settings) cmd_system "$@" ;;
     sync) cmd_sync "$@" ;;
     status) cmd_status ;;
     capture) "$SCRIPT_DIR/capture.sh" "$@" ;;
@@ -579,6 +687,8 @@ main() {
         cmd_step "$command" "$@"
         return
       fi
+      local renamed
+      renamed="$(renamed_step "$command")" && die "Unknown command: $command (renamed to $renamed: dots $renamed)"
       usage >&2
       die "Unknown command: $command"
       ;;

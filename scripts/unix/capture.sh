@@ -102,7 +102,7 @@ collect_kde_packages() {
     [[ -n "$path" ]] || continue
     source_dir="$ROOT_DIR/kde/$path/$id"
     target_dir="${XDG_DATA_HOME:-$HOME/.local/share}/$path/$id"
-    # Only a real installed copy can be kept: missing or dangling means the desktop step installs it
+    # Only a real installed copy can be kept: missing or dangling means the desktop-settings step installs it
     [[ -d "$target_dir" ]] || continue
     [[ -z "$(find "$target_dir" -xtype l -print -quit)" ]] || continue
     diff -rq "$source_dir" "$target_dir" >/dev/null 2>&1 && continue

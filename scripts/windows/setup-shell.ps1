@@ -21,7 +21,7 @@ if (-not (Test-Command $Shell)) {
     if ($DryRun) {
         Write-ToolWarning "$Shell is not currently available; printing the planned profile setup only."
     } elseif ($Shell -eq 'pwsh') {
-        Stop-Tool 'PowerShell 7 (pwsh) is not available. Run the packages step first (Microsoft.PowerShell is in the winget list).'
+        Stop-Tool 'PowerShell 7 (pwsh) is not available. Run the apps step first (Microsoft.PowerShell is in the winget list).'
     } else {
         Stop-Tool 'Windows PowerShell is not available.'
     }

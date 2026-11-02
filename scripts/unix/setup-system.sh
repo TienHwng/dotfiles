@@ -14,7 +14,7 @@ usage() {
 Usage:
   ./scripts/unix/setup-system.sh [--dry-run] [--non-interactive]
 
-The Linux system step (L5, sudo), run by `dots system`:
+The Linux system step (L5, sudo), run by `dots system-settings`:
   1. Boot theme packages from pkgbuilds/boot-themes (makepkg as you, pacman -U with sudo)
      when one is missing or older than the PKGBUILD.
   2. The system chezmoi instance (source root/, target /): status and diff, then apply
@@ -52,8 +52,8 @@ SYSTEM_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/chezmoi-root/chezmoi.toml"
 
 # Policy (docs/design.md, L5): / changes only with a person at the keyboard
 if [[ "$DRY_RUN" == '0' ]]; then
-  [[ "$NON_INTERACTIVE" == '1' ]] && die 'The system step changes / and never runs non-interactively; use --dry-run to preview.'
-  [[ -n "${CI:-}" ]] && die 'The system step never runs in CI; use --dry-run to preview.'
+  [[ "$NON_INTERACTIVE" == '1' ]] && die 'The system-settings step changes / and never runs non-interactively; use --dry-run to preview.'
+  [[ -n "${CI:-}" ]] && die 'The system-settings step never runs in CI; use --dry-run to preview.'
 fi
 
 # Prints "version" from the PKGBUILD, then one package name per line
@@ -131,7 +131,7 @@ apply_system_instance() {
   local chezmoi_bin changes
   local -a root_chezmoi
 
-  [[ -f "$SYSTEM_CONFIG" ]] || die "System instance config missing: $SYSTEM_CONFIG (run the apply step first)."
+  [[ -f "$SYSTEM_CONFIG" ]] || die "System instance config missing: $SYSTEM_CONFIG (run the dotfiles step first)."
   chezmoi_bin="$(command -v chezmoi)"
   # Plain sudo: root keeps its own HOME, and its cache lives outside this user's home
   root_chezmoi=("$chezmoi_bin" --config="$SYSTEM_CONFIG" --cache="$ROOT_CACHE" --source="$SYSTEM_SOURCE" --destination=/)

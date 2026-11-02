@@ -1,4 +1,4 @@
-{{- /* Owned by the system instance (dots system); values from root/.chezmoidata/boot.yaml. */ -}}
+{{- /* Owned by the system instance (dots system-settings); values from root/.chezmoidata/boot.yaml. */ -}}
 {{- $grub := .boot.grub -}}
 {{- $distro := get $grub.distros .chezmoi.osRelease.id | default (dict "distributor" .chezmoi.osRelease.name "topLevel" "") -}}
 # GRUB boot loader configuration

@@ -45,7 +45,7 @@ function Invoke-GitHubLogin {
     $ErrorActionPreference = 'Continue'
 
     if (-not (Test-Command 'gh')) {
-        Write-ToolWarning 'GitHub CLI (gh) not found; install it with the packages step.'
+        Write-ToolWarning 'GitHub CLI (gh) not found; install it with the apps step.'
         return
     }
     $loginArguments = @('auth', 'login', '--hostname', 'github.com', '--git-protocol', 'https', '--web')
@@ -66,7 +66,7 @@ function Invoke-GitHubLogin {
 
     $helpers = "$(& git config --get-all 'credential.https://github.com.helper' 2>$null)"
     if ($helpers -notmatch 'auth git-credential') {
-        Write-ToolWarning "If gh asks 'Authenticate Git with your GitHub credentials?', answer No: home/dot_gitconfig.tmpl owns ~/.gitconfig. Run the apply step first to avoid the question."
+        Write-ToolWarning "If gh asks 'Authenticate Git with your GitHub credentials?', answer No: home/dot_gitconfig.tmpl owns ~/.gitconfig. Run the dotfiles step first to avoid the question."
     }
     Invoke-NativeCommand -FilePath 'gh' -ArgumentList $loginArguments | Out-Null
 }
@@ -127,7 +127,7 @@ function Add-GitHubSshKey([string]$PublicKey) {
 }
 
 function Invoke-BitwardenSsh {
-    $adminHint = 'Disable it from another terminal with dots system, or in an administrator PowerShell: Stop-Service ssh-agent; Set-Service ssh-agent -StartupType Disabled'
+    $adminHint = 'Disable it from another terminal with dots system-settings, or in an administrator PowerShell: Stop-Service ssh-agent; Set-Service ssh-agent -StartupType Disabled'
 
     if ($DryRun) {
         if (Test-WindowsAgentRunning) {
@@ -226,7 +226,7 @@ function Invoke-KeyFileSetup {
         if ($DryRun) {
             Write-ToolWarning 'Non-interactive key generation requires -AllowUnencryptedKey; no key would be created.'
         } else {
-            Stop-Tool 'Refusing to create an unencrypted SSH key non-interactively. Pre-create a protected key, use -Skip accounts, or explicitly pass -AllowUnencryptedKey.'
+            Stop-Tool 'Refusing to create an unencrypted SSH key non-interactively. Pre-create a protected key, use -Skip github-login, or explicitly pass -AllowUnencryptedKey.'
         }
     }
 

@@ -11,7 +11,7 @@ and environment variable. Design details are in [design.md](design.md).
 | | CachyOS / Arch | Windows 11 |
 |---|---|---|
 | Where `dots` comes from | `~/.local/bin/dots`, a link to `scripts/unix/dots` | a function in the PowerShell 7 profile that runs `scripts\windows\dots.ps1` |
-| Before the `shell` step made it available | `~/.local/share/chezmoi/scripts/unix/dots` | `pwsh -File $env:USERPROFILE\.local\share\chezmoi\scripts\windows\dots.ps1` |
+| Before the `shell-setup` step made it available | `~/.local/share/chezmoi/scripts/unix/dots` | `pwsh -File $env:USERPROFILE\.local\share\chezmoi\scripts\windows\dots.ps1` |
 | Option spelling | `--dry-run`, `--non-interactive`, `--skip STEP` | `-DryRun`, `-NonInteractive`, `-Skip step,...` |
 | Repository | `~/.local/share/chezmoi` | `%USERPROFILE%\.local\share\chezmoi` |
 
@@ -33,7 +33,7 @@ dots sync
 ```
 
 It shows the new commits, asks before pulling, then runs only the steps whose files changed
-(for example a new package runs `packages`, a KDE change runs `desktop`), each with its preview.
+(for example a new package runs `apps`, a KDE change runs `desktop-settings`), each with its preview.
 If it refuses because the repository has local changes, run `dots capture` first.
 
 ### See how this machine stands
@@ -84,7 +84,7 @@ then choose "every machine" or "only this one".
 ### Install an app on every machine
 
 Install it as usual, then run `dots capture` and add it from the `packages` list. Or edit
-`home/.chezmoidata/packages.yaml` yourself and run `dots packages`. The other machines get it
+`home/.chezmoidata/packages.yaml` yourself and run `dots apps`. The other machines get it
 at their next `dots sync`.
 
 ### Something on the desktop looks wrong
@@ -92,17 +92,17 @@ at their next `dots sync`.
 Run `dots doctor`, then the step it names, for example:
 
 ```bash
-dots desktop
+dots desktop-settings
 ```
 
-`dots <step>` runs one bootstrap step on its own, with its preview. `dots desktop` restores
+`dots <step>` runs one bootstrap step on its own, with its preview. `dots desktop-settings` restores
 the KDE settings (or Windows HKCU values) and reinstalls the Kuro splash if it is missing,
 changed, or made of links that Plasma refuses.
 
 ### System settings (GRUB, Plymouth, SDDM, pacman; Windows clock, Fast Startup, NVIDIA App)
 
 ```bash
-dots system
+dots system-settings
 ```
 
 Shows a preview as you, then asks; on Linux it applies with `sudo`, on Windows in an
@@ -149,13 +149,13 @@ nothing to change.
 
 | Command | Linux | Windows | What it does | Changes things? |
 |---|---|---|---|---|
-| `bootstrap` | `--dry-run --non-interactive --skip STEP` | `-DryRun -NonInteractive -Skip a,b` | All steps in order, each previewed and confirmed. Non-interactive runs skip `system`. | yes, per step |
-| `<step>` | `dots desktop [--dry-run]` | `dots desktop [-DryRun]` | One step on its own (section 4). | yes, asks |
+| `bootstrap` | `--dry-run --non-interactive --skip STEP` | `-DryRun -NonInteractive -Skip a,b` | All steps in order, each previewed and confirmed. Non-interactive runs skip `system-settings`. | yes, per step |
+| `<step>` | `dots desktop-settings [--dry-run]` | `dots desktop-settings [-DryRun]` | One step on its own (section 4). | yes, asks |
 | `sync` | `--check [--notify]` | `-Check [-Notify]` | Pull new commits after showing them, then the steps their files need. `--check` only fetches and prints `behind N, ahead M`; `--notify` adds the desktop notification (the timer uses it). | yes, asks |
 | `status` | | | Branch, behind/ahead, local edits, chezmoi drift, timer or task. | no |
 | `capture` | `--dry-run`, `kde --discover` | `-DryRun` | Write chosen local changes back into the repository, commit to `main`, push. | yes, asks |
-| `packages` | `--dry-run`, `--diff` | `-DryRun`, `-Diff` | Install missing packages from the manifest; `--diff` lists packages installed outside it and listed but missing. | yes, asks |
-| `system` | `--dry-run` | `-DryRun` | System-level settings with sudo / admin (section 2). | yes, asks |
+| `apps` | `--dry-run`, `--diff` | `-DryRun`, `-Diff` | Install missing apps from the manifest (the `apps` step); `--diff` lists packages installed outside it and listed but missing. | yes, asks |
+| `system-settings` | `--dry-run` | `-DryRun` | System-level settings with sudo / admin (section 2; the `system-settings` step). | yes, asks |
 | `doctor` | | | Health checks; exits non-zero when a required check fails. | no |
 | `update` | `--packages --fonts --dry-run` | `-Packages -Fonts -DryRun` | Upgrade what is installed: Linux lists pending upgrades (`checkupdates`, AUR) then `paru -Syu` and the missing manifest packages; Windows upgrades the manifest's WinGet and Scoop packages; both reinstall the Nerd Fonts. Neither option means both. Never pulls the repository (that is `sync`). | yes, asks |
 | `backup` | `--destination DIR --dry-run` | `-Destination PATH -DryRun` | Tarball of the repository and local chezmoi configs (default `~/dotfiles-backups`, or `DOTFILES_BACKUP_DIR`). | writes the backup |
@@ -166,22 +166,37 @@ nothing to change.
 
 ## 4. Bootstrap steps
 
-In this order; `dots <step>` runs one of them alone, except `packages`, `sync` and `system`,
-which are commands of their own (`dots sync` pulls; the `sync` step itself is
-`scripts/unix/setup-sync.sh` / `scripts\windows\setup-sync.ps1`).
+In this order; `dots <step>` runs one of them alone. Before its preview, every step prints
+what it does to this computer, what it leaves alone, and how to undo it:
 
-| Step | Linux | Windows | Reads |
-|---|---|---|---|
-| `packages` | paru (repositories and AUR) | winget, then Scoop, then PowerShell Gallery modules | `packages.yaml` |
-| `git` | checks Git name and email, renders `~/.gitconfig` | same | local chezmoi config |
-| `accounts` | `gh auth login` over HTTPS; Bitwarden SSH agent check | same | `.chezmoidata.yaml` (`accounts.ssh`) |
-| `fonts` | Nerd Fonts from the release archives | Scoop `nerd-fonts` | `packages.yaml` (`nerdFonts`) |
-| `shell` | zsh as login shell | `XDG_CONFIG_HOME` and the PowerShell 7 profile stub | `.chezmoidata.yaml` |
-| `apply` | chezmoi diff, then apply (`home/`), then the zsh plugin repositories | chezmoi diff, then apply | `home/` |
-| `desktop` | Kuro splash (copied from `kde/`), global theme, KDE keys, fcitx5 input methods | HKCU registry values, Explorer restart | `kde.yaml` / `windows.yaml` |
-| `wallpaper` | clone or update `TienHwng/wallpapers`, set it on Plasma | same, set it on Windows | `.chezmoidata.yaml` (`wallpapers`) |
-| `sync` | enable `dots-sync.timer` | register the `\dots\dots-sync` task and the *Sync now* protocol | |
-| `system` | boot theme packages, then `/etc` from `root/` with sudo (GRUB, Plymouth, SDDM, pacman), GRUB and initramfs hooks | HKLM values (UTC clock, Fast Startup off), OpenSSH agent off, NVIDIA App, in an admin window | `root/`, `windows.yaml` |
+```text
+[desktop-settings] Change Windows settings for your user account (Explorer, dark mode)
+  What it does to this computer:
+    - Writes the user registry values from home/.chezmoidata/windows.yaml (HKCU: show file extensions, show hidden files, dark mode for apps), only the ones that differ; the preview shows old -> new.
+    - Restarts Explorer when an Explorer value changes: the taskbar disappears for a moment and open File Explorer windows close.
+  It does not change settings for the whole computer (system-settings does).
+  To undo: set the option back in Settings or in File Explorer options.
+  Preview, nothing has changed yet:
+```
+
+The names say what each step changes; until 2026-11-03 they were `packages`, `git`,
+`accounts`, `shell`, `apply`, `desktop`, `sync` and `system`. An old name fails and names the
+new one. `dots sync` (pull the repository) is still a command; only the step that turns on
+the automatic check is now `auto-check`. The `bootstrap.sh` / `bootstrap.ps1` skip flags kept
+their old spelling (`--skip-packages`, `-SkipApply`, ...).
+
+| Step | What it changes | Linux | Windows | Reads |
+|---|---|---|---|---|
+| `apps` | installs apps and CLI tools | paru (repositories and AUR) | winget, then Scoop, then PowerShell Gallery modules | `packages.yaml` |
+| `git-config` | writes `~/.gitconfig` | checks Git name and email, renders `~/.gitconfig` | same | local chezmoi config |
+| `github-login` | signs in to GitHub | `gh auth login` over HTTPS; Bitwarden SSH agent check | same | `.chezmoidata.yaml` (`accounts.ssh`) |
+| `fonts` | installs fonts | Nerd Fonts from the release archives | Scoop `nerd-fonts` | `packages.yaml` (`nerdFonts`) |
+| `shell-setup` | sets up the shell | zsh as login shell | `XDG_CONFIG_HOME` and the PowerShell 7 profile stub | `.chezmoidata.yaml` |
+| `dotfiles` | writes config files in your home folder | chezmoi diff, then apply (`home/`), then the zsh plugin repositories | chezmoi diff, then apply | `home/` |
+| `desktop-settings` | changes desktop settings | Kuro splash (copied from `kde/`), global theme, KDE keys, fcitx5 input methods | HKCU registry values, Explorer restart | `kde.yaml` / `windows.yaml` |
+| `wallpaper` | downloads and sets the wallpaper | clone or update `TienHwng/wallpapers`, set it on Plasma | same, set it on Windows | `.chezmoidata.yaml` (`wallpapers`) |
+| `auto-check` | turns on the update check | enable `dots-sync.timer` | register the `\dots\dots-sync` task and the *Sync now* protocol | |
+| `system-settings` | changes machine-wide settings | boot theme packages, then `/etc` from `root/` with sudo (GRUB, Plymouth, SDDM, pacman), GRUB and initramfs hooks | HKLM values (UTC clock, Fast Startup off), OpenSSH agent off, NVIDIA App, in an admin window | `root/`, `windows.yaml` |
 
 ---
 
@@ -191,15 +206,15 @@ Change the data, commit (or let `dots capture` do it), and the matching step app
 
 | To change | Edit | Applied by |
 |---|---|---|
-| Apps and CLI tools | `home/.chezmoidata/packages.yaml` | `packages` |
-| Dotfiles (zsh, nvim, kitty, git, …) | files under `home/` (on Linux, editing `~/…` edits them directly) | `apply` |
-| KDE settings, Plasma packages, fcitx5 | `home/.chezmoidata/kde.yaml`, `kde/` | `desktop` |
-| Windows registry, NVIDIA App pin | `home/.chezmoidata/windows.yaml` | `desktop` (HKCU), `system` (HKLM) |
+| Apps and CLI tools | `home/.chezmoidata/packages.yaml` | `apps` |
+| Dotfiles (zsh, nvim, kitty, git, …) | files under `home/` (on Linux, editing `~/…` edits them directly) | `dotfiles` |
+| KDE settings, Plasma packages, fcitx5 | `home/.chezmoidata/kde.yaml`, `kde/` | `desktop-settings` |
+| Windows registry, NVIDIA App pin | `home/.chezmoidata/windows.yaml` | `desktop-settings` (HKCU), `system-settings` (HKLM) |
 | Wallpaper repository and current picture | `home/.chezmoidata.yaml` (`wallpapers`) | `wallpaper` |
 | Steps to turn off on this machine | `home/.chezmoidata.yaml` (`features`) | |
-| GRUB, Plymouth, SDDM themes | `root/.chezmoidata/boot.yaml` | `system` |
-| pacman options | `root/etc/pacman.d/dots.conf` | `system` |
-| Your Git name and email | `~/.config/chezmoi/chezmoi.toml` (local, never committed) | `git` |
+| GRUB, Plymouth, SDDM themes | `root/.chezmoidata/boot.yaml` | `system-settings` |
+| pacman options | `root/etc/pacman.d/dots.conf` | `system-settings` |
+| Your Git name and email | `~/.config/chezmoi/chezmoi.toml` (local, never committed) | `git-config` |
 
 ---
 
@@ -208,7 +223,7 @@ Change the data, commit (or let `dots capture` do it), and the matching step app
 | Variable | Effect |
 |---|---|
 | `DOTS_NO_GUM=1` | Plain prompts instead of `gum`. |
-| `NON_INTERACTIVE=1` | Never prompt (CI); `sync`, `capture` and `system` refuse to run. |
+| `NON_INTERACTIVE=1` | Never prompt (CI); `sync`, `capture` and `system-settings` refuse to run. |
 | `DOTFILES_HEADLESS=1` | Skip `gui: true` packages (WSL, servers). |
 | `DOTFILES_VENDOR` | Override the detected hardware maker (`vendor:` packages). |
 | `DOTFILES_PLATFORM` | Override the detected package platform (`arch`, `apt`, `brew`). |
@@ -223,9 +238,9 @@ Change the data, commit (or let `dots capture` do it), and the matching step app
 |---|---|
 | `dots sync` refuses: local changes | `dots capture` (or `git -C ~/.local/share/chezmoi stash`), then `dots sync` |
 | `dots sync`: cannot fast-forward | the repository has local commits; push them or rebase by hand |
-| Kuro splash missing | `dots doctor`, then `dots desktop`; the journal says why (`journalctl --user -o cat \| grep -a -i kuro`) |
-| Vietnamese typing or another KDE setting lost | `dots desktop` |
-| No notification about new commits | `dots doctor`; re-enable with `~/.local/share/chezmoi/scripts/unix/setup-sync.sh` (Windows: `scripts\windows\setup-sync.ps1`) |
+| Kuro splash missing | `dots doctor`, then `dots desktop-settings`; the journal says why (`journalctl --user -o cat \| grep -a -i kuro`) |
+| Vietnamese typing or another KDE setting lost | `dots desktop-settings` |
+| No notification about new commits | `dots doctor`, then `dots auto-check` |
 | `dots capture` says "Captures commit to main" | `git -C ~/.local/share/chezmoi switch main` |
 | A step failed halfway | run `dots <step>` again; every step is safe to repeat |
 | Not sure what a command would do | add `--dry-run` / `-DryRun` |

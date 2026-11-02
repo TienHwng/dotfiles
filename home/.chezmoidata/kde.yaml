@@ -1,4 +1,4 @@
-# KDE Plasma settings, managed per key (L4). The `desktop` step of dots reads them through
+# KDE Plasma settings, managed per key (L4). The `desktop-settings` step of dots reads them through
 # scripts/kde-settings.tmpl, shows current -> new for each key that differs, and writes them
 # with kwriteconfig6. Whole *rc files are not managed: Plasma rewrites them constantly.
 #
@@ -9,7 +9,7 @@
 #              such as one laptop's touchpad. They come after the shared settings; an entry with
 #              the same file, group and key replaces the shared one on that machine.
 # Screen-specific state (panels, tiling, display layout) stays manual.
-# packages:    Plasma packages kept in the repository at kde/<path>/<id>; the desktop step
+# packages:    Plasma packages kept in the repository at kde/<path>/<id>; the desktop-settings step
 #              copies them as real files to ~/.local/share/<path>/<id> (Plasma refuses files
 #              that are symlinks out of the package). dots capture copies an installed copy
 #              that changed (Get New, an update) back.

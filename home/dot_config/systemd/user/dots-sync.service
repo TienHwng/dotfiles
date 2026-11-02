@@ -1,5 +1,5 @@
 # Checks the dotfiles repository for new commits and notifies; never applies anything.
-# Started by dots-sync.timer; enabled by the sync step of dots bootstrap.
+# Started by dots-sync.timer; enabled by the auto-check step of dots.
 [Unit]
 Description=Check the dotfiles repository for new commits
 After=graphical-session.target network-online.target

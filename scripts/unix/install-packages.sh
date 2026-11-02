@@ -132,7 +132,7 @@ install_paru() {
   has paru || die 'paru was installed but is not available in PATH.'
 }
 
-# Packages built from pkgbuilds/ (dots system installs them); they count as known
+# Packages built from pkgbuilds/ (dots system-settings installs them); they count as known
 local_pkgbuild_packages() {
   local pkgbuild
   for pkgbuild in "$(repo_root)"/pkgbuilds/*/PKGBUILD; do

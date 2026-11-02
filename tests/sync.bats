@@ -118,7 +118,7 @@ push_change() {
     $'scripts/unix/dots\nhome/dot_zshrc\nroot/etc/default/grub.tmpl\nhome/.chezmoidata/kde.yaml\nhome/.chezmoidata/packages.yaml\nhome/.chezmoidata/windows.yaml'
 
   [ "$status" -eq 0 ]
-  [ "$output" = $'packages\nfonts\napply\ndesktop\nsystem' ]
+  [ "$output" = $'apps\nfonts\ndotfiles\ndesktop-settings\nsystem-settings' ]
 }
 
 @test "dots status reports upstream, local edits and the timer" {

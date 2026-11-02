@@ -1,6 +1,6 @@
-# Data for the system chezmoi instance (source root/, target /), applied by `dots system`.
+# Data for the system chezmoi instance (source root/, target /), applied by `dots system-settings`.
 # Theme files come from packages: the AUR plymouth-theme-*-git packages in
-# home/.chezmoidata/packages.yaml and pkgbuilds/boot-themes (installed by dots system).
+# home/.chezmoidata/packages.yaml and pkgbuilds/boot-themes (installed by dots system-settings).
 boot:
   grub:
     timeout: 7

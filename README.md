@@ -58,7 +58,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\dots-bootstrap.ps1
 
 A fresh Windows only has Windows PowerShell 5.1, so the command above uses `powershell`. If
 PowerShell 7 is already installed, `pwsh -NoProfile -ExecutionPolicy Bypass -File ...` works
-the same. The packages step installs PowerShell 7, and the shell step points its profile at
+the same. The apps step installs PowerShell 7, and the shell-setup step points its profile at
 the shared `~/.config/powershell/profile.ps1`; use PowerShell 7 from then on.
 
 The bootstrap installs `chezmoi` (plus `git`, `gum`, and `jq` on CachyOS), clones this
@@ -82,24 +82,24 @@ The full guide, with everyday jobs, every option and troubleshooting, is
 | `dots bootstrap` | Set up a fresh machine, or re-run safely on a configured one |
 | `dots sync` | Pull repository changes, review the diff, apply |
 | `dots capture` | Pick local changes (files, KDE keys, registry values, packages), review the diff, commit to `main` and push |
-| `dots packages [--diff]` | Install missing packages / list packages not in the manifest |
-| `dots system` | Review and apply system-level settings (sudo/admin) |
+| `dots apps [--diff]` | Install missing apps / list apps not in the manifest |
+| `dots system-settings` | Review and apply system-level settings (sudo/admin) |
 | `dots status` | Behind/ahead, drift count, sync timer state |
-| `dots <step>` | Run one bootstrap step on its own, e.g. `dots desktop` (also repairs the Kuro splash) |
+| `dots <step>` | Run one bootstrap step on its own, e.g. `dots desktop-settings` (also repairs the Kuro splash); steps: `apps`, `git-config`, `github-login`, `fonts`, `shell-setup`, `dotfiles`, `desktop-settings`, `wallpaper`, `auto-check`, `system-settings`. Each says what it will do to the computer before its preview |
 | `dots doctor` | Health checks |
 | `dots update` | Upgrade installed packages and fonts |
 | `dots backup` | Tarball of the repository plus the local, untracked chezmoi configs |
 | `dots cleanup` | Clear package-manager and chezmoi caches |
 
-`bootstrap`, `packages`, `sync`, `status`, `capture`, `doctor`, `update`, `backup`, and `cleanup` work
-today on both OSes; `system` previews as you, then applies with sudo (Linux) or in an
+`bootstrap`, `apps`, `sync`, `status`, `capture`, `doctor`, `update`, `backup`, and `cleanup` work
+today on both OSes; `system-settings` previews as you, then applies with sudo (Linux) or in an
 administrator window (Windows). At login and every 6 hours a timer
 (Linux) or Scheduled Task (Windows) runs `dots sync --check --notify`: it only fetches, and
 notifies with a *Sync now* button when new commits arrived. On CachyOS `~/.local/bin/dots` is a
 chezmoi-managed symlink to `scripts/unix/dots`. On Windows, `dots` is a function in the shared
 PowerShell profile (`~/.config/powershell/profile.ps1`) that runs `scripts/windows/dots.ps1`,
-with PowerShell-style options (`dots bootstrap -DryRun`, `dots packages`). `dots packages --diff`
-(`dots packages -Diff` on Windows) lists packages installed outside the manifest. `just` / `make` recipes remain available (`make help` lists them).
+with PowerShell-style options (`dots bootstrap -DryRun`, `dots apps`). `dots apps --diff`
+(`dots apps -Diff` on Windows) lists packages installed outside the manifest. `just` / `make` recipes remain available (`make help` lists them).
 
 ## Configuration
 
@@ -109,10 +109,10 @@ comment at the top of each file documents its fields.
 
 | File | What it controls | Applied by |
 |---|---|---|
-| `home/.chezmoidata.yaml` | `features.*` switches (`installFonts`, `setupShell`, `desktop`, `wallpapers`: `false` skips that step), the wallpaper repository and current image, the SSH agent mode (`accounts.ssh`) | `dots bootstrap`; the `wallpaper` and `accounts` steps |
-| `home/.chezmoidata/packages.yaml` | Packages per manager (`mapped` entries name the package for paru, apt, brew, winget, Scoop; plus per-manager lists; `gui: true` skipped on headless machines, `vendor: ASUS` only on ASUS hardware) and Nerd Fonts | `dots packages`, the `fonts` step |
-| `home/.chezmoidata/kde.yaml` | KDE Plasma: global theme, one entry per key (`file`, `group`, `key`, `value`: shortcuts, KWin, splash, power, default browser), fcitx5 input methods, and per-machine keys under `machines.<hostname>` (touchpad, mouse) | the `desktop` step (`scripts/unix/setup-desktop.sh`) |
-| `home/.chezmoidata/windows.yaml` | Registry values: `user` (HKCU) and `machine` (HKLM); `nvidia.app`: the pinned NVIDIA App installer (version, URL, SHA-256) | the `desktop` step on Windows; `dots system` (admin) |
+| `home/.chezmoidata.yaml` | `features.*` switches (`installFonts`, `setupShell`, `desktop`, `wallpapers`: `false` skips that step), the wallpaper repository and current image, the SSH agent mode (`accounts.ssh`) | `dots bootstrap`; the `wallpaper` and `github-login` steps |
+| `home/.chezmoidata/packages.yaml` | Packages per manager (`mapped` entries name the package for paru, apt, brew, winget, Scoop; plus per-manager lists; `gui: true` skipped on headless machines, `vendor: ASUS` only on ASUS hardware) and Nerd Fonts | `dots apps`, the `fonts` step |
+| `home/.chezmoidata/kde.yaml` | KDE Plasma: global theme, one entry per key (`file`, `group`, `key`, `value`: shortcuts, KWin, splash, power, default browser), fcitx5 input methods, and per-machine keys under `machines.<hostname>` (touchpad, mouse) | the `desktop-settings` step (`scripts/unix/setup-desktop.sh`) |
+| `home/.chezmoidata/windows.yaml` | Registry values: `user` (HKCU) and `machine` (HKLM); `nvidia.app`: the pinned NVIDIA App installer (version, URL, SHA-256) | the `desktop-settings` step on Windows; `dots system-settings` (admin) |
 
 For example, to keep Night Color on, add one line to `kde.yaml`:
 
@@ -153,7 +153,7 @@ The answers stay in the local, untracked `~/.config/chezmoi/chezmoi.toml`. The r
 public and never contains identity, keys, or tokens.
 
 SSH keys live in the Bitwarden vault and the Bitwarden desktop app serves them as an SSH agent
-(Settings > Enable SSH agent); no private key is written to disk. The `accounts`
+(Settings > Enable SSH agent); no private key is written to disk. The `github-login`
 bootstrap step logs in to GitHub with `gh` (git stays on HTTPS), checks that the agent holds a key
 that GitHub accepts, and offers to add it. Headless machines can set
 `accounts.ssh.agent: file` to use a passphrase-protected key file instead. Templates can read
@@ -170,7 +170,7 @@ secrets from Bitwarden through chezmoi's `bitwarden*` functions; none does yet.
 ├── docs/                 # vision, design, roadmap (start with docs/README.md)
 ├── home/                 # user-level chezmoi source
 ├── root/                 # system-level chezmoi source (second instance, Linux)
-├── kde/                  # Plasma packages (Kuro splash), installed by the desktop step
+├── kde/                  # Plasma packages (Kuro splash), installed by the desktop-settings step
 ├── scripts/unix/         # Bash scripts and the dots CLI
 ├── scripts/windows/      # PowerShell scripts and dots.ps1 (Windows PowerShell 5.1 and 7)
 ├── tests/                # Bats, Pester (tests/windows), template validation

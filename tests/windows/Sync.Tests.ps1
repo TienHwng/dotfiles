@@ -113,7 +113,7 @@ Describe 'dots.ps1 sync' {
         $steps = Get-StepsForPath @('scripts/windows/dots.ps1', 'home/dot_gitconfig.tmpl', 'home/.chezmoidata/windows.yaml',
             'home/.chezmoidata/packages.yaml', 'home/.chezmoidata/kde.yaml', 'root/etc/default/grub.tmpl')
 
-        $steps | Should -Be @('packages', 'fonts', 'apply', 'desktop', 'system')
+        $steps | Should -Be @('apps', 'fonts', 'dotfiles', 'desktop-settings', 'system-settings')
     }
 
     It 'refuses to pull without a terminal' {

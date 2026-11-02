@@ -27,8 +27,8 @@ setup() {
   [ "$status" -eq 1 ]
 }
 
-@test "only the system step touches the system instance, and never from CI" {
-  # scripts/unix/setup-system.sh (dots system) is the one script that runs chezmoi against
+@test "only the system-settings step touches the system instance, and never from CI" {
+  # scripts/unix/setup-system.sh (dots system-settings) is the one script that runs chezmoi against
   # root/; it refuses NON_INTERACTIVE=1 and CI (tests/system.bats). Workflows never do.
   # Scripts may name the system config file (backup copies it, doctor checks it exists).
   pattern='ROOT_DIR/root([^[:alnum:]_]|$)|root\.toml|sourceDir.*root|--(config|source)[= ][^[:space:]]*(chezmoi-root|/root([^[:alnum:]_]|$))|(^|[^[:alnum:]_-])cmr([^[:alnum:]_]|$)'

@@ -76,14 +76,14 @@ theme_version() {
   [[ "$output" != *'makepkg'* ]]
 }
 
-@test "dots skips system in a non-interactive bootstrap and refuses dots system" {
+@test "dots skips system-settings in a non-interactive bootstrap and refuses dots system-settings" {
   run env PATH="$mock_bin:$PATH" "$PROJECT_ROOT/scripts/unix/dots" bootstrap --non-interactive \
-    --skip packages --skip git --skip accounts --skip fonts --skip shell --skip apply \
-    --skip desktop --skip wallpaper --skip sync
+    --skip apps --skip git-config --skip github-login --skip fonts --skip shell-setup --skip dotfiles \
+    --skip desktop-settings --skip wallpaper --skip auto-check
   [ "$status" -eq 0 ]
-  [[ "$output" == *'Skipping system'* ]]
+  [[ "$output" == *'Skipping system-settings'* ]]
 
-  run env PATH="$mock_bin:$PATH" NON_INTERACTIVE=1 "$PROJECT_ROOT/scripts/unix/dots" system
+  run env PATH="$mock_bin:$PATH" NON_INTERACTIVE=1 "$PROJECT_ROOT/scripts/unix/dots" system-settings
   [ "$status" -ne 0 ]
   [[ "$output" == *'never runs non-interactively'* ]]
   run grep -E '^(sudo|makepkg) |^pacman -U|^chezmoi .*/root' "$calls"

@@ -13,7 +13,7 @@ usage() {
 Usage:
   ./scripts/unix/setup-sync.sh [--dry-run]
 
-Enables the systemd user timer dots-sync.timer (rendered by the apply step into
+Enables the systemd user timer dots-sync.timer (rendered by the dotfiles step into
 ~/.config/systemd/user): at login and every 6 hours it runs `dots sync --check --notify`,
 which only notifies about new commits.
 EOF
@@ -43,7 +43,7 @@ fi
 
 unit="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$TIMER"
 if [[ ! -e "$unit" && "$DRY_RUN" == '0' ]]; then
-  die "$unit is missing; run the apply step first."
+  die "$unit is missing; run the dotfiles step first."
 fi
 
 if [[ "$(systemctl --user is-enabled "$TIMER" 2>/dev/null || true)" == 'enabled' ]]; then

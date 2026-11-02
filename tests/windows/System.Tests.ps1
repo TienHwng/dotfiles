@@ -88,7 +88,7 @@ Describe 'Invoke-RegistryStep' {
         Mock Get-RegistryCurrent { $null }
         Mock Test-Elevated { $false }
 
-        { Invoke-RegistryStep -Scope machine 6>$null 3>$null } | Should -Throw '*administrator*dots system*'
+        { Invoke-RegistryStep -Scope machine 6>$null 3>$null } | Should -Throw '*administrator*dots system-settings*'
         $script:Written.Count | Should -Be 0
     }
 

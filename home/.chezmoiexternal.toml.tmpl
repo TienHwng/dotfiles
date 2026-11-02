@@ -1,5 +1,5 @@
 {{- /* Wallpapers (L6): private Git repository (plain Git, no LFS), cloned over HTTPS with the gh credential
-       helper. The wallpaper step of dots fetches it; the apply step excludes externals. */ -}}
+       helper. The wallpaper step of dots fetches it; the dotfiles step excludes externals. */ -}}
 {{- if .features.wallpapers }}
 [{{ .wallpapers.dir | quote }}]
     type = "git-repo"
@@ -12,7 +12,7 @@
 {{- end }}
 
 {{- /* zsh plugins with no maintained package (L3), Linux only (.oh-my-zsh is ignored elsewhere).
-       Public repositories; the apply step fetches them as a separate target. */ -}}
+       Public repositories; the dotfiles step fetches them as a separate target. */ -}}
 {{- if eq .chezmoi.os "linux" }}
 {{- range $name, $repo := dict "auto-notify" "https://github.com/MichaelAquilina/zsh-auto-notify.git" "you-should-use" "https://github.com/MichaelAquilina/zsh-you-should-use.git" "zsh-history-substring-search" "https://github.com/zsh-users/zsh-history-substring-search.git" }}
 {{ $dir := printf ".oh-my-zsh/custom/plugins/%s" $name }}

@@ -341,20 +341,22 @@ main() {
 
   log_step "Platform: $platform"
 
-  # The steps themselves (packages, git, accounts, fonts, shell, apply, desktop, wallpaper) live in dots
+  # The steps themselves (apps, git-config, github-login, fonts, shell-setup, dotfiles,
+  # desktop-settings, wallpaper, auto-check, system-settings) live in dots; the --skip-*
+  # options keep their old names
   dots_args=(bootstrap)
   [[ "$DRY_RUN" == '1' ]] && dots_args+=(--dry-run)
   [[ "$NON_INTERACTIVE" == '1' ]] && dots_args+=(--non-interactive)
-  [[ "$SKIP_PACKAGES" == '1' ]] && dots_args+=(--skip packages)
-  [[ "$SKIP_GIT" == '1' ]] && dots_args+=(--skip git)
-  [[ "$SKIP_ACCOUNTS" == '1' ]] && dots_args+=(--skip accounts)
+  [[ "$SKIP_PACKAGES" == '1' ]] && dots_args+=(--skip apps)
+  [[ "$SKIP_GIT" == '1' ]] && dots_args+=(--skip git-config)
+  [[ "$SKIP_ACCOUNTS" == '1' ]] && dots_args+=(--skip github-login)
   [[ "$SKIP_FONTS" == '1' ]] && dots_args+=(--skip fonts)
-  [[ "$SKIP_SHELL" == '1' ]] && dots_args+=(--skip shell)
-  [[ "$SKIP_APPLY" == '1' ]] && dots_args+=(--skip apply)
-  [[ "$SKIP_DESKTOP" == '1' ]] && dots_args+=(--skip desktop)
+  [[ "$SKIP_SHELL" == '1' ]] && dots_args+=(--skip shell-setup)
+  [[ "$SKIP_APPLY" == '1' ]] && dots_args+=(--skip dotfiles)
+  [[ "$SKIP_DESKTOP" == '1' ]] && dots_args+=(--skip desktop-settings)
   [[ "$SKIP_WALLPAPER" == '1' ]] && dots_args+=(--skip wallpaper)
-  [[ "$SKIP_SYNC" == '1' ]] && dots_args+=(--skip sync)
-  [[ "$SKIP_SYSTEM" == '1' ]] && dots_args+=(--skip system)
+  [[ "$SKIP_SYNC" == '1' ]] && dots_args+=(--skip auto-check)
+  [[ "$SKIP_SYSTEM" == '1' ]] && dots_args+=(--skip system-settings)
   "$active_script_dir/dots" "${dots_args[@]}"
 
   log_success 'Unix bootstrap complete'

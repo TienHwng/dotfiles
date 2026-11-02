@@ -44,7 +44,7 @@ if ! has kwriteconfig6 || ! has kreadconfig6; then
 fi
 if ! has chezmoi; then
   [[ "$DRY_RUN" == '1' ]] || die 'chezmoi is required to read home/.chezmoidata/kde.yaml.'
-  log_warn 'chezmoi is unavailable; the desktop step cannot be previewed in this dry-run.'
+  log_warn 'chezmoi is unavailable; the desktop-settings step cannot be previewed in this dry-run.'
   exit 0
 fi
 

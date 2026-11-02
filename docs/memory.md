@@ -11,7 +11,7 @@ the date when it matters. Remove what stops being true. Do not store secrets or 
 identity beyond what is already public in the repository. Current next steps belong in
 [handoff.md](handoff.md) and [roadmap.md](roadmap.md), not here.
 
-Last updated: 2026-10-29 (first Windows session).
+Last updated: 2026-11-03 (step names and descriptions).
 
 ---
 
@@ -83,6 +83,15 @@ Last updated: 2026-10-29 (first Windows session).
 - **One CLI, `dots`:** every step previews and asks; settings are applied by `dots` steps,
   never by `run_onchange_` scripts. KDE keys and registry values are managed per key, never as
   whole files.
+- **Steps say what they do (2026-11-03).** Before its preview, every step prints what it will
+  do to this computer (a list), what it does not touch, and how to undo it
+  (`Get-StepDetail` in `dots.ps1`, `print_step_detail` in `scripts/unix/dots`); a new step
+  needs that text on both OSes. Step names describe the change: `apps`, `git-config`,
+  `github-login`, `fonts`, `shell-setup`, `dotfiles`, `desktop-settings`, `wallpaper`,
+  `auto-check`, `system-settings` (were `packages`, `git`, `accounts`, `fonts`, `shell`,
+  `apply`, `desktop`, `wallpaper`, `sync`, `system`). No aliases: an old name fails and
+  names the new one. `dots sync` stays the pull command; the bootstrap `--skip-*` flags kept
+  their old spelling.
 - **Packages:** one manifest with per-OS names. Windows: winget for GUI apps, Scoop for CLI
   tools and Nerd Fonts, no Chocolatey. Arch: `paru -S --needed`. Hardware tools carry
   `vendor:` (Armoury Crate only on ASUS).
@@ -99,7 +108,7 @@ Last updated: 2026-10-29 (first Windows session).
   (not in official winget; the third-party `winget-extras` source was rejected); keep Armoury
   Crate (not G-Helper); Win11Debloat switches to be chosen together on Windows (the owner only
   remembers "show hidden files" and "show file extensions", already HKCU values).
-- **Linux system:** a second chezmoi instance for `/` (`root/`), applied only by `dots system`;
+- **Linux system:** a second chezmoi instance for `/` (`root/`), applied only by `dots system-settings`;
   all 8 boot themes no package ships are packaged in `pkgbuilds/boot-themes`; pacman options
   live in a drop-in; Plymouth themes that AUR packages ship come from the manifest.
 - **Plasma packages:** the Kuro splash is kept in `kde/plasma/look-and-feel/a2n.kuro` and
@@ -125,6 +134,10 @@ Last updated: 2026-10-29 (first Windows session).
   `dots system` and enabled the timer on CachyOS. The work moved from PRs to direct commits.
   The Kuro splash had vanished because Plasma refuses symlinked package files; it moved out of
   the chezmoi source into `kde/`, copied by the desktop step.
+- 2026-10-29 to 2026-11-03, first Windows session: Store-package (`appx:`) detection,
+  PowerShell Gallery modules, the shared PowerShell profile, LF line endings through
+  `.gitattributes`; the owner asked for each step to say what it does to the computer and
+  for clearer step names (section 3).
 - Next: the Windows run-through ([handoff.md](handoff.md)), then the planned platforms.
 
 ### KDE breakages so far (all on CachyOS, all from chezmoi symlink mode, on since 2026-07-28)
@@ -171,7 +184,7 @@ General:
   (`tests/chezmoiignore.bats`), the desktop step reinstalls a package that is missing,
   differs or contains symlinks (`tests/desktop.bats`), and `dots doctor` checks the packages,
   the splash in `ksplashrc`, and the journal for "Path traversal" refusals. If it breaks
-  anyway: `dots doctor`, then `dots desktop`; if the owner reinstalls it with *Get New*,
+  anyway: `dots doctor`, then `dots desktop-settings`; if the owner reinstalls it with *Get New*,
   `dots capture` keeps that copy.
 - When the owner reports something broken, look in the journal first
   (`journalctl --user -o cat | grep -a -i <name>`); the cause is usually logged.
@@ -207,14 +220,16 @@ PowerShell:
 - Pester `Mock Read-Host` can break after another test file defined a global `Read-Host`:
   wrap prompts in a small function and mock that.
 - Step functions may write to the pipeline: never use their output as a return value.
+- A `switch` runs every clause that matches, not just the first: `dots apps` matched both
+  `'apps'` and the step clause and installed twice. End such clauses with `break`.
 - Windows paths ignore case: `Pictures\wallpaper` is the owner's existing `Pictures\WALLPAPER`.
 - Git for Windows sets `core.autocrlf=true` system-wide, so the bootstrap clone got CRLF files;
-  once the `git` step rendered `~/.gitconfig` (`autocrlf=false`), 28 files showed as modified
+  once the `git-config` step (then `git`) rendered `~/.gitconfig` (`autocrlf=false`), 28 files showed as modified
   and `dots sync` refused to run (2026-10-29). Fixed with `* text=auto eol=lf` in
   `.gitattributes`; keep it.
-- On a fresh Windows, the owner's first bootstrap stopped early: the `shell` step never ran,
-  so `dots` was undefined in pwsh. `dots doctor` shows it ("Profile stub"); `dots shell`
-  fixes it.
+- On a fresh Windows, the owner's first bootstrap stopped early: the `shell-setup` step (then `shell`)
+  never ran, so `dots` was undefined in pwsh. `dots doctor` shows it ("Profile stub");
+  `dots shell-setup` fixes it.
 - `dots` asks `[Y]es / [s]kip / [q]uit` and Enter means yes. The owner wants to understand each
   step before accepting: run the dry-run first and explain what it changes on this machine.
 - A child `pwsh` on Windows takes `$HOME` from the profile folder, not `$env:HOME`: tests

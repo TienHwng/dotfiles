@@ -88,14 +88,14 @@ PowerShell 7; options are PowerShell-style: `-DryRun`, `-NonInteractive`, `-Skip
 
 | Command | Behaviour | Status |
 |---|---|---|
-| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps packages, git (also renders `~/.gitconfig`), accounts, fonts, shell, apply (everything except externals), desktop (KDE keys on Linux, HKCU values on Windows), wallpaper (fetches the wallpaper external, sets the wallpaper), and on Windows system (admin, last; skipped by `-NonInteractive`). The git step renders the gh credential helper so `gh auth login` in accounts does not offer to edit `~/.gitconfig`, and accounts comes before anything that clones a private repository; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
-| `dots <step>` | One bootstrap step on its own (`dots desktop`, `dots wallpaper`, …), with the same preview and question; `--dry-run` / `-DryRun`. | `[Implemented]` (Bash and PowerShell) |
-| `dots sync` | Refuses local changes (Linux dotfiles are symlinks into the repository: commit them with `dots capture` first), fetches, shows `git log` and `git diff --stat` of the new commits, asks, `git merge --ff-only`, then runs the steps whose files changed (`packages.yaml` → packages + fonts, `kde.yaml` → desktop, `windows.yaml` → desktop + system on Windows, `.chezmoidata.yaml`/externals → apply + wallpaper, other `home/` files → apply, `root/`/`pkgbuilds/` → system on Linux), each with its preview and question. Never non-interactive. | `[Implemented]` (Bash and PowerShell) |
+| `dots bootstrap` | Runs L1→L7 in order. Each step: describe → preview/diff → confirm → run. Each step can be skipped or the run stopped. Restoring a machine = this command. | `[Implemented]` (Bash and PowerShell): steps apps, git-config (renders `~/.gitconfig`), github-login, fonts, shell-setup, dotfiles (everything except externals), desktop-settings (KDE keys on Linux, HKCU values on Windows), wallpaper (fetches the wallpaper external, sets the wallpaper), auto-check (timer or Scheduled Task), and system-settings (sudo or admin, last; skipped by `-NonInteractive`). Step names say what the step changes (renamed 2026-11-03 from packages, git, accounts, shell, apply, desktop, sync, system; an old name fails and names the new one). The describe part prints, before the preview, what the step does to this computer as a list, what it does not touch, and how to undo it (`Get-StepDetail` / `print_step_detail`; values such as the wallpaper folder come from chezmoi data). The git-config step renders the gh credential helper so `gh auth login` in github-login does not offer to edit `~/.gitconfig`, and github-login comes before anything that clones a private repository; previews run the step with `--dry-run --non-interactive` (apply uses `chezmoi diff`); `--dry-run`, `--non-interactive`, `--skip STEP`; ends with `chezmoi doctor` and the manual checklist |
+| `dots <step>` | One bootstrap step on its own (`dots desktop-settings`, `dots wallpaper`, …), with the same preview and question; `--dry-run` / `-DryRun`. | `[Implemented]` (Bash and PowerShell) |
+| `dots sync` | Refuses local changes (Linux dotfiles are symlinks into the repository: commit them with `dots capture` first), fetches, shows `git log` and `git diff --stat` of the new commits, asks, `git merge --ff-only`, then runs the steps whose files changed (`packages.yaml` → apps + fonts, `kde.yaml` → desktop-settings, `windows.yaml` → desktop-settings + system-settings on Windows, `.chezmoidata.yaml`/externals → dotfiles + wallpaper, other `home/` files → dotfiles, `root/`/`pkgbuilds/` → system-settings on Linux), each with its preview and question. Never non-interactive. | `[Implemented]` (Bash and PowerShell) |
 | `dots sync --check [--notify]` | Fetch only (no prompts, 60 s timeout); print `behind N, ahead M`. `--notify`: one notification per upstream commit (stamp in `~/.local/state/dots/notified` or `%LOCALAPPDATA%\dots\notified`) with a *Sync now* button. Used by the timer and the Scheduled Task. | `[Implemented]` (`sync.sh`, `sync.ps1`) |
 | `dots capture` | One picker (`gum filter --no-limit`, numbered fallback) over what differs from the repository; the chosen items are written back, then `git diff`, a message, commit to `main` and push. Refuses non-interactive runs, other branches, and an already staged index. `--dry-run` only lists. | `[Implemented]` (`capture.sh`: files, re-add, KDE keys, packages; `capture.ps1`: files, re-add, registry values) |
-| `dots packages` | Install missing packages from the manifest after showing the list. | `[Implemented]` (Bash) |
-| `dots packages --diff` | List packages installed on the machine but absent from the manifest (packages built from `pkgbuilds/` count as known), and manifest packages not installed. `dots capture` offers adding the extras to the manifest or uninstalling them. | `[Implemented]` (Bash `--diff`/`--extra`; PowerShell `dots packages -Diff` through `package-diff.ps1`: `winget export` and Scoop's `apps` folder) |
-| `dots system` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Implemented]` (Linux: `setup-system.sh`, boot theme packages then the `root/` instance with sudo; Windows): previews `setup-system.ps1 -DryRun` as the user, asks, then runs it in an administrator window (UAC) unless already elevated; also the last `bootstrap` step, skipped by `-NonInteractive` unless `-DryRun`. |
+| `dots apps` | The `apps` step: install missing packages from the manifest after showing the list. | `[Implemented]` (Bash and PowerShell) |
+| `dots apps --diff` | List packages installed on the machine but absent from the manifest (packages built from `pkgbuilds/` count as known), and manifest packages not installed. `dots capture` offers adding the extras to the manifest or uninstalling them. | `[Implemented]` (Bash `--diff`/`--extra`; PowerShell `dots apps -Diff` through `package-diff.ps1`: `winget export` and Scoop's `apps` folder) |
+| `dots system-settings` | System-level step (L5). Always shows a diff. Needs sudo (Linux) or admin (Windows). Never runs non-interactively. | `[Implemented]` (Linux: `setup-system.sh`, boot theme packages then the `root/` instance with sudo; Windows): previews `setup-system.ps1 -DryRun` as the user, asks, then runs it in an administrator window (UAC) unless already elevated; also the last `bootstrap` step, skipped by `-NonInteractive` unless `-DryRun`. |
 | `dots status` | Branch, commits behind/ahead (after a quick fetch), files changed in the repository, chezmoi drift, timer or task state. | `[Implemented]` (Bash and PowerShell) |
 | `dots doctor` | `chezmoi doctor` plus checks: required tools, Bitwarden agent reachable, sync timer enabled. | `[Implemented]` (Bash): Plasma packages (installed, real files, same as `kde/`, the splash in `ksplashrc` installed, no "Path traversal" refusals in the journal since the last install), required tools (git, chezmoi), optional tools (gum, gitleaks, fzf), manifest readable, Git hooks, system instance config, `chezmoi doctor` (warnings only). Bitwarden, LFS, and timer checks come with P3/P4/P7 |
 | `dots update` | Upgrade what is installed, each part listed first and confirmed: packages (Linux: `checkupdates` + `paru -Qua`, then `paru -Syu` and the missing manifest packages; Windows: `install-packages.ps1 -Upgrade` for the manifest's WinGet and Scoop packages) and fonts (reinstalled from the latest release). Neither `--packages` nor `--fonts` means both. It never pulls or applies the repository; an earlier version ran `chezmoi update`, which applied without asking. | `[Implemented]` (Bash and PowerShell) |
@@ -122,7 +122,7 @@ notepad $env:TEMP\dots-bootstrap.ps1; & $env:TEMP\dots-bootstrap.ps1
 
 The Unix bootstrap script installs the prerequisites and chezmoi, runs `chezmoi init
 TienHwng/dotfiles` (public, no auth needed), then hands over to `dots bootstrap`, passing
-`--dry-run`, `--non-interactive`, and `--skip-*` through. gum arrives with the packages
+`--dry-run`, `--non-interactive`, and `--skip-*` through. gum arrives with the apps
 step; until then `dots` uses plain prompts.
 
 ### L1 — Identity and secrets
@@ -131,7 +131,7 @@ step; until then `dots` uses plain prompts.
 |---|---|
 | Git/SSH identity prompts stored in local chezmoi config | `[Implemented]` |
 | `gh` credential helper rendered by `home/dot_gitconfig.tmpl` on every OS when `gh` is on `PATH` | `[Implemented]` |
-| `accounts` step: `gh auth login` (HTTPS), Bitwarden SSH agent check, offer to add the key to GitHub, `bw` status | `[Implemented]` |
+| `github-login` step: `gh auth login` (HTTPS), Bitwarden SSH agent check, offer to add the key to GitHub, `bw` status | `[Implemented]` |
 | `.accounts.ssh.agent`: `bitwarden` (default) or `file` (passphrase-protected key on disk, for headless machines) | `[Implemented]` |
 | `~/.ssh/config` and `environment.d` point at the Bitwarden agent (Linux) | `[Implemented]` |
 | Bitwarden CLI installed and `[bitwarden] unlock = "auto"` in the chezmoi config | `[Implemented]` |
@@ -146,17 +146,17 @@ step; until then `dots` uses plain prompts.
   other hosts). This lets git clone private repositories **before** any SSH key exists. Do
   **not** run `gh auth setup-git`: it writes `~/.gitconfig` directly, which the template owns.
   Because the helper is already gh's, `gh auth login` does not ask to set it up; that is why
-  the `git` step renders `~/.gitconfig` before the `accounts` step logs in.
+  the `git-config` step renders `~/.gitconfig` before the `github-login` step logs in.
 - **Commit signing:** off (owner's choice).
 - **Tokens and API keys:** none are needed yet. When one is, a template calls
   `bitwardenFields` / `bitwarden` (`bitwarden.unlock = "auto"` already makes chezmoi run
   `bw unlock` only when `BW_SESSION` is not set). Account: bitwarden.com (US), the `bw`
   default. Before the first such template lands, the `bw login` check MUST move into a step
-  that runs before `apply`, or apply fails on a fresh machine.
+  that runs before `dotfiles`, or apply fails on a fresh machine.
 - **SSH keys live in the Bitwarden vault** and are served by the Bitwarden desktop SSH agent
   (desktop ≥ 2025.1.2). Private keys never touch the disk.
-  - Windows: the *OpenSSH Authentication Agent* service must be disabled. The accounts step
-    detects it and points to `dots system`, which disables it (L5).
+  - Windows: the *OpenSSH Authentication Agent* service must be disabled. The github-login step
+    detects it and points to `dots system-settings`, which disables it (L5).
     Windows OpenSSH (`ssh`, `ssh-add` on `PATH`) talks to Bitwarden's pipe; Git's bundled ssh
     is not used because git talks HTTPS.
   - Linux: the Flatpak build does not support the agent. Use the native package (`bitwarden`
@@ -236,7 +236,7 @@ Rules:
   per user on first use and refuses an elevated shell. `psModules` install through `pwsh`
   (`Install-Module -Scope CurrentUser`), so they land in PowerShell 7's module folder even
   when `dots` runs under 5.1. A winget entry with `appx:` counts as installed when that Store
-  package is, for the install step and `dots packages -Diff` alike, and is never upgraded
+  package is, for the install step and `dots apps -Diff` alike, and is never upgraded
   through winget (it updates itself).
   Planned: Ubuntu → `apt` (+ `flatpak`/`snap` for GUI); macOS → `brew` + `brewCask`;
   NixOS → `nix`. A new manager is a new key, with no structural change.
@@ -273,7 +273,7 @@ Rules:
 - **Windows copies files.** `home/.chezmoi.toml.tmpl` sets `mode = "symlink"` everywhere
   except Windows, where symlinks need Developer Mode or admin rights.
 - **PowerShell profile:** OneDrive "Known Folder Move" can relocate `Documents`, so the repo
-  does not hard-code `Documents/PowerShell`. The `shell` step (`setup-shell.ps1`) sets
+  does not hard-code `Documents/PowerShell`. The `shell-setup` step (`setup-shell.ps1`) sets
   `XDG_CONFIG_HOME` and writes a small stub to the real `$PROFILE.CurrentUserAllHosts`
   (`[Environment]::GetFolderPath('MyDocuments')\PowerShell\profile.ps1`) that dot-sources the
   chezmoi-managed `~/.config/powershell/profile.ps1`. A different existing file there is moved
@@ -282,7 +282,7 @@ Rules:
   Terminal-Icons, PSReadLine predictions in a list with Tab menu completion, Catppuccin Mocha
   colours for PSReadLine and `$PSStyle`, and fastfetch in a console host. The modules come from
   the manifest's `psModules`, fastfetch from Scoop (moved in from the owner's hand-made
-  `Microsoft.PowerShell_profile.ps1` on 2026-10-29; the shell step still warns while that file
+  `Microsoft.PowerShell_profile.ps1` on 2026-10-29; the shell-setup step still warns while that file
   exists).
 - Windows-only app configs, when one is managed, live under `home/AppData/…`.
 - Apps with their own sync are not configured here. `dots bootstrap` ends by printing
@@ -292,7 +292,7 @@ Rules:
   `zsh-history-substring-search`, `auto-notify` (MichaelAquilina/zsh-auto-notify) and
   `you-should-use` (MichaelAquilina/zsh-you-should-use) as `git-repo` externals in
   `.chezmoiexternal.toml.tmpl` (Linux only; the AUR packages are unmaintained or unvoted).
-  The `apply` step applies `~/.oh-my-zsh/custom/plugins` as a second target, because its
+  The `dotfiles` step applies `~/.oh-my-zsh/custom/plugins` as a second target, because its
   main apply excludes externals for the private wallpaper repository. `oh-my-zsh-git`, the two
   plugin packages and `zsh-theme-powerlevel10k` are in the manifest. `.zshrc` pins
   `ZSH_CUSTOM` to `~/.oh-my-zsh/custom`, so the plugins load when Oh My Zsh itself comes from
@@ -328,7 +328,7 @@ kde:
   default).
 - Plasma packages `[Implemented]` (splash and global themes from the KDE Store) are listed in
   `kde.packages` (`path`, `id`) and kept in the repository at `kde/<path>/<id>`; today the Kuro
-  splash (`a2n.kuro`, GPLv3). The desktop step copies the repository copy as real files to
+  splash (`a2n.kuro`, GPLv3). The desktop-settings step copies the repository copy as real files to
   `~/.local/share/<path>/<id>` when the installed one is missing, differs, or contains
   symlinks. Why not chezmoi: in symlink mode the theme files were links into the repository,
   and KPackage rejects any package file that resolves outside the package directory
@@ -340,7 +340,7 @@ kde:
   into `kde/`.
 - Choosing a global theme in System Settings resets the splash to the theme's own (Breeze,
   the default, so `ksplashrc` ends up empty). Whole-file capture once saved that empty file;
-  per key, the `desktop` step applies the theme first and then sets the splash back.
+  per key, the `desktop-settings` step applies the theme first and then sets the splash back.
 - fcitx5 rewrites `fcitx5/profile` from memory, so a running fcitx5 gets the list over D-Bus
   (`org.fcitx.Fcitx.Controller1.SetInputMethodGroupInfo`, then `SetCurrentIM` for the
   default), as fcitx5-configtool does; without one the step writes the profile keys.
@@ -353,7 +353,7 @@ kde:
   shared one, so a machine can also change a shared value. Other machines never see them.
   `setup-desktop.sh` reads only the rendered lines and does not know about machines. Tests
   set the hostname with `[data.chezmoi] hostname` in the isolated chezmoi config.
-- The `desktop` step of `dots` (`scripts/unix/setup-desktop.sh`, after `apply` so the splash
+- The `desktop-settings` step of `dots` (`scripts/unix/setup-desktop.sh`, after `dotfiles` so the splash
   theme exists, before `wallpaper`) reads each key with `kreadconfig6`, prints
   `file [group] key: current -> new` for the ones that differ, then applies the global theme
   first (it rewrites colors) and writes each key with `kwriteconfig6 --notify` (nested groups:
@@ -395,8 +395,8 @@ windows:
       - { path: 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power', name: HiberbootEnabled, type: DWord, value: 0 }
 ```
 
-The Windows side of the `desktop` step is `scripts/windows/setup-registry.ps1 -Scope user`
-(`-Scope machine` serves `dots system`). It reads the list with
+The Windows side of the `desktop-settings` step is `scripts/windows/setup-registry.ps1 -Scope user`
+(`-Scope machine` serves `dots system-settings`). It reads the list with
 `chezmoi execute-template '{{ .windows.registry.<scope> | toJson }}'` from the checkout,
 prints `path name: current (kind) -> new (kind)` for every value whose data or kind differs,
 then writes each with `New-ItemProperty -Force` (creating the key if needed), so a value
@@ -416,7 +416,7 @@ production.
 | Separate config/state directory, root cache, source ownership restored after each `cmr` | `[Implemented]` |
 | System config rendered by the user instance from `home/dot_config/chezmoi-root/chezmoi.toml.tmpl` | `[Implemented]` |
 | `cmr` review flow (status + diff + confirm), `cmr edit` (edit repo copy as the user, diff, confirm), `cmr capture` (fzf pick of files changed in `/`, `re-add`, templates listed for manual edit) | `[Implemented]` |
-| `dots system` on Linux (`scripts/unix/setup-system.sh`): boot theme packages, then status + diff + confirm + apply of `root/` with sudo | `[Implemented]` |
+| `dots system-settings` on Linux (`scripts/unix/setup-system.sh`): boot theme packages, then status + diff + confirm + apply of `root/` with sudo | `[Implemented]` |
 | `root/.chezmoidata/boot.yaml`, GRUB/SDDM/Plymouth templates, pacman drop-in, `run_onchange_after_` hooks, `pkgbuilds/boot-themes` | `[Implemented]` |
 | Machine data from the user config copied into the system config | `[Planned]` (no system file needs it yet) |
 
@@ -454,7 +454,7 @@ production.
 5. **Never write to `/usr`.** Files there belong to packages. The 11 Plymouth themes that AUR
    packages in the manifest install (`plymouth-theme-*-git`) left `root/`. The 8 themes no
    package ships (7 GRUB themes, Plymouth `arch-mac-style`) are one split PKGBUILD,
-   `pkgbuilds/boot-themes` (one package per theme; the owner keeps all 8). `dots system`
+   `pkgbuilds/boot-themes` (one package per theme; the owner keeps all 8). `dots system-settings`
    builds it with `makepkg --nodeps` as the user and installs it with
    `sudo pacman -U --needed --overwrite '<theme dir>/*'`, which lets the packages take over
    files the system instance wrote there before P6. Bump `pkgrel` after changing a theme.
@@ -462,7 +462,7 @@ production.
    the rendered source in a comment): `grub-mkconfig -o /boot/grub/grub.cfg` when the GRUB
    defaults or `40_custom` change; `mkinitcpio -P` (or `dracut --regenerate-all --force`) when
    `plymouthd.conf` changes, because the theme is copied into the initramfs.
-7. **Policy:** `dots system` is an opt-in, last bootstrap step, interactive only, always with a
+7. **Policy:** `dots system-settings` is an opt-in, last bootstrap step, interactive only, always with a
    diff: `scripts/unix/setup-system.sh` refuses a real run with `NON_INTERACTIVE=1` or `CI`
    set, and `dots bootstrap --non-interactive` skips the step. `--dry-run` previews as the user
    with a throwaway state file (so hooks always show as pending) and runs no sudo.
@@ -481,7 +481,7 @@ production.
 
 #### Windows: admin step `[Implemented: P5b]`, NVIDIA App and ASUS tools `[Implemented: P5c]`, debloat `[Planned: P5c]`
 
-Order inside `dots system` on Windows:
+Order inside `dots system-settings` on Windows:
 
 1. HKLM values from `windows.registry.machine`. Two of them exist for dual-boot:
    - `RealTimeIsUniversal=1`: Windows reads the hardware clock as UTC, like Linux (owner's
@@ -501,10 +501,10 @@ Order inside `dots system` on Windows:
    installer with its own window. The app then updates itself and the driver, so the pin
    only matters for fresh machines.
 
-Steps 1–3 are `scripts/windows/setup-system.ps1`. `dots system` runs it with `-DryRun` as the
+Steps 1–3 are `scripts/windows/setup-system.ps1`. `dots system-settings` runs it with `-DryRun` as the
 user (reading HKLM and the service needs no admin), asks, then starts it elevated with
 `Start-Process -Verb RunAs -Wait` (`-PauseOnExit` keeps that window open) unless the shell is
-already elevated. Step 4 is planned; step 5 belongs to the packages step.
+already elevated. Step 4 is planned; step 5 belongs to the apps step.
 
 4. Debloat/privacy with [Win11Debloat](https://github.com/Raphire/Win11Debloat), **pinned to a
    release, checksum-verified**, run with an explicit parameter list stored in the repository
@@ -514,8 +514,8 @@ already elevated. Step 4 is planned; step 5 belongs to the packages step.
    at the Windows machine; the two they named (hidden files, file extensions) are already HKCU
    values in `windows.yaml`.
 5. ASUS tools: the owner keeps Armoury Crate over G-Helper (2026-10-29). It is the
-   `Asus.ArmouryCrate` winget entry in the manifest with `vendor: ASUS`, so the packages step
-   installs it only on ASUS hardware (L2), not in `dots system`.
+   `Asus.ArmouryCrate` winget entry in the manifest with `vendor: ASUS`, so the apps step
+   installs it only on ASUS hardware (L2), not in `dots system-settings`.
 6. WSL `[Planned: platform]`: `wsl --install -d Ubuntu`, then run the Unix bootstrap inside;
    `home/dot_wslconfig` is applied on Windows only.
 
@@ -539,8 +539,8 @@ already elevated. Step 4 is planned; step 5 belongs to the packages step.
   (`Pictures/wallpaper`), `wallpapers.current` (`space2.jpg`).
 - `home/.chezmoiexternal.toml.tmpl` declares a `git-repo` external at `wallpapers.dir`
   (`clone --depth 1`, `pull --ff-only`, `refreshPeriod = "168h"`) when `features.wallpapers`
-  is on. The `apply` step of `dots` excludes externals (`--exclude externals`); the
-  `wallpaper` step (`setup-wallpaper.sh/.ps1`) runs `chezmoi apply <dir>` after `accounts`,
+  is on. The `dotfiles` step of `dots` excludes externals (`--exclude externals`); the
+  `wallpaper` step (`setup-wallpaper.sh/.ps1`) runs `chezmoi apply <dir>` after `github-login`,
   so the private clone has gh's credentials. A plain `chezmoi apply` also fetches it.
 - chezmoi runs `git pull` in whatever repository already sits at that path. The wallpaper step
   therefore stops when the directory is a clone of another repository and asks the owner to
@@ -560,7 +560,7 @@ already elevated. Step 4 is planned; step 5 belongs to the packages step.
   i.e. at login, then every 6 hours) runs `dots-sync.service`:
   `dots sync --check --notify`. `notify-send --action=sync='Sync now'` waits for a click;
   *Sync now* opens `$TERMINAL`, kitty or konsole (`--hold`) running `dots sync`. Unit files
-  live in `home/dot_config/systemd/user/` (Linux-only in `.chezmoiignore`); the `sync` step
+  live in `home/dot_config/systemd/user/` (Linux-only in `.chezmoiignore`); the `auto-check` step
   (`setup-sync.sh`) enables the timer.
 - Windows: the Scheduled Task `\dots\dots-sync` (at logon after 2 minutes, then every 6
   hours) runs `conhost.exe --headless powershell.exe -File sync.ps1 -Check -Notify`, so no
@@ -568,7 +568,7 @@ already elevated. Step 4 is planned; step 5 belongs to the packages step.
   owner chose it over the BurntToast module; PowerShell 7 has no WinRT projection, so
   `sync.ps1` re-runs itself under `powershell.exe` for the toast). Its *Sync now* button
   opens the `dots-sync:` URL protocol (HKCU\Software\Classes), which starts Windows Terminal
-  with PowerShell 7 running `dots sync`. The `sync` step (`setup-sync.ps1`) registers both.
+  with PowerShell 7 running `dots sync`. The `auto-check` step (`setup-sync.ps1`) registers both.
 - Neither applies anything. On the dual-boot machine the other OS learns about changes at its
   next login.
 
@@ -616,7 +616,7 @@ changes, which go straight to `main`). Answering no unstages everything. It repl
 │   ├── AppData/                    # Windows-only configs       [Planned, when one is managed]
 │   └── dot_wslconfig               # Windows-only               [Planned: platform]
 ├── root/                           # system chezmoi source      [Implemented, manual]
-├── kde/plasma/look-and-feel/      # Plasma packages (Kuro splash), copied by the desktop step [Implemented]
+├── kde/plasma/look-and-feel/      # Plasma packages (Kuro splash), copied by the desktop-settings step [Implemented]
 ├── pkgbuilds/boot-themes/         # 7 GRUB + 1 Plymouth theme   [Implemented]
 ├── scripts/
 │   ├── package-list.tmpl           # renders one manifest list [Implemented]
@@ -648,12 +648,12 @@ changes, which go straight to `main`). Answering no unstages everything. It repl
 6. L6: pull wallpapers, install fonts, set the wallpaper.
 7. L5 (admin, UAC window): HKLM values, Fast Startup off, UTC clock, disable OpenSSH agent
    service, NVIDIA App; later Win11Debloat (P5c). Armoury Crate comes with L2 on ASUS hardware.
-8. L7: register the Scheduled Task and the `dots-sync:` protocol (the `sync` step).
+8. L7: register the Scheduled Task and the `dots-sync:` protocol (the `auto-check` step).
 9. Print the manual checklist: VS Code Settings Sync, browser, Steam, Discord.
 
 ### 5.2 Freshly installed CachyOS
 
-Same order. L2 uses paru; L4 applies KDE keys; L5 is `dots system` → boot theme packages →
+Same order. L2 uses paru; L4 applies KDE keys; L5 is `dots system-settings` → boot theme packages →
 system instance diff → apply → hooks (GRUB, initramfs); L7 enables the systemd user timer.
 
 ### 5.3 Planned platforms

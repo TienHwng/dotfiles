@@ -1,6 +1,6 @@
 # Boot themes that no Arch or AUR package ships, packaged so pacman owns their files in
 # /usr instead of the system chezmoi instance. Split package: one package per theme.
-# Built and installed by `dots system` (scripts/unix/setup-system.sh). Bump pkgrel after
+# Built and installed by `dots system-settings` (scripts/unix/setup-system.sh). Bump pkgrel after
 # changing any theme file, so installed machines pick the change up.
 
 pkgbase=dots-boot-themes

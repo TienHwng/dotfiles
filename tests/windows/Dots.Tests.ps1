@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'dots.ps1 commands' {
     It 'lists every command in help' {
         $output = & $Dots help 6>&1 | Out-String
-        foreach ($name in @('bootstrap', 'packages', 'sync', 'status', 'system', 'doctor', 'update', 'backup', 'cleanup')) {
+        foreach ($name in @('bootstrap', 'apps', 'sync', 'status', 'system-settings', 'doctor', 'update', 'backup', 'cleanup')) {
             $output | Should -Match $name
         }
     }
@@ -20,16 +20,55 @@ Describe 'dots.ps1 commands' {
     }
 
     It 'completes a dry run with every step skipped' {
-        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip packages, git, accounts, fonts, shell, apply, desktop, wallpaper, sync, system *>&1 | Out-String
-        $output | Should -Match 'Skipping packages'
-        $output | Should -Match 'Skipping apply'
+        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip apps, git-config, github-login, fonts, shell-setup, dotfiles, desktop-settings, wallpaper, auto-check, system-settings *>&1 | Out-String
+        $output | Should -Match 'Skipping apps'
+        $output | Should -Match 'Skipping dotfiles'
         $output | Should -Match 'Bootstrap complete'
+        $output | Should -Not -Match 'What it does to this computer'
     }
 
     It 'accepts -Skip as one comma-separated string, as pwsh -File passes it' {
-        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip 'packages,git,accounts,fonts,shell,apply,desktop,wallpaper,sync,system' *>&1 | Out-String
+        $output = & $Dots bootstrap -DryRun -NonInteractive -Skip 'apps,git-config,github-login,fonts,shell-setup,dotfiles,desktop-settings,wallpaper,auto-check,system-settings' *>&1 | Out-String
         $output | Should -Match 'Skipping fonts'
         $output | Should -Match 'Bootstrap complete'
+    }
+
+    It 'names the new step when an old name is used' {
+        { & $Dots desktop 6>$null } | Should -Throw '*Unknown command: desktop (renamed to desktop-settings: dots desktop-settings)*'
+        { & $Dots bootstrap -Skip accounts 6>$null } | Should -Throw '*Unknown step: accounts (renamed to github-login)*'
+    }
+}
+
+Describe 'Step descriptions' {
+    BeforeAll {
+        . $Dots
+    }
+
+    It 'says what <_> does, what it leaves alone and how to undo it' -ForEach @(
+        'apps', 'git-config', 'github-login', 'fonts', 'shell-setup', 'dotfiles',
+        'desktop-settings', 'wallpaper', 'auto-check', 'system-settings'
+    ) {
+        Get-StepTitle $_ | Should -Not -BeNullOrEmpty
+        $detail = Get-StepDetail $_
+        @($detail.Does).Count | Should -BeGreaterThan 0
+        $detail.Never | Should -Not -BeNullOrEmpty
+        $detail.Undo | Should -Not -BeNullOrEmpty
+        (@($detail.Does) + $detail.Never + $detail.Undo) -join ' ' | Should -Match '^[\x20-\x7E]+$'
+    }
+
+    It 'covers every step' {
+        $script:Steps | Should -Be @('apps', 'git-config', 'github-login', 'fonts', 'shell-setup', 'dotfiles',
+            'desktop-settings', 'wallpaper', 'auto-check', 'system-settings')
+    }
+
+    It 'prints the description before the preview and the question' {
+        Mock Test-StepEnabled { $true }
+        Mock Invoke-Step { Write-Host "PREVIEW $Step" }
+        Mock Read-Host { 'q' }
+
+        $output = Invoke-StepList @('desktop-settings') 3>$null 6>&1 | Out-String
+
+        $output | Should -Match '(?s)\[desktop-settings\] Change Windows settings.*What it does to this computer:.*Restarts Explorer.*It does not .*To undo: .*Preview, nothing has changed yet:.*PREVIEW desktop-settings'
     }
 }
 
@@ -38,11 +77,22 @@ Describe 'Single steps' {
         . $Dots
         $script:Ran = [System.Collections.Generic.List[string]]::new()
         Mock Invoke-StepList { $script:Ran.Add($StepList -join ',') }
-        Set-Variable -Name Command -Value 'desktop'
+        Set-Variable -Name Command -Value 'desktop-settings'
 
         Invoke-DotsCommand
 
-        $script:Ran | Should -Be @('desktop')
+        $script:Ran | Should -Be @('desktop-settings')
+    }
+
+    It 'runs dots apps once, as the apps step' {
+        . $Dots
+        $script:Ran = [System.Collections.Generic.List[string]]::new()
+        Mock Invoke-StepList { $script:Ran.Add($StepList -join ',') }
+        Set-Variable -Name Command -Value 'apps'
+
+        Invoke-DotsCommand
+
+        $script:Ran | Should -Be @('apps')
     }
 }
 
@@ -53,7 +103,7 @@ Describe 'System step policy' {
         Mock Write-ManualChecklist { }
     }
 
-    It 'skips system in a non-interactive bootstrap' {
+    It 'skips system-settings in a non-interactive bootstrap' {
         $script:Calls = [System.Collections.Generic.List[string]]::new()
         Mock Invoke-Step { $script:Calls.Add("$Step/$Mode") }
         # dots.ps1 functions read the variable from the calling scope
@@ -61,19 +111,19 @@ Describe 'System step policy' {
 
         $output = Invoke-Bootstrap 3>&1 6>$null | Out-String
 
-        $script:Calls | Should -Not -Contain 'system/run'
-        $script:Calls | Should -Contain 'desktop/run'
-        $output | Should -Match 'Skipping system'
+        $script:Calls | Should -Not -Contain 'system-settings/run'
+        $script:Calls | Should -Contain 'desktop-settings/run'
+        $output | Should -Match 'Skipping system-settings'
     }
 
-    It 'refuses dots system without a terminal unless it is a dry run' {
+    It 'refuses dots system-settings without a terminal unless it is a dry run' {
         # dots.ps1 functions read the variable from the calling scope
         Set-Variable -Name NonInteractive -Value $true
 
         { Invoke-SystemCommand 6>$null } | Should -Throw '*never runs non-interactively*'
     }
 
-    It 'previews, asks, then applies dots system' {
+    It 'previews, asks, then applies dots system-settings' {
         $script:Calls = [System.Collections.Generic.List[string]]::new()
         Mock Invoke-System { $script:Calls.Add("preview=$Preview") }
         Mock Read-Host { 'y' }
@@ -100,7 +150,7 @@ Describe 'Interactive bootstrap' {
 
         Invoke-Bootstrap 3>$null 6>$null
 
-        $script:Calls | Should -Be @('packages/preview', 'git/preview')
+        $script:Calls | Should -Be @('apps/preview', 'git-config/preview')
     }
 
     It 'runs a step after yes' {
@@ -109,7 +159,7 @@ Describe 'Interactive bootstrap' {
 
         Invoke-Bootstrap 3>$null 6>$null
 
-        $script:Calls | Should -Be @('packages/preview', 'packages/run', 'git/preview')
+        $script:Calls | Should -Be @('apps/preview', 'apps/run', 'git-config/preview')
     }
 }
 

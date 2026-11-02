@@ -54,7 +54,7 @@ function Invoke-AgentServiceStep([switch]$DryRun) {
 
 function Invoke-SystemStep([switch]$DryRun) {
     if (-not $DryRun -and -not (Test-Elevated)) {
-        Stop-Tool 'The system step needs an administrator PowerShell; run: dots system'
+        Stop-Tool 'The system-settings step needs an administrator PowerShell; run: dots system-settings'
     }
 
     Write-Step 'Machine registry values (windows.registry.machine)'

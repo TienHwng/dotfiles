@@ -6,7 +6,7 @@ param(
 )
 
 # Applies the registry values from home/.chezmoidata/windows.yaml: windows.registry.user
-# (HKCU, the desktop step) or windows.registry.machine (HKLM, dots system, admin).
+# (HKCU, the desktop-settings step) or windows.registry.machine (HKLM, dots system-settings, admin).
 # Prints current -> new for every value that differs; with -DryRun it changes nothing.
 
 Set-StrictMode -Version Latest
@@ -97,7 +97,7 @@ function Invoke-RegistryStep([string]$Scope, [switch]$DryRun) {
     Write-Step "$($pending.Count) registry value(s) ($Scope) differ from windows.yaml"
 
     if ($Scope -eq 'machine' -and -not $DryRun -and -not (Test-Elevated)) {
-        Stop-Tool 'Machine registry values need an administrator PowerShell; run: dots system'
+        Stop-Tool 'Machine registry values need an administrator PowerShell; run: dots system-settings'
     }
 
     foreach ($entry in $pending) {

@@ -12,7 +12,7 @@ param(
     # sync
     [switch]$Check,
     [switch]$Notify,
-    # packages
+    # apps
     [switch]$Diff,
     [switch]$Upgrade,
     # update
@@ -28,9 +28,26 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
 
-# git renders ~/.gitconfig (gh credential helper) so accounts can log in to gh before
-# anything clones a private repository; wallpaper needs that login. system (admin) goes last.
-$script:Steps = @('packages', 'git', 'accounts', 'fonts', 'shell', 'apply', 'desktop', 'wallpaper', 'sync', 'system')
+# git-config renders ~/.gitconfig (gh credential helper) so github-login can log in to gh
+# before anything clones a private repository; wallpaper needs that login.
+# system-settings (admin) goes last.
+$script:Steps = @(
+    'apps', 'git-config', 'github-login', 'fonts', 'shell-setup', 'dotfiles',
+    'desktop-settings', 'wallpaper', 'auto-check', 'system-settings'
+)
+
+# Names used before 2026-11-03, only to point at the new name; they no longer run
+$script:RenamedSteps = @{
+    'packages' = 'apps'
+    'git' = 'git-config'
+    'accounts' = 'github-login'
+    'shell' = 'shell-setup'
+    'apply' = 'dotfiles'
+    'desktop' = 'desktop-settings'
+    # dots sync (pull) is still a command; only the step that registered the task moved
+    'sync' = 'auto-check'
+    'system' = 'system-settings'
+}
 
 function Show-Usage {
     Write-Host @'
@@ -38,35 +55,28 @@ Usage: dots <command> [options]
 
 Commands:
   bootstrap [-DryRun] [-NonInteractive] [-Skip step,...]
-                  Set up this machine step by step: packages, git, accounts,
-                  fonts, shell, apply, desktop, wallpaper, sync, system. Each step
-                  shows a preview and asks run / skip / quit before changing anything.
-                  -NonInteractive skips system unless -DryRun is set.
-  packages [-DryRun] [-Upgrade] | packages -Diff
-                  Install missing WinGet and Scoop packages from the manifest
-                  (preview, then ask; -Upgrade also upgrades installed ones), or
-                  list packages installed outside it.
+                  Set up this machine step by step: apps, git-config, github-login,
+                  fonts, shell-setup, dotfiles, desktop-settings, wallpaper, auto-check,
+                  system-settings. Each step says what it does to this computer, shows
+                  a preview, and asks run / skip / quit before changing anything.
+                  -NonInteractive skips system-settings unless -DryRun is set.
+  <step> [-DryRun]
+                  Run one of those steps on its own, described, previewed and confirmed.
+  apps -Diff      List apps installed outside the manifest, and listed ones that are missing.
+  apps -Upgrade   Like the apps step, and also upgrade the installed ones.
   sync [-Check [-Notify]]
                   Pull new commits (fast-forward only, after showing them), then run
                   the steps whose files changed, each with a preview. -Check only
                   fetches and reports how far behind this machine is; -Notify adds a
-                  toast with a Sync now button (the dots-sync Scheduled Task uses it).
+                  toast with a Sync now button (the auto-check task uses it).
   status          Branch, commits behind/ahead, local changes, chezmoi drift, task.
-  <step> [-DryRun]
-                  Run one bootstrap step on its own (git, accounts, fonts, shell, apply,
-                  desktop, wallpaper), previewed and confirmed. packages, sync and system
-                  are commands of their own; the sync step is setup-sync.ps1.
   capture [-DryRun]
                   Pick what changed on this machine (repository files, dotfiles
                   chezmoi copied, registry values, packages), write it back, review the diff,
                   then commit to main and push.
-  system [-DryRun]
-                  Machine registry values, the OpenSSH agent service and the NVIDIA
-                  App: preview, then ask and apply in an administrator window. Never
-                  non-interactive.
   doctor          Check required tools, the shell setup, the manifest, and chezmoi.
   update [-Packages] [-Fonts] [-DryRun]
-                  Upgrade the manifest's WinGet and Scoop packages and reinstall the
+                  Upgrade the manifest's apps (WinGet, Scoop, PowerShell modules), reinstall the
                   Nerd Fonts, each listed first and confirmed; neither option means
                   both. It does not pull the repository: that is dots sync.
   backup [-Destination PATH] [-DryRun]
@@ -112,29 +122,157 @@ function Confirm-Yes([string]$Message) {
     return Confirm-Action $Message -DefaultYes $true
 }
 
-function Get-StepDescription([string]$Step) {
+function Get-StepTitle([string]$Step) {
     switch ($Step) {
-        'packages' { 'Install WinGet and Scoop packages from home/.chezmoidata/packages.yaml' }
-        'git' { 'Check the Git identity and render ~/.gitconfig from the git template' }
-        'accounts' { 'Log in to GitHub with gh and check the SSH key in the Bitwarden agent' }
-        'fonts' { 'Install Nerd Fonts from the manifest with Scoop' }
-        'shell' { 'Set XDG_CONFIG_HOME and the PowerShell 7 profile stub' }
-        'apply' { 'Apply dotfiles from home/ with chezmoi (externals come later)' }
-        'desktop' { 'Set user registry values (HKCU) from home/.chezmoidata/windows.yaml' }
-        'wallpaper' { 'Fetch the wallpaper repository and set the desktop wallpaper' }
-        'sync' { 'Register the dots-sync Scheduled Task: check the repository at logon and every 6 hours' }
-        'system' { 'Admin: machine registry values (UTC clock, Fast Startup off), disable the OpenSSH agent service, NVIDIA App' }
+        'apps' { 'Install the apps and command-line tools this setup uses' }
+        'git-config' { 'Set your Git name and email, write ~/.gitconfig' }
+        'github-login' { 'Log in to GitHub and check your SSH key' }
+        'fonts' { 'Install the Nerd Fonts' }
+        'shell-setup' { 'Make PowerShell 7 load the shared profile (prompt, colours, the dots command)' }
+        'dotfiles' { 'Copy the config files from the repository into your user folder' }
+        'desktop-settings' { 'Change Windows settings for your user account (Explorer, dark mode)' }
+        'wallpaper' { 'Download the wallpaper collection and set the desktop wallpaper' }
+        'auto-check' { 'Check GitHub for repository changes in the background, notify only' }
+        'system-settings' { 'Change settings for the whole computer, as administrator' }
     }
+}
+
+# What a step does to this computer, in plain words, shown before its preview:
+# Does (what changes, where), Never (what it leaves alone), Undo (how to reverse it)
+function Get-StepDetail([string]$Step) {
+    switch ($Step) {
+        'apps' {
+            @{
+                Does = @(
+                    'Installs the missing apps listed in home/.chezmoidata/packages.yaml: desktop apps with winget (where each installer puts them, some ask for administrator rights), command-line tools with Scoop (into ~\scoop, adding ~\scoop\shims to your PATH), PowerShell modules from the PowerShell Gallery (into Documents\PowerShell\Modules).',
+                    'Installs Scoop itself the first time (from get.scoop.sh).'
+                )
+                Never = 'uninstall or upgrade anything already installed (dots update upgrades, after asking).'
+                Undo = 'winget uninstall --id <id>, scoop uninstall <app>, Uninstall-Module <name>.'
+            }
+        }
+        'git-config' {
+            @{
+                Does = @(
+                    'Asks for your Git name and email if they are missing, and keeps them in ~\.config\chezmoi\chezmoi.toml on this computer only (never in the repository).',
+                    'Replaces ~\.gitconfig with the one built from home/dot_gitconfig.tmpl (the preview shows the difference).'
+                )
+                Never = 'change the settings of any Git repository.'
+                Undo = 'edit ~\.gitconfig by hand; the next dotfiles or git-config run writes it again from the template.'
+            }
+        }
+        'github-login' {
+            @{
+                Does = @(
+                    'If the GitHub CLI is not logged in, opens your browser to log in to GitHub over HTTPS; gh keeps the token in Windows Credential Manager.',
+                    'Checks that the Bitwarden SSH agent holds a key and that GitHub accepts it; if GitHub does not know the key yet, offers to add its public key to your GitHub account.',
+                    'Stops with a warning while Bitwarden is not set up: skip the step until then.'
+                )
+                Never = 'store a token or a key in the repository.'
+                Undo = 'gh auth logout; remove the key at github.com/settings/keys.'
+            }
+        }
+        'fonts' {
+            @{
+                Does = @(
+                    'Adds the Scoop bucket nerd-fonts and installs each Nerd Font from the manifest for your user account; open apps see them after a restart.'
+                )
+                Never = 'touch fonts installed for all users.'
+                Undo = 'scoop uninstall <font>-NF (for example JetBrainsMono-NF).'
+            }
+        }
+        'shell-setup' {
+            @{
+                Does = @(
+                    'Sets the user environment variable XDG_CONFIG_HOME to ~\.config, where Neovim, oh-my-posh and Git then read their settings.',
+                    'Writes Documents\PowerShell\profile.ps1, a 3-line file that loads ~\.config\powershell\profile.ps1 (prompt, colours, the dots command). A different file already there is renamed to profile.ps1.bak-<time> first.'
+                )
+                Never = 'edit Microsoft.PowerShell_profile.ps1 (it only warns that the file still loads).'
+                Undo = 'delete Documents\PowerShell\profile.ps1 (or restore the .bak file) and remove XDG_CONFIG_HOME under System Properties > Environment Variables.'
+            }
+        }
+        'dotfiles' {
+            @{
+                Does = @(
+                    'Copies the config files kept in home/ (Git, SSH, Neovim, WezTerm, PowerShell profile, ...) into your user folder, overwriting the ones that differ; the preview shows every difference.',
+                    'Asks before overwriting a file that was edited outside dots.'
+                )
+                Never = 'delete files it does not manage, or download the wallpapers (the wallpaper step does).'
+                Undo = 'there is no backup of the overwritten files: to keep a local edit, skip this step and run dots capture, which saves it into the repository instead.'
+            }
+        }
+        'desktop-settings' {
+            @{
+                Does = @(
+                    'Writes the user registry values from home/.chezmoidata/windows.yaml (HKCU: show file extensions, show hidden files, dark mode for apps), only the ones that differ; the preview shows old -> new.',
+                    'Restarts Explorer when an Explorer value changes: the taskbar disappears for a moment and open File Explorer windows close.'
+                )
+                Never = 'change settings for the whole computer (system-settings does).'
+                Undo = 'set the option back in Settings or in File Explorer options.'
+            }
+        }
+        'wallpaper' {
+            $dir = (Get-ChezmoiValue '.wallpapers.dir' 'Pictures/wallpaper') -replace '/', '\'
+            $image = Get-ChezmoiValue '.wallpapers.current' 'the configured image'
+            @{
+                Does = @(
+                    "Downloads the private repository TienHwng/wallpapers into ~\$dir with your GitHub login, or updates it when it is already there.",
+                    "Sets $image from it as the desktop wallpaper."
+                )
+                Never = "touch a folder at ~\$dir that is not that repository: it stops instead (Windows ignores letter case, so a folder named $($dir.ToUpperInvariant()) counts)."
+                Undo = 'pick another wallpaper in Settings; delete the folder to remove the images.'
+            }
+        }
+        'auto-check' {
+            @{
+                Does = @(
+                    'Registers the Scheduled Task \dots\dots-sync for your user: at logon and every 6 hours it asks GitHub for new commits and shows a notification when there are some. It never downloads or changes files.',
+                    'Registers the dots-sync: link (HKCU\Software\Classes\dots-sync) so the notification''s Sync now button opens Windows Terminal running dots sync, which shows the commits and asks first.'
+                )
+                Never = 'pull, apply or install anything on its own.'
+                Undo = 'Unregister-ScheduledTask -TaskPath ''\dots\'' -TaskName dots-sync; Remove-Item HKCU:\Software\Classes\dots-sync -Recurse.'
+            }
+        }
+        'system-settings' {
+            @{
+                Does = @(
+                    'Opens an administrator window (UAC) and there:',
+                    'writes the machine registry values from home/.chezmoidata/windows.yaml (HKLM): hardware clock in UTC so the time matches CachyOS, Fast Startup off so the Windows disk is fully shut down for the other OS;',
+                    'stops and disables the Windows OpenSSH Authentication Agent service, so the Bitwarden SSH agent can take its place (only while .accounts.ssh.agent is bitwarden, the default);',
+                    'with an NVIDIA graphics card and no NVIDIA App: downloads the installer pinned in windows.yaml from nvidia.com, checks its SHA-256 and NVIDIA signature, then runs it.',
+                    'Some changes take effect after a restart.'
+                )
+                Never = 'run without asking, or without a terminal.'
+                Undo = 'set the values back in an administrator PowerShell (the preview shows the old ones); Set-Service ssh-agent -StartupType Manual; uninstall the NVIDIA App from Settings > Apps.'
+            }
+        }
+    }
+}
+
+function Write-StepDetail([string]$Step) {
+    $detail = Get-StepDetail $Step
+    Write-Host '  What it does to this computer:'
+    $detail.Does | ForEach-Object { Write-Host "    - $_" }
+    Write-Host "  It does not $($detail.Never)"
+    Write-Host "  To undo: $($detail.Undo)"
 }
 
 function Test-StepEnabled([string]$Step) {
     switch ($Step) {
         'fonts' { return (Get-ChezmoiValue '.features.installFonts' 'true') -eq 'true' }
-        'shell' { return (Get-ChezmoiValue '.features.setupShell' 'true') -eq 'true' }
-        'desktop' { return (Get-ChezmoiValue '.features.desktop' 'true') -eq 'true' }
+        'shell-setup' { return (Get-ChezmoiValue '.features.setupShell' 'true') -eq 'true' }
+        'desktop-settings' { return (Get-ChezmoiValue '.features.desktop' 'true') -eq 'true' }
         'wallpaper' { return (Get-ChezmoiValue '.features.wallpapers' 'true') -eq 'true' }
         default { return $true }
     }
+}
+
+# The new name of a step or command renamed on 2026-11-03, or $null
+function Get-RenamedStep([string]$Name) {
+    if ($script:RenamedSteps.ContainsKey($Name)) {
+        return $script:RenamedSteps[$Name]
+    }
+    return $null
 }
 
 # Apply the given targets, or everything except externals (the wallpaper step fetches those)
@@ -168,23 +306,23 @@ function Invoke-Step([string]$Step, [string]$Mode) {
     $quiet = $Mode -eq 'preview' -or $NonInteractive
 
     switch ($Step) {
-        'packages' { & (Join-Path $PSScriptRoot 'install-packages.ps1') -DryRun:$dry; if (-not $dry) { Update-ProcessPath } }
-        'git' {
+        'apps' { & (Join-Path $PSScriptRoot 'install-packages.ps1') -DryRun:$dry -Upgrade:$Upgrade; if (-not $dry) { Update-ProcessPath } }
+        'git-config' {
             & (Join-Path $PSScriptRoot 'setup-git.ps1') -DryRun:$dry -NonInteractive:$quiet
             Invoke-ChezmoiApply $Mode @(Join-Path $HOME '.gitconfig')
         }
-        'accounts' { & (Join-Path $PSScriptRoot 'setup-accounts.ps1') -DryRun:$dry -NonInteractive:$quiet }
+        'github-login' { & (Join-Path $PSScriptRoot 'setup-accounts.ps1') -DryRun:$dry -NonInteractive:$quiet }
         'fonts' { & (Join-Path $PSScriptRoot 'install-fonts.ps1') -DryRun:$dry }
-        'shell' { & (Join-Path $PSScriptRoot 'setup-shell.ps1') -Shell 'pwsh' -DryRun:$dry }
-        'apply' { Invoke-ChezmoiApply $Mode }
-        'desktop' { & (Join-Path $PSScriptRoot 'setup-registry.ps1') -Scope user -DryRun:$dry }
+        'shell-setup' { & (Join-Path $PSScriptRoot 'setup-shell.ps1') -Shell 'pwsh' -DryRun:$dry }
+        'dotfiles' { Invoke-ChezmoiApply $Mode }
+        'desktop-settings' { & (Join-Path $PSScriptRoot 'setup-registry.ps1') -Scope user -DryRun:$dry }
         'wallpaper' { & (Join-Path $PSScriptRoot 'setup-wallpaper.ps1') -DryRun:$dry }
-        'sync' { & (Join-Path $PSScriptRoot 'setup-sync.ps1') -DryRun:$dry }
-        'system' { Invoke-System -Preview:$dry }
+        'auto-check' { & (Join-Path $PSScriptRoot 'setup-sync.ps1') -DryRun:$dry }
+        'system-settings' { Invoke-System -Preview:$dry }
     }
 }
 
-# The system step previews as the current user; applying it needs admin, so a normal
+# The system-settings step previews as the current user; applying it needs admin, so a normal
 # shell opens the same script in an administrator window (UAC) and waits for it.
 function Invoke-System([switch]$Preview) {
     $systemScript = Join-Path $PSScriptRoot 'setup-system.ps1'
@@ -192,12 +330,12 @@ function Invoke-System([switch]$Preview) {
         & $systemScript -DryRun
         $exitCode = $LASTEXITCODE
     } elseif ($NonInteractive) {
-        Stop-Tool 'The system step changes machine settings and never runs non-interactively.'
+        Stop-Tool 'The system-settings step changes machine settings and never runs non-interactively.'
     } elseif (Test-Elevated) {
         & $systemScript
         $exitCode = $LASTEXITCODE
     } else {
-        Write-Step 'Opening an administrator window for the system step...'
+        Write-Step 'Opening an administrator window for system-settings...'
         $shell = (Get-Process -Id $PID).Path
         $process = Start-Process -FilePath $shell -Verb RunAs -Wait -PassThru -ArgumentList @(
             '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$systemScript`"", '-PauseOnExit'
@@ -205,7 +343,7 @@ function Invoke-System([switch]$Preview) {
         $exitCode = $process.ExitCode
     }
     if ($exitCode -ne 0) {
-        Stop-Tool "The system step failed (exit code $exitCode)"
+        Stop-Tool "The system-settings step failed (exit code $exitCode)"
     }
 }
 
@@ -214,12 +352,12 @@ function Get-StepsForPath([string[]]$Path) {
     $wanted = @{}
     foreach ($item in $Path) {
         switch -Wildcard ($item) {
-            'home/.chezmoidata/packages.yaml' { $wanted.packages = $true; $wanted.fonts = $true; break }
-            'home/.chezmoidata/windows.yaml' { $wanted.desktop = $true; $wanted.system = $true; break }
+            'home/.chezmoidata/packages.yaml' { $wanted['apps'] = $true; $wanted['fonts'] = $true; break }
+            'home/.chezmoidata/windows.yaml' { $wanted['desktop-settings'] = $true; $wanted['system-settings'] = $true; break }
             'home/.chezmoidata/kde.yaml' { break }
-            'home/.chezmoiexternal.toml.tmpl' { $wanted.apply = $true; $wanted.wallpaper = $true; break }
-            'home/.chezmoidata.yaml' { $wanted.apply = $true; $wanted.wallpaper = $true; break }
-            'home/*' { $wanted.apply = $true; break }
+            'home/.chezmoiexternal.toml.tmpl' { $wanted['dotfiles'] = $true; $wanted['wallpaper'] = $true; break }
+            'home/.chezmoidata.yaml' { $wanted['dotfiles'] = $true; $wanted['wallpaper'] = $true; break }
+            'home/*' { $wanted['dotfiles'] = $true; break }
         }
     }
     return @($script:Steps | Where-Object { $wanted.ContainsKey($_) })
@@ -302,20 +440,24 @@ function Invoke-Status {
     }
     if (Test-Command 'Get-ScheduledTask') {
         $task = Get-ScheduledTask -TaskName 'dots-sync' -TaskPath '\dots\' -ErrorAction SilentlyContinue
-        $taskState = if ($task) { "$($task.State)" } else { 'not registered (run the sync step: dots bootstrap)' }
+        $taskState = if ($task) { "$($task.State)" } else { 'not registered (run: dots auto-check)' }
         Write-Host "Sync task    $taskState"
     }
 }
 
 function Invoke-SystemCommand {
+    Write-Step "[system-settings] $(Get-StepTitle 'system-settings')"
+    Write-StepDetail 'system-settings'
     if ($DryRun) {
+        Write-Host '  Dry run, nothing changes:'
         Invoke-System -Preview
         return
     }
     if ($NonInteractive) {
-        Stop-Tool 'dots system changes machine settings and never runs non-interactively; use -DryRun to preview.'
+        Stop-Tool 'dots system-settings changes machine settings and never runs non-interactively; use -DryRun to preview.'
     }
 
+    Write-Host '  Preview, nothing has changed yet:'
     Invoke-System -Preview
     if (Confirm-Yes 'Apply these system settings as administrator?') {
         Invoke-System
@@ -340,7 +482,7 @@ function Write-ManualChecklist {
 function Invoke-StepList([string[]]$StepList, [string[]]$SkipStep = @()) {
     $script:StoppedEarly = $false
     foreach ($step in $StepList) {
-        Write-Step "[$step] $(Get-StepDescription $step)"
+        Write-Step "[$step] $(Get-StepTitle $step)"
 
         if ($step -in $SkipStep) {
             Write-ToolWarning "Skipping $step"
@@ -350,15 +492,20 @@ function Invoke-StepList([string[]]$StepList, [string[]]$SkipStep = @()) {
             Write-ToolWarning "Skipping $step (disabled in .features)"
             continue
         }
-        if ($step -eq 'system' -and $NonInteractive -and -not $DryRun) {
-            Write-ToolWarning 'Skipping system (admin; it never runs non-interactively, run dots system later)'
+        if ($step -eq 'system-settings' -and $NonInteractive -and -not $DryRun) {
+            Write-ToolWarning 'Skipping system-settings (admin; it never runs non-interactively, run dots system-settings later)'
             continue
+        }
+        Write-StepDetail $step
+        if ($DryRun) {
+            Write-Host '  Dry run, nothing changes:'
         }
         if ($DryRun -or $NonInteractive) {
             Invoke-Step $step 'run'
             continue
         }
 
+        Write-Host '  Preview, nothing has changed yet:'
         try {
             Invoke-Step $step 'preview'
         } catch {
@@ -381,6 +528,10 @@ function Invoke-Bootstrap {
     $skipSteps = @($Skip | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     foreach ($step in $skipSteps) {
         if ($step -notin $script:Steps) {
+            $renamed = Get-RenamedStep $step
+            if ($renamed) {
+                Stop-Tool "Unknown step: $step (renamed to $renamed)"
+            }
             Stop-Tool "Unknown step: $step (steps: $($script:Steps -join ' '))"
         }
     }
@@ -399,25 +550,6 @@ function Invoke-Bootstrap {
 
     Write-Success 'Bootstrap complete'
     Write-ManualChecklist
-}
-
-function Invoke-PackageInstall {
-    if ($Diff) {
-        & (Join-Path $PSScriptRoot 'package-diff.ps1')
-        return
-    }
-    $installer = Join-Path $PSScriptRoot 'install-packages.ps1'
-    if ($DryRun -or $NonInteractive) {
-        & $installer -DryRun:$DryRun -Upgrade:$Upgrade
-        return
-    }
-
-    & $installer -DryRun -Upgrade:$Upgrade
-    if (Confirm-Yes 'Install these packages?') {
-        & $installer -Upgrade:$Upgrade
-    } else {
-        Write-ToolWarning 'Nothing installed'
-    }
 }
 
 function Test-SshAgentKey {
@@ -471,25 +603,25 @@ function Invoke-Doctor {
     if ([Environment]::GetEnvironmentVariable('XDG_CONFIG_HOME', 'User') -eq $configHome) {
         Write-Success "XDG_CONFIG_HOME is $configHome"
     } else {
-        Write-ToolWarning 'XDG_CONFIG_HOME is not set; run the shell step: dots bootstrap'
+        Write-ToolWarning 'XDG_CONFIG_HOME is not set; run: dots shell-setup'
     }
     $stubFile = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'PowerShell\profile.ps1'
     if ((Test-Path -LiteralPath $stubFile) -and
         (Select-String -LiteralPath $stubFile -SimpleMatch 'Written by dotfiles' -Quiet)) {
         Write-Success "Profile stub: $stubFile"
     } else {
-        Write-ToolWarning "Profile stub missing at $stubFile; run the shell step: dots bootstrap"
+        Write-ToolWarning "Profile stub missing at $stubFile; run: dots shell-setup"
     }
 
     Write-Step 'SSH agent'
     if ((Get-ChezmoiValue '.accounts.ssh.agent' 'bitwarden') -ne 'bitwarden') {
         Write-Success 'SSH keys are files on disk (.accounts.ssh.agent = file)'
     } elseif (Test-WindowsAgentRunning) {
-        Write-ToolWarning 'The Windows OpenSSH Authentication Agent is running and blocks Bitwarden; run: dots system'
+        Write-ToolWarning 'The Windows OpenSSH Authentication Agent is running and blocks Bitwarden; run: dots system-settings'
     } elseif (Test-SshAgentKey) {
         Write-Success 'Bitwarden SSH agent is running and holds keys'
     } else {
-        Write-ToolWarning 'Bitwarden SSH agent is not running or holds no keys; see the accounts step: dots bootstrap'
+        Write-ToolWarning 'Bitwarden SSH agent is not running or holds no keys; see: dots github-login'
     }
 
     Write-Step 'Sync task'
@@ -497,7 +629,7 @@ function Invoke-Doctor {
         if (Get-ScheduledTask -TaskName 'dots-sync' -TaskPath '\dots\' -ErrorAction SilentlyContinue) {
             Write-Success 'The dots-sync task is registered (repository check at logon and every 6 hours)'
         } else {
-            Write-ToolWarning 'The dots-sync task is not registered; run the sync step: dots bootstrap'
+            Write-ToolWarning 'The dots-sync task is not registered; run: dots auto-check'
         }
     } else {
         Write-ToolWarning 'Scheduled Tasks are unavailable; the repository check cannot run here'
@@ -536,8 +668,16 @@ function Invoke-DotsCommand {
 
     switch ($Command) {
         'bootstrap' { Invoke-Bootstrap }
-        'packages' { Invoke-PackageInstall }
-        'system' { Invoke-SystemCommand }
+        # These two are steps too: break keeps the step clause below from running them again
+        'apps' {
+            if ($Diff) {
+                & (Join-Path $PSScriptRoot 'package-diff.ps1')
+            } else {
+                Invoke-StepList @('apps')
+            }
+            break
+        }
+        'system-settings' { Invoke-SystemCommand; break }
         'sync' { Invoke-SyncCommand }
         'status' { Invoke-Status }
         'capture' { & (Join-Path $PSScriptRoot 'capture.ps1') -DryRun:$DryRun -NonInteractive:$NonInteractive }
@@ -563,6 +703,10 @@ function Invoke-DotsCommand {
             Invoke-StepList @($Command)
         }
         default {
+            $renamed = Get-RenamedStep $Command
+            if ($renamed) {
+                Stop-Tool "Unknown command: $Command (renamed to $($renamed): dots $renamed)"
+            }
             Show-Usage
             Stop-Tool "Unknown command: $Command"
         }

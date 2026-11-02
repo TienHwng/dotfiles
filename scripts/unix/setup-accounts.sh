@@ -106,7 +106,7 @@ esac
 # helper, so gh auth login does not offer to edit ~/.gitconfig (never run gh auth setup-git).
 github_login() {
   if ! has gh; then
-    log_warn 'GitHub CLI (gh) not found; install it with the packages step.'
+    log_warn 'GitHub CLI (gh) not found; install it with the apps step.'
     return 0
   fi
   if [[ "$DRY_RUN" == '1' ]]; then
@@ -124,7 +124,7 @@ github_login() {
   fi
 
   if ! git config --get-all 'credential.https://github.com.helper' 2>/dev/null | grep -q 'auth git-credential'; then
-    log_warn "If gh asks 'Authenticate Git with your GitHub credentials?', answer No: home/dot_gitconfig.tmpl owns ~/.gitconfig. Run the apply step first to avoid the question."
+    log_warn "If gh asks 'Authenticate Git with your GitHub credentials?', answer No: home/dot_gitconfig.tmpl owns ~/.gitconfig. Run the dotfiles step first to avoid the question."
   fi
   gh auth login --hostname github.com --git-protocol https --web
 }
@@ -292,7 +292,7 @@ setup_key_file() {
     if [[ "$DRY_RUN" == '1' ]]; then
       log_warn 'Non-interactive key generation requires --allow-unencrypted-key; no key would be created.'
     else
-      die 'Refusing to create an unencrypted SSH key non-interactively. Pre-create a protected key, use --skip accounts, or explicitly pass --allow-unencrypted-key.'
+      die 'Refusing to create an unencrypted SSH key non-interactively. Pre-create a protected key, use --skip github-login, or explicitly pass --allow-unencrypted-key.'
     fi
   fi
 

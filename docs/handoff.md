@@ -6,7 +6,7 @@ nothing is shared between the two OSes except this GitHub repository. Read this 
 then [memory.md](memory.md) (also loaded through [../CLAUDE.md](../CLAUDE.md)),
 [README.md](README.md), and the parts of [design.md](design.md) you touch. The owner should not have to explain anything again.
 
-Last updated: 2026-10-29, first Windows session.
+Last updated: 2026-11-03 (step names and descriptions).
 
 ---
 
@@ -26,10 +26,10 @@ Every roadmap phase P0–P7 is written and tested in CI. What has run for real:
 | Bootstrap, packages, dotfiles (P1–P3) | Daily use | **Never run** |
 | Wallpaper (P4) | Done | Not run |
 | KDE keys / HKCU registry (P5a/P5b) | Done | Not run |
-| `dots system` (P5b/P5c/P6) | Done 2026-10-29: 8 theme packages, pacman drop-in, broken `IgnorePkg` line gone, rescue GRUB entry removed, GRUB/Plymouth/SDDM fine after reboot | Not run (UTC clock, Fast Startup off, OpenSSH agent off, NVIDIA App) |
+| `dots system-settings` (P5b/P5c/P6) | Done 2026-10-29: 8 theme packages, pacman drop-in, broken `IgnorePkg` line gone, rescue GRUB entry removed, GRUB/Plymouth/SDDM fine after reboot | Not run (UTC clock, Fast Startup off, OpenSSH agent off, NVIDIA App) |
 | Sync timer / task (P7a) | Timer enabled | Not registered |
 | Capture (P7b) | Dry-run only | Not run |
-| Kuro splash | Moved to `kde/plasma/look-and-feel/a2n.kuro`, copied as real files by the desktop step (Plasma refused the chezmoi symlinks, so the theme had vanished) | Not applicable |
+| Kuro splash | Moved to `kde/plasma/look-and-feel/a2n.kuro`, copied as real files by the desktop-settings step (Plasma refused the chezmoi symlinks, so the theme had vanished) | Not applicable |
 | Bitwarden SSH agent (PoC-3) | Not installed yet | Not installed yet |
 
 The authoritative list of open items is the "Deferred owner tasks" table in
@@ -41,14 +41,14 @@ First Windows session (2026-10-29), read-only checks before any `dots` step ran:
   chezmoi default `%USERPROFILE%\.local\share\chezmoi` (one clone only). No chezmoi config,
   Scoop, gum, jq or Scheduled Task yet; `gh` logged in over HTTPS; chezmoi installed with
   winget for the tests.
-- Already as `dots system` wants it: `RealTimeIsUniversal=1`, `HiberbootEnabled=0`,
+- Already as `dots system-settings` wants it: `RealTimeIsUniversal=1`, `HiberbootEnabled=0`,
   `ssh-agent` disabled, NVIDIA App 11.0.9.565 installed.
 - PoC-4: `Documents` is not redirected (`C:\Users\Hwng\Documents`), OneDrive runs.
 - Armoury Crate came from the BIOS as the Store package `B9ECED6F.ArmouryCrate`; the manifest
-  entry now carries `appx:` so the packages step does not reinstall it.
+  entry now carries `appx:` so the apps step does not reinstall it.
 - The owner's hand-made `Microsoft.PowerShell_profile.ps1` (Catppuccin, Terminal-Icons,
   PSReadLine, fastfetch) moved into the shared profile; the owner deletes that file after
-  the `shell` and `apply` steps.
+  the `shell-setup` and `dotfiles` steps.
 - Open, for the owner: `C:\Users\Hwng\Pictures\WALLPAPER` is a personal folder (not a clone),
   and Windows paths ignore case, so the `wallpaper` step refuses it; and winget already has
   CLI tools the manifest takes from Scoop (`GitHub.cli`, `junegunn.fzf`, `Neovim.Neovim`,
@@ -64,24 +64,26 @@ Then they open Claude Code in that folder. From there:
 1. **Check the clone.** `git -C $env:USERPROFILE\.local\share\chezmoi status -sb` should be
    `main...origin/main`. If bootstrap stopped early, run it again; every step is idempotent.
 2. **Walk `dots bootstrap` with the owner** (`pwsh`, then `dots bootstrap`; the `dots`
-   function comes from the shared profile after the `shell` step, before that use
-   `pwsh -File scripts\windows\dots.ps1 bootstrap`). Steps and what to check:
-   - `packages`: winget, Scoop, then PowerShell Gallery modules. Armoury Crate from the BIOS
+   function comes from the shared profile after the `shell-setup` step, before that use
+   `pwsh -File scripts\windows\dots.ps1 bootstrap`). Each step prints what it will do to
+   the computer before its preview (since 2026-11-03); the steps were renamed then too. Steps
+   and what to check:
+   - `apps`: winget, Scoop, then PowerShell Gallery modules. Armoury Crate from the BIOS
      shows as installed (Store package, `appx:` in the manifest).
-   - `git`, `accounts`: `gh auth login` over HTTPS. Bitwarden is optional for now (PoC-3 is
-     deferred); if the owner skips it, the accounts step warns and continues.
-   - `fonts`, `shell` (`XDG_CONFIG_HOME`, profile stub), `apply`.
-   - `desktop`: HKCU values from `home/.chezmoidata/windows.yaml` (file extensions, hidden
+   - `git-config`, `github-login`: `gh auth login` over HTTPS. Bitwarden is optional for now (PoC-3 is
+     deferred); if the owner skips it, the github-login step warns and continues.
+   - `fonts`, `shell-setup` (`XDG_CONFIG_HOME`, profile stub), `dotfiles`.
+   - `desktop-settings`: HKCU values from `home/.chezmoidata/windows.yaml` (file extensions, hidden
      files, dark apps); Explorer restarts.
    - `wallpaper`: clones the private `TienHwng/wallpapers` through the gh credential helper
      and sets `space2.jpg`.
-   - `sync`: registers the Scheduled Task `\dots\dots-sync` and the `dots-sync:` protocol.
+   - `auto-check`: registers the Scheduled Task `\dots\dots-sync` and the `dots-sync:` protocol.
      Test with `Start-ScheduledTask -TaskPath '\dots\' -TaskName dots-sync` after a commit
      exists that Windows does not have yet: a toast with *Sync now* should appear and open
      Windows Terminal running `dots sync`.
-   - `system` (UAC): HKLM `RealTimeIsUniversal=1` and `HiberbootEnabled=0`, OpenSSH
+   - `system-settings` (UAC): HKLM `RealTimeIsUniversal=1` and `HiberbootEnabled=0`, OpenSSH
      Authentication Agent disabled, NVIDIA App from the pinned download.
-3. **Run `dots system` a second time**: it must report nothing to change, and the NVIDIA App
+3. **Run `dots system-settings` a second time**: it must report nothing to change, and the NVIDIA App
    as installed. This also confirms the uninstall entry name `NVIDIA app` that
    `install-nvidia-app.ps1` looks for; if detection fails, find the real `DisplayName` with
    `Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\* | ? DisplayName -like 'NVIDIA*'`

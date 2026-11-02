@@ -13,7 +13,7 @@
 .config/tmux
 {{- end }}
 
-{{- /* KDE *rc files are managed per key from .chezmoidata/kde.yaml (dots desktop step);
+{{- /* KDE *rc files are managed per key from .chezmoidata/kde.yaml (dots desktop-settings step);
        never add them whole, Plasma rewrites them constantly */}}
 .config/kdeglobals
 .config/kglobalshortcutsrc
@@ -21,7 +21,7 @@
 .config/kwinrc
 .config/plasmashellrc
 
-{{- /* Plasma packages (splash/global themes) live in kde/ and the desktop step copies them;
+{{- /* Plasma packages (splash/global themes) live in kde/ and the desktop-settings step copies them;
        Plasma refuses package files that are symlinks out of the package */}}
 .local/share/plasma
 
